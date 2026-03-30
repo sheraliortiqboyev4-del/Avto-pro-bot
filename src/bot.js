@@ -65,22 +65,56 @@ startServer(config.port || 3000);
 
 // --- 2. BOT INITIALIZATION ---
 const bot = new TelegramBot(config.botToken, { 
-    polling: {
-        autoStart: true,
-        params: {
-            timeout: 10
+    polling: false // Avval pollingni o'chirib turamiz
+});
+
+// Pollingni xavfsiz boshlash funksiyasi
+const startPolling = async () => {
+    try {
+        // Eski webhook yoki sessiyalarni tozalash
+        await bot.deleteWebhook();
+        console.log("🧹 Eski sessiyalar tozalandi.");
+        
+        // Pollingni boshlash
+        bot.startPolling();
+        console.log("🤖 Polling boshlandi...");
+    } catch (err) {
+        console.error("❌ Pollingni boshlashda xato:", err.message);
+        // Agar 409 bo'lsa, 5 soniyadan keyin qayta urinish
+        if (err.message.includes('409')) {
+            setTimeout(startPolling, 5000);
         }
     }
-});
+};
+
+startPolling();
 
 // Polling error handling
 bot.on('polling_error', (error) => {
     if (error.message.includes('409 Conflict')) {
-        console.error("⚠️ [DOUBLE LOGIN] Bot boshqa joyda ham ishlamoqda! Faqat bitta instansiya qoldiring.");
+        console.error("⚠️ [409 Conflict] Bot boshqa joyda ham ishlamoqda. Eski sessiya hali yopilmagan bo'lishi mumkin.");
     } else {
         console.error("Polling error:", error.message);
     }
-}); 
+});
+
+// --- GRACEFUL SHUTDOWN (Render Deploy uchun) ---
+const shutdown = async (signal) => {
+    console.log(`\n Industrial shutdown (${signal})...`);
+    try {
+        await bot.stopPolling();
+        console.log("🛑 Polling to'xtatildi.");
+        await mongoose.connection.close();
+        console.log("🔌 MongoDB ulanishi yopildi.");
+        process.exit(0);
+    } catch (err) {
+        console.error("Shutdown error:", err.message);
+        process.exit(1);
+    }
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT')); 
 
 // Interceptors for Premium Emojis
 const originalSendMessage = bot.sendMessage.bind(bot);
