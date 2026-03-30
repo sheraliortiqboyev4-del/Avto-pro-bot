@@ -1,3 +1,14 @@
+// --- 0. GLOBAL ERROR HANDLING (CRASH PROTECTION) ---
+process.on('uncaughtException', (err) => {
+    console.error('❌ UNCAUGHT EXCEPTION:', err.message);
+    console.error(err.stack);
+    // Jarayonni to'xtatmaymiz, shunchaki log qilamiz
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ UNHANDLED REJECTION at:', promise, 'reason:', reason);
+});
+
 const TelegramBot = require('node-telegram-bot-api'); 
 const mongoose = require('mongoose'); 
 const express = require('express');
@@ -20,15 +31,21 @@ app.get('/', (req, res) => res.send('Bot is running!'));
 
 // --- RENDER SELF-PING SYSTEM ---
 const axios = require('axios');
-const RENDER_URL = process.env.RENDER_EXTERNAL_URL || `https://${process.env.RENDER_SERVICE_NAME}.onrender.com`;
+const RENDER_URL = process.env.RENDER_EXTERNAL_URL || (process.env.RENDER_SERVICE_NAME ? `https://${process.env.RENDER_SERVICE_NAME}.onrender.com` : null);
 
-setInterval(() => {
-    if (RENDER_URL && !RENDER_URL.includes('undefined')) {
+if (RENDER_URL) {
+    console.log(`📡 Self-ping tizimi faollashtirildi: ${RENDER_URL}`);
+    setInterval(() => {
         axios.get(RENDER_URL)
-            .then(() => console.log('Self-ping muvaffaqiyatli: Bot uyg\'oq!'))
-            .catch((err) => console.log('Self-ping xatosi:', err.message));
-    }
-}, 10 * 60 * 1000); // Har 10 daqiqada o'zini uyg'otadi
+            .then(() => console.log('📡 Self-ping: Bot uyg\'oq!'))
+            .catch((err) => {
+                // Xatolikni faqat bir qator qilib log qilamiz, loglarni to'ldirmaslik uchun
+                console.log('📡 Self-ping ulanish xatosi (Bot baribir ishlayapti)');
+            });
+    }, 10 * 60 * 1000); // Har 10 daqiqada
+} else {
+    console.log('📡 Self-ping tizimi ishga tushmadi (URL topilmadi)');
+}
 
 const startServer = (port) => {
     const p = parseInt(port);
