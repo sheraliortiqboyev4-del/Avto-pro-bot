@@ -68,12 +68,17 @@ const bot = new TelegramBot(config.botToken, {
     polling: false // Avval pollingni o'chirib turamiz
 });
 
+// --- 4. HANDLERS INTEGRATION --- 
+require('./handlers/commands')(bot); 
+require('./handlers/callbacks')(bot); 
+require('./handlers/messages')(bot); 
+
 // Pollingni xavfsiz boshlash funksiyasi
 const startPolling = async () => {
     try {
         // Eski webhook yoki sessiyalarni tozalash
         await bot.deleteWebhook();
-        console.log("🧹 Eski sessiyalar tozalandi.");
+        console.log("Sweep: Eski sessiyalar tozalandi.");
         
         // Pollingni boshlash
         bot.startPolling();
@@ -124,7 +129,7 @@ bot.sendMessage = async function(chatId, text, options = {}) {
     const { cleanText, entities } = withPremiumEmojis(text);
     let finalOptions = { ...options };
     if (entities.length > 0) {
-        finalOptions.entities = JSON.stringify(entities); // JSON formatiga o'tkazish
+        finalOptions.entities = entities; // JSON.stringify KERAK EMAS
         delete finalOptions.parse_mode; 
         text = cleanText;
     }
@@ -132,7 +137,8 @@ bot.sendMessage = async function(chatId, text, options = {}) {
         return await originalSendMessage(chatId, text, finalOptions);
     } catch (e) {
         console.error(`Failed to send to ${chatId}:`, e.message);
-        return await originalSendMessage(chatId, text.replace(/[*_`]/g, ''), { ...options, parse_mode: undefined });
+        // Xatolik bo'lsa, formatlashsiz yuborishga harakat qilamiz
+        return await originalSendMessage(chatId, text.replace(/[_*`]/g, ''), { ...options, parse_mode: undefined, entities: undefined });
     }
 };
 
@@ -140,7 +146,7 @@ bot.editMessageText = async function(text, options = {}) {
     const { cleanText, entities } = withPremiumEmojis(text);
     let finalOptions = { ...options };
     if (entities.length > 0) {
-        finalOptions.entities = JSON.stringify(entities); // JSON formatiga o'tkazish
+        finalOptions.entities = entities; // JSON.stringify KERAK EMAS
         delete finalOptions.parse_mode; 
         text = cleanText;
     }
@@ -148,7 +154,7 @@ bot.editMessageText = async function(text, options = {}) {
         return await originalEditMessageText(text, finalOptions);
     } catch (e) {
         console.error(`Failed to edit message:`, e.message);
-        return await originalEditMessageText(text.replace(/[*_`]/g, ''), { ...options, parse_mode: undefined });
+        return await originalEditMessageText(text.replace(/[_*`]/g, ''), { ...options, parse_mode: undefined, entities: undefined });
     }
 };
 
@@ -202,11 +208,6 @@ setInterval(async () => {
         console.error("Expiry checker error:", error);
     }
 }, 60000); 
-
-// --- 4. HANDLERS INTEGRATION --- 
-require('./handlers/commands')(bot); 
-require('./handlers/callbacks')(bot); 
-require('./handlers/messages')(bot); 
 
 const hostName = os.hostname();
 const startTime = new Date().toLocaleString('en-US');
