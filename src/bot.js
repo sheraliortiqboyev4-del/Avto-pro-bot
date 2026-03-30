@@ -47,7 +47,23 @@ const startServer = (port) => {
 startServer(config.port || 3000);
 
 // --- 2. BOT INITIALIZATION ---
-const bot = new TelegramBot(config.token, { polling: true }); 
+const bot = new TelegramBot(config.botToken, { 
+    polling: {
+        autoStart: true,
+        params: {
+            timeout: 10
+        }
+    }
+});
+
+// Polling error handling
+bot.on('polling_error', (error) => {
+    if (error.message.includes('409 Conflict')) {
+        console.error("⚠️ [DOUBLE LOGIN] Bot boshqa joyda ham ishlamoqda! Faqat bitta instansiya qoldiring.");
+    } else {
+        console.error("Polling error:", error.message);
+    }
+}); 
 
 // Interceptors for Premium Emojis
 const originalSendMessage = bot.sendMessage.bind(bot);
