@@ -71,19 +71,17 @@ const bot = new TelegramBot(config.botToken, {
 // Pollingni xavfsiz boshlash funksiyasi
 const startPolling = async () => {
     try {
-        // Eski webhook yoki sessiyalarni tozalash
-        await bot.deleteWebhook();
-        console.log("Sweep: Eski sessiyalar tozalandi.");
+        // Eski webhook yoki sessiyalarni tozalash (To'g'ri metod: deleteWebHook)
+        await bot.deleteWebHook({ drop_pending_updates: true });
+        console.log("Sweep: Eski sessiyalar va webhooklar tozalandi.");
         
         // Pollingni boshlash
-        bot.startPolling();
+        await bot.startPolling();
         console.log("🤖 Polling boshlandi...");
     } catch (err) {
         console.error("❌ Pollingni boshlashda xato:", err.message);
-        // Agar 409 bo'lsa, 5 soniyadan keyin qayta urinish
-        if (err.message.includes('409')) {
-            setTimeout(startPolling, 5000);
-        }
+        // Agar 409 bo'lsa yoki boshqa vaqtinchalik xato bo'lsa, qayta urinish
+        setTimeout(startPolling, 5000);
     }
 };
 
