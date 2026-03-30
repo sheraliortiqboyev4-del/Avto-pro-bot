@@ -18,6 +18,18 @@ try {
 const app = express();
 app.get('/', (req, res) => res.send('Bot is running!'));
 
+// --- RENDER SELF-PING SYSTEM ---
+const axios = require('axios');
+const RENDER_URL = process.env.RENDER_EXTERNAL_URL || `https://${process.env.RENDER_SERVICE_NAME}.onrender.com`;
+
+setInterval(() => {
+    if (RENDER_URL && !RENDER_URL.includes('undefined')) {
+        axios.get(RENDER_URL)
+            .then(() => console.log('Self-ping muvaffaqiyatli: Bot uyg\'oq!'))
+            .catch((err) => console.log('Self-ping xatosi:', err.message));
+    }
+}, 10 * 60 * 1000); // Har 10 daqiqada o'zini uyg'otadi
+
 const startServer = (port) => {
     const p = parseInt(port);
     app.listen(p, () => {
