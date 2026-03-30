@@ -1,7 +1,7 @@
 require('dotenv').config(); 
 
 module.exports = { 
-    token: process.env.BOT_TOKEN, 
+    botToken: process.env.BOT_TOKEN, 
     apiId: parseInt(process.env.API_ID) || 2040, 
     apiHash: process.env.API_HASH || "b18441a1ff607e10a989891a5462e627", 
     adminId: parseInt(process.env.ADMIN_ID), 
