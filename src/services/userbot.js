@@ -87,10 +87,11 @@ const startUserbot = async (chatId, sessionStr, bot) => {
         }
 
         const client = new TelegramClient(new StringSession(sessionStr), config.apiId, config.apiHash, { 
-            connectionRetries: 10,
-            requestRetries: 5,
-            timeout: 30000,
+            connectionRetries: 20,
+            requestRetries: 10,
+            timeout: 60000, // 60 soniyaga oshiramiz
             autoReconnect: true,
+            floodSleepThreshold: 60, // Flood wait bo'lganda 60 soniyagacha kutishga ruxsat
             deviceModel: "AvtoBotPro_v2",
             systemVersion: "Windows 11",
             appVersion: "1.0.0"
@@ -167,10 +168,11 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
     }
 
     const client = new TelegramClient(new StringSession(""), config.apiId, config.apiHash, { 
-        connectionRetries: 10,
-        requestRetries: 5,
-        timeout: 30000,
+        connectionRetries: 20,
+        requestRetries: 10,
+        timeout: 60000,
         autoReconnect: true,
+        floodSleepThreshold: 60,
         deviceModel: "AvtoBotPro_v2",
         systemVersion: "Windows 11",
         appVersion: "1.0.0",
@@ -347,7 +349,10 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
         // 3. Tarixdan qidirish (History Scan)
         let scannedMessages = 0;
         try {
-            for await (const message of client.iterMessages(entity, { limit: 1000000 })) {
+            // Limitni nazorat qilish (Maximum 5000 xabar skan qilinadi)
+            const scanLimit = Math.min(limit * 5, 5000);
+            
+            for await (const message of client.iterMessages(entity, { limit: scanLimit })) {
                 if (gatheredUserIds.size >= limit) break;
                 scannedMessages++;
 
@@ -358,6 +363,11 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
                         members.push({ id: senderIdStr, username: sender.username });
                         gatheredUserIds.add(senderIdStr);
                     }
+                }
+                
+                // Har 100 ta xabardan keyin kichik tanaffus (Flood protection)
+                if (scannedMessages % 100 === 0) {
+                    await new Promise(r => setTimeout(r, 500));
                 }
             }
         } catch (e) {
