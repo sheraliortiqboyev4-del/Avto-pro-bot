@@ -364,7 +364,7 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
         // 3. Tarixdan qidirish (History Scan)
         let scannedMessages = 0;
         try {
-            // 1 MLN xabargacha skan qilish (user so'raganidek)
+            // 1 MLN xabargacha skan qilish
             const scanLimit = 1000000;
             
             for await (const message of client.iterMessages(entity, { limit: scanLimit })) {
@@ -372,13 +372,14 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
                 scannedMessages++;
 
                 const sender = message.sender;
-                if (sender && !sender.bot && sender.username && !sender.deleted && sender.id.toString() !== myId.toString()) {
+                // SENDER mavjudligini va u USER ekanligini tekshiramiz
+                if (sender && sender instanceof Api.User && !sender.bot && sender.username && !sender.deleted && sender.id.toString() !== myId.toString()) {
                     const senderIdStr = sender.id.toString();
                     if (!gatheredUserIds.has(senderIdStr)) {
                         members.push({ id: senderIdStr, username: sender.username });
                         gatheredUserIds.add(senderIdStr);
 
-                        // Har 100 ta yig'ilganda darhol yuborish (user so'raganidek)
+                        // Har 100 ta yig'ilganda darhol yuborish
                         if (members.length >= 100) {
                             let text = `👥 **Azolar (Yig'ilmoqda...):**\n\n`;
                             text += members.map(m => `@${m.username}`).join("\n");
