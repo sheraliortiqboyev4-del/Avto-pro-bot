@@ -68,11 +68,6 @@ const bot = new TelegramBot(config.botToken, {
     polling: false // Avval pollingni o'chirib turamiz
 });
 
-// --- 4. HANDLERS INTEGRATION --- 
-require('./handlers/commands')(bot); 
-require('./handlers/callbacks')(bot); 
-require('./handlers/messages')(bot); 
-
 // Pollingni xavfsiz boshlash funksiyasi
 const startPolling = async () => {
     try {
@@ -91,6 +86,16 @@ const startPolling = async () => {
         }
     }
 };
+
+// --- 4. HANDLERS INTEGRATION --- 
+require('./handlers/commands')(bot); 
+require('./handlers/callbacks')(bot); 
+require('./handlers/messages')(bot); 
+
+// Debug: Xabar kelayotganini tekshirish
+bot.on('message', (msg) => {
+    console.log(`📩 Xabar keldi [${msg.chat.id}]: ${msg.text || '[Media/Other]'}`);
+});
 
 startPolling();
 
@@ -126,19 +131,22 @@ const originalSendMessage = bot.sendMessage.bind(bot);
 const originalEditMessageText = bot.editMessageText.bind(bot);
 
 bot.sendMessage = async function(chatId, text, options = {}) {
-    const { cleanText, entities } = withPremiumEmojis(text);
-    let finalOptions = { ...options };
-    if (entities.length > 0) {
-        finalOptions.entities = entities; // JSON.stringify KERAK EMAS
-        delete finalOptions.parse_mode; 
-        text = cleanText;
-    }
+    // Premium emoji wrapperini vaqtincha soddalashtiramiz yoki xatolarni yaxshiroq ushlaymiz
     try {
+        const { cleanText, entities } = withPremiumEmojis(text);
+        let finalOptions = { ...options };
+        
+        if (entities && entities.length > 0) {
+            finalOptions.entities = entities;
+            delete finalOptions.parse_mode; 
+            text = cleanText;
+        }
         return await originalSendMessage(chatId, text, finalOptions);
     } catch (e) {
-        console.error(`Failed to send to ${chatId}:`, e.message);
-        // Xatolik bo'lsa, formatlashsiz yuborishga harakat qilamiz
-        return await originalSendMessage(chatId, text.replace(/[_*`]/g, ''), { ...options, parse_mode: undefined, entities: undefined });
+        console.error(`[Wrapper Error] Failed to send to ${chatId}:`, e.message);
+        // Xatolik bo'lsa, mutlaqo oddiy matn ko'rinishida yuboramiz
+        const safeText = text ? text.toString().replace(/[_*`]/g, '') : "Xatolik yuz berdi";
+        return await originalSendMessage(chatId, safeText, { chat_id: chatId });
     }
 };
 
