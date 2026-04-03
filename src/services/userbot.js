@@ -280,9 +280,9 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
         timeout: 120000,
         autoReconnect: true,
         floodSleepThreshold: 120,
-        deviceModel: "AvtoBotPro_v2",
-        systemVersion: "Windows 11",
-        appVersion: "1.0.0",
+        deviceModel: "Telegram Desktop",
+        systemVersion: "Windows 10",
+        appVersion: "4.15.2",
         useWSS: false,
         proxy: undefined
     });
@@ -300,84 +300,105 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
         reject: null
     };
 
-    // Fon rejimida loginni boshlaymiz
-    client.start({
-        phoneNumber: () => phoneNumber,
-        phoneCode: async () => {
-            console.log(`[Auth] ${chatId} uchun kod kutilmoqda...`);
-            return new Promise((resolve, reject) => {
-                global.authClients[chatId].resolveCode = resolve;
-                global.authClients[chatId].reject = reject;
-            });
-        },
-        password: async () => {
-            console.log(`[Auth] ${chatId} uchun parol kutilmoqda...`);
-            global.authClients[chatId].step = 'WAITING_PASSWORD';
-            // Bot orqali parol so'rash
-            bot.sendMessage(chatId, "🔐 Akkauntingizda **Ikki bosqichli tekshiruv (2FA)** yoqilgan. Iltimos, parolingizni yuboring:");
-            return new Promise((resolve, reject) => {
-                global.authClients[chatId].resolvePassword = resolve;
-                global.authClients[chatId].reject = reject;
-            });
-        },
-        onError: (err) => {
-            console.error(`[Auth Start Error] ${chatId}:`, err.message);
-            if (global.authClients[chatId] && global.authClients[chatId].reject) {
-                global.authClients[chatId].reject(err);
-            }
-        }
-    }).then(async () => {
-        // Muvaffaqiyatli login
-        console.log(`[Auth Success] ${chatId} muvaffaqiyatli kirdi.`);
-        const sessionStr = client.session.save();
-        
-        if (isAdditional) {
-            const user = await User.findOne({ where: { chatId } });
-            const accounts = isReyd ? (user.reydAccounts || []) : (user.reklamaAccounts || []);
-            accounts.push({ session: sessionStr, phoneNumber, addedAt: new Date() });
-
-            const updateData = isReyd ? { reydAccounts: accounts } : { reklamaAccounts: accounts };
-            await User.update(updateData, { where: { chatId } });
-            
-            const accCount = accounts.length;
-
-            if (isReyd) {
-                bot.sendMessage(chatId, `✅ Qo'shimcha akkaunt Reyd uchun ulandi: ${phoneNumber}`, getReydMenu(accCount));
-            } else {
-                bot.sendMessage(chatId, `✅ Qo'shimcha akkaunt Reklama uchun ulandi: ${phoneNumber}`, getReklamaMenu(accCount));
-            }
-        } else {
-            // Asosiy akkauntni saqlash
-            await User.update({ session: sessionStr, status: 'approved' }, { where: { chatId } });
-            const user = await User.findOne({ where: { chatId } });
-            avtoAlmazStates[chatId] = user ? user.avtoAlmaz : true;
-
-            // Avto Almaz event handlerlari...
-            const almazHandler = async (event) => { handleAlmazClick(event, chatId, bot, avtoAlmazStates); };
-            client.addEventHandler(almazHandler, new NewMessage({})); 
-            client.addEventHandler(async (update) => {
-                if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
-                    const message = update.message;
-                    if (message) handleAlmazClick({ message }, chatId, bot, avtoAlmazStates);
+    const startLogin = async () => {
+        try {
+            await client.start({
+                phoneNumber: () => phoneNumber,
+                phoneCode: async () => {
+                    console.log(`[Auth] ${chatId} uchun kod kutilmoqda...`);
+                    global.authClients[chatId].step = 'WAITING_CODE';
+                    return new Promise((resolve, reject) => {
+                        global.authClients[chatId].resolveCode = resolve;
+                        global.authClients[chatId].reject = reject;
+                    });
+                },
+                password: async () => {
+                    console.log(`[Auth] ${chatId} uchun parol kutilmoqda...`);
+                    global.authClients[chatId].step = 'WAITING_PASSWORD';
+                    // Bot orqali parol so'rash
+                    bot.sendMessage(chatId, "🔐 Akkauntingizda **Ikki bosqichli tekshiruv (2FA)** yoqilgan. Iltimos, parolingizni yuboring:");
+                    return new Promise((resolve, reject) => {
+                        global.authClients[chatId].resolvePassword = resolve;
+                        global.authClients[chatId].reject = reject;
+                    });
+                },
+                onError: (err) => {
+                    console.error(`[Auth Start Error] ${chatId}:`, err.message);
                 }
             });
 
-            bot.sendMessage(chatId, "✅ Muvaffaqiyatli kirdingiz! Endi bot funksiyalaridan foydalanishingiz mumkin.", getMainMenu(chatId));
-        }
-        
-        delete global.authClients[chatId];
-        delete global.userStates[chatId];
-    }).catch(async (err) => {
-        console.error(`[Auth Final Error] ${chatId}:`, err.message);
-        let errorMsg = `❌ Xatolik yuz berdi: ${err.message}`;
-        if (err.message.includes("PHONE_CODE_INVALID")) errorMsg = "❌ Kod noto'g'ri. Qaytadan urinib ko'ring.";
-        if (err.message.includes("PASSWORD_HASH_INVALID")) errorMsg = "❌ Parol noto'g'ri. Qaytadan urinib ko'ring.";
-        
-        bot.sendMessage(chatId, errorMsg);
-        delete global.authClients[chatId];
-        delete global.userStates[chatId];
-    });
+            // Muvaffaqiyatli login
+            console.log(`[Auth Success] ${chatId} muvaffaqiyatli kirdi.`);
+            const sessionStr = client.session.save();
+            
+            if (isAdditional) {
+                const user = await User.findOne({ where: { chatId } });
+                const accounts = isReyd ? (user.reydAccounts || []) : (user.reklamaAccounts || []);
+                accounts.push({ session: sessionStr, phoneNumber, addedAt: new Date() });
 
+                const updateData = isReyd ? { reydAccounts: accounts } : { reklamaAccounts: accounts };
+                await User.update(updateData, { where: { chatId } });
+                
+                const accCount = accounts.length;
+
+                if (isReyd) {
+                    bot.sendMessage(chatId, `✅ Qo'shimcha akkaunt Reyd uchun ulandi: ${phoneNumber}`, getReydMenu(accCount));
+                } else {
+                    bot.sendMessage(chatId, `✅ Qo'shimcha akkaunt Reklama uchun ulandi: ${phoneNumber}`, getReklamaMenu(accCount));
+                }
+            } else {
+                // Asosiy akkauntni saqlash
+                await User.update({ session: sessionStr, status: 'approved' }, { where: { chatId } });
+                const user = await User.findOne({ where: { chatId } });
+                avtoAlmazStates[chatId] = user ? user.avtoAlmaz : true;
+
+                // Avto Almaz event handlerlari...
+                const almazHandler = async (event) => { handleAlmazClick(client, event.message, chatId, bot, avtoAlmazStates); };
+                client.addEventHandler(almazHandler, new NewMessage({})); 
+                
+                // Tahrirlangan xabarlar uchun
+                client.addEventHandler(async (update) => {
+                    if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
+                        const message = update.message;
+                        if (message) handleAlmazClick(client, message, chatId, bot, avtoAlmazStates);
+                    }
+                });
+
+                bot.sendMessage(chatId, "✅ Muvaffaqiyatli kirdingiz! Endi bot funksiyalaridan foydalanishingiz mumkin.", getMainMenu(chatId));
+            }
+            
+            delete global.authClients[chatId];
+            delete global.userStates[chatId];
+
+        } catch (err) {
+            console.error(`[Auth Error] ${chatId}:`, err.message);
+            
+            if (err.message.includes("PHONE_CODE_INVALID")) {
+                bot.sendMessage(chatId, "❌ **Kod noto'g'ri.** Iltimos, kodni tekshirib qaytadan yuboring:");
+                // Qayta urinish uchun state-ni to'g'irlaymiz, lekin clientni o'chirmaymiz
+                global.authClients[chatId].step = 'WAITING_CODE';
+                // client.start ni qayta chaqiramiz
+                return startLogin();
+            } else if (err.message.includes("PASSWORD_HASH_INVALID")) {
+                bot.sendMessage(chatId, "❌ **Parol noto'g'ri.** Qaytadan yuboring:");
+                global.authClients[chatId].step = 'WAITING_PASSWORD';
+                return startLogin();
+            } else if (err.message.includes("PHONE_CODE_EXPIRED")) {
+                bot.sendMessage(chatId, "❌ **Kodning muddati tugagan.** Iltimos, /start bosing va qaytadan boshlang.");
+            } else {
+                bot.sendMessage(chatId, `❌ Xatolik yuz berdi: ${err.message}`);
+            }
+
+            // Jiddiy xatolik bo'lsa, hammasini tozalaymiz
+            if (!err.message.includes("PHONE_CODE_INVALID") && !err.message.includes("PASSWORD_HASH_INVALID")) {
+                try { await client.disconnect(); } catch (e) {}
+                delete global.authClients[chatId];
+                delete global.userStates[chatId];
+            }
+        }
+    };
+
+    startLogin();
     return true;
 };
 
