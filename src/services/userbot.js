@@ -528,7 +528,7 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
         });
 
         // Bazani yangilash
-        await User.findOneAndUpdate({ chatId }, { $inc: { usersGathered: gatheredUserIds.size } });
+        await User.increment({ usersGathered: gatheredUserIds.size }, { where: { chatId } });
 
         return true;
     } catch (error) { 
@@ -542,7 +542,7 @@ const reydSessions = {}; // { chatId: { status: 'running'|'stopped' } }
 const ensureClient = async (chatId, bot) => {
     if (userClients[chatId] && userClients[chatId].connected) return userClients[chatId];
     
-    const user = await User.findOne({ chatId });
+    const user = await User.findOne({ where: { chatId } });
     if (!user || !user.session) throw new Error("Asosiy akkaunt ulanmagan.");
     
     await startUserbot(chatId, user.session, bot);
@@ -554,7 +554,7 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
         throw new Error("Reyd allaqachon ishga tushirilgan.");
     }
 
-    const user = await User.findOne({ chatId });
+    const user = await User.findOne({ where: { chatId } });
     if (!user) {
         throw new Error("Foydalanuvchi topilmadi.");
     }
@@ -820,7 +820,7 @@ const downloadFile = (url) => {
 const PremiumAd = require("../models/PremiumAd");
 
 const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
-    const user = await User.findOne({ chatId });
+    const user = await User.findOne({ where: { chatId } });
     if (!user) throw new Error("Foydalanuvchi topilmadi.");
 
     const originalText = reklamaMsg.text || reklamaMsg.caption || "";
@@ -830,23 +830,20 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     const entities = convertToGramJsEntities(originalEntities);
 
     // Reklamani vaqtinchalik bazaga saqlash
-    await PremiumAd.findOneAndUpdate(
-        { chatId },
-        {
-            content: {
-                text: reklamaMsg.text,
-                caption: reklamaMsg.caption,
-                entities: reklamaMsg.entities,
-                caption_entities: reklamaMsg.caption_entities,
-                photo: reklamaMsg.photo,
-                sticker: reklamaMsg.sticker,
-                video: reklamaMsg.video
-            },
-            usersList,
-            status: 'running'
+    await PremiumAd.upsert({
+        chatId,
+        content: {
+            text: reklamaMsg.text,
+            caption: reklamaMsg.caption,
+            entities: reklamaMsg.entities,
+            caption_entities: reklamaMsg.caption_entities,
+            photo: reklamaMsg.photo,
+            sticker: reklamaMsg.sticker,
+            video: reklamaMsg.video
         },
-        { upsert: true, new: true }
-    );
+        usersList,
+        status: 'running'
+    });
 
     const sessions = [
         user.session, 

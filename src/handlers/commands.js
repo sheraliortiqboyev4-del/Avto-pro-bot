@@ -141,7 +141,7 @@ module.exports = (bot) => {
         const isMember = await checkMembership(bot, chatId);
         if (!isMember) return sendSubscriptionAsk(bot, chatId);
 
-        const user = await User.findOne({ chatId });
+        const user = await User.findOne({ where: { chatId } });
         if (!user || !user.session) {
             return bot.sendMessage(chatId, "❌ Menyuni ko'rish uchun avval botga kiring.");
         }
@@ -154,10 +154,10 @@ module.exports = (bot) => {
 
     bot.onText(/\/profile/, async (msg) => {
         const chatId = msg.chat.id;
-        const user = await User.findOne({ chatId });
+        const user = await User.findOne({ where: { chatId } });
         if (!user) return bot.sendMessage(chatId, "❌ Ro'yxatdan o'tmagansiz.");
 
-        const accCount = (user.additionalSessions ? user.additionalSessions.length : 0) + (user.session ? 1 : 0);
+        const accCount = (user.reklamaAccounts ? user.reklamaAccounts.length : 0) + (user.reydAccounts ? user.reydAccounts.length : 0) + (user.session ? 1 : 0);
         const text = `👤 **Profilingiz:**\n\nIsm: ${user.name}\nID: \`${user.chatId}\`\nStatus: ${user.status}\nTarif: ${user.subscriptionType}\nMuddat: ${formatRemainingTime(user.expireAt)}\n💎 Almazlar: ${user.clicks}\n📱 Akkauntlar: ${accCount} ta`;
         bot.sendMessage(chatId, text);
     });
@@ -166,7 +166,7 @@ module.exports = (bot) => {
     bot.onText(/\/info_(\d+)/, async (msg, match) => { 
         if (msg.chat.id.toString() !== config.adminId.toString()) return; 
         const targetId = match[1]; 
-        const user = await User.findOne({ chatId: targetId }); 
+        const user = await User.findOne({ where: { chatId: targetId } }); 
         if (!user) return bot.sendMessage(config.adminId, "❌ Foydalanuvchi topilmadi."); 
         
         const statusText = user.status === 'approved' ? "✅ Tasdiqlangan" : (user.status === 'blocked' ? "🚫 Bloklangan" : "⏳ Tasdiqlanmagan");
@@ -211,8 +211,8 @@ module.exports = (bot) => {
 
     bot.onText(/\/stats/, async (msg) => {
         if (msg.chat.id.toString() !== config.adminId.toString()) return;
-        const totalUsers = await User.countDocuments();
-        const approvedUsers = await User.countDocuments({ status: 'approved' });
+        const totalUsers = await User.count();
+        const approvedUsers = await User.count({ where: { status: 'approved' } });
         bot.sendMessage(config.adminId, `📊 **Statistika:**\n\nJami userlar: ${totalUsers}\nTasdiqlanganlar: ${approvedUsers}`);
     });
 };

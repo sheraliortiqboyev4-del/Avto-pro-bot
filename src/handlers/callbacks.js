@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const config = require('../config');
+const { sequelize } = require('../config/db');
 const { 
     getAdminMenu, 
     getMainMenu, 
@@ -139,7 +140,7 @@ module.exports = (bot) => {
         }
 
         if (data === "reyd_clear_acc") {
-            await User.findOneAndUpdate({ chatId }, { reydAccounts: [] });
+            await User.update({ reydAccounts: [] }, { where: { chatId } });
             return await safeAnswer({ text: "🗑 Reyd akkauntlari tozalandi.", show_alert: true });
         }
 
@@ -173,7 +174,7 @@ module.exports = (bot) => {
         }
 
         if (data === "reklama_clear_acc") {
-            await User.findOneAndUpdate({ chatId }, { reklamaAccounts: [] });
+            await User.update({ reklamaAccounts: [] }, { where: { chatId } });
             return await safeAnswer({ text: "🗑 Reklama akkauntlari tozalandi.", show_alert: true });
         }
 
@@ -375,7 +376,7 @@ module.exports = (bot) => {
         }
 
         if (data === "menu_logout") {
-            await User.findOneAndUpdate({ chatId }, { session: null });
+            await User.update({ session: null }, { where: { chatId } });
             const { userClients } = require('../services/userbot');
             if (userClients[chatId]) {
                 try { await userClients[chatId].disconnect(); } catch (e) {}
@@ -431,23 +432,21 @@ module.exports = (bot) => {
         } 
 
         if (data === "admin_stats") {
-            const total = await User.countDocuments();
-            const approved = await User.countDocuments({ status: 'approved' });
-            const pending = await User.countDocuments({ status: 'pending' });
-            const blocked = await User.countDocuments({ status: 'blocked' });
+            const total = await User.count();
+            const approved = await User.count({ where: { status: 'approved' } });
+            const pending = await User.count({ where: { status: 'pending' } });
+            const blocked = await User.count({ where: { status: 'blocked' } });
 
-            const stats = await User.aggregate([
-                {
-                    $group: {
-                        _id: null,
-                        totalClicks: { $sum: "$clicks" },
-                        totalUtag: { $sum: "$utagCount" },
-                        totalReyd: { $sum: "$reydCount" },
-                        totalGathered: { $sum: "$usersGathered" },
-                        totalAds: { $sum: "$adsCount" }
-                    }
-                }
-            ]);
+            const stats = await User.findAll({
+                attributes: [
+                    [sequelize.fn('SUM', sequelize.col('clicks')), 'totalClicks'],
+                    [sequelize.fn('SUM', sequelize.col('utagCount')), 'totalUtag'],
+                    [sequelize.fn('SUM', sequelize.col('reydCount')), 'totalReyd'],
+                    [sequelize.fn('SUM', sequelize.col('usersGathered')), 'totalGathered'],
+                    [sequelize.fn('SUM', sequelize.col('adsCount')), 'totalAds']
+                ],
+                raw: true
+            });
 
             const s = stats[0] || { totalClicks: 0, totalUtag: 0, totalReyd: 0, totalGathered: 0, totalAds: 0 };
 
@@ -486,9 +485,14 @@ module.exports = (bot) => {
             }
 
             const limit = 10;
-            const query = statusFilter === 'all' ? {} : { status: statusFilter };
-            const total = await User.countDocuments(query); 
-            const users = await User.find(query).sort({ joinedAt: -1 }).skip((page - 1) * limit).limit(limit); 
+            const where = statusFilter === 'all' ? {} : { status: statusFilter };
+            const total = await User.count({ where }); 
+            const users = await User.findAll({ 
+                where, 
+                order: [['joinedAt', 'DESC']], 
+                offset: (page - 1) * limit, 
+                limit 
+            }); 
             
             let statusTitle = "Barcha A'zolar";
             if (statusFilter === 'pending') statusTitle = "Kutilayotganlar";
@@ -530,7 +534,7 @@ module.exports = (bot) => {
         if (data.startsWith('admin_approve_1month_')) { 
             const targetId = data.split('_')[3]; 
             const expireAt = new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)); // 30 kun
-            await User.findOneAndUpdate({ chatId: targetId }, { status: 'approved', subscriptionType: 'Standard', expireAt, expiryWarningSent: false }); 
+            await User.update({ status: 'approved', subscriptionType: 'Standard', expireAt, expiryWarningSent: false }, { where: { chatId: targetId } }); 
             
             bot.sendMessage(chatId, `✅ User ${targetId} 1 oyga Standard qilib tasdiqlandi.`); 
             bot.sendMessage(targetId, "🎉 Siz admin tomonidan tasdiqlandingiz! \n\n 🔰 Tarif: Standard \n Endi /start ni bosib ro'yxatdan o'tishingiz mumkin."); 
@@ -541,7 +545,7 @@ module.exports = (bot) => {
 
         if (data.startsWith('admin_approve_vip_')) { 
             const targetId = data.split('_')[3]; 
-            await User.findOneAndUpdate({ chatId: targetId }, { status: 'approved', subscriptionType: 'VIP', expireAt: null, expiryWarningSent: false }); 
+            await User.update({ status: 'approved', subscriptionType: 'VIP', expireAt: null, expiryWarningSent: false }, { where: { chatId: targetId } }); 
             
             bot.sendMessage(chatId, `👑 User ${targetId} **Cheksiz VIP** qilib tasdiqlandi.`); 
             bot.sendMessage(targetId, "🎉 Siz admin tomonidan tasdiqlandingiz! \n\n 🔰 Tarif: 👑 VIP \n Endi /start ni bosib ro'yxatdan o'tishingiz mumkin."); 
@@ -559,7 +563,7 @@ module.exports = (bot) => {
 
         if (data.startsWith('admin_block_')) {
             const targetId = data.split('_')[2];
-            await User.findOneAndUpdate({ chatId: targetId }, { status: 'blocked', session: null });
+            await User.update({ status: 'blocked', session: null }, { where: { chatId: targetId } });
             bot.sendMessage(chatId, `🚫 User ${targetId} bloklandi.`);
             
             const blockedText = `⚠ Sizning foydalanish muddatingiz tugagan. \nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring va botni qayta ishga tushiring. \n\n👨‍💼 Admin: @ortiqov_x7`;
@@ -573,7 +577,7 @@ module.exports = (bot) => {
 
         if (data.startsWith('admin_unblock_')) {
             const targetId = data.split('_')[2];
-            await User.findOneAndUpdate({ chatId: targetId }, { status: 'pending' });
+            await User.update({ status: 'pending' }, { where: { chatId: targetId } });
             bot.sendMessage(chatId, `✅ User ${targetId} blokdan ochildi (status: pending).`);
             bot.sendMessage(targetId, "✅ Siz admin tomonidan blokdan ochildingiz. Endi qayta ro'yxatdan o'tishingiz mumkin.");
             return await safeAnswer();

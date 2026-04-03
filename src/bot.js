@@ -173,32 +173,21 @@ bot.editMessageText = async function(text, options = {}) {
 // Global states 
 global.userStates = {}; 
 
-// DB Connection 
-const connectDB = async () => {
-    try {
-        await mongoose.connect(config.mongoUri, { 
-            family: 4,
-            serverSelectionTimeoutMS: 5000 // Ulanishni uzoq kutib qolmaslik uchun
-        });
-        console.log("✅ MongoDB Ulangan");
-    } catch (err) {
-        console.error("❌ DB Xatosi:", err.message);
-        console.log("🔄 5 soniyadan so'ng qayta ulanishga urinib ko'riladi...");
-        setTimeout(connectDB, 5000);
-    }
-};
-
-connectDB(); 
-
 // --- 3. REAL-TIME EXPIRY & WARNING CHECKER --- 
 setInterval(async () => { 
     try {
         const now = new Date(); 
+        const { Op } = require('sequelize');
         
         // Expiry check - Status 'approved' bo'lgan va muddati o'tganlarni bloklash
-        const expiredUsers = await User.find({ 
-            status: 'approved', 
-            expireAt: { $ne: null, $lt: now } 
+        const expiredUsers = await User.findAll({ 
+            where: {
+                status: 'approved', 
+                expireAt: { 
+                    [Op.ne]: null, 
+                    [Op.lt]: now 
+                } 
+            }
         }); 
         for (const user of expiredUsers) { 
             await blockExpiredUser(user, bot); 
@@ -206,15 +195,20 @@ setInterval(async () => {
 
         // 1 kunlik (24 soat) ogohlantirish 
         const oneDayLater = new Date(now.getTime() + 86400000); 
-        const warningUsers = await User.find({ 
-            status: 'approved', 
-            expireAt: { $gt: now, $lt: oneDayLater }, 
-            expiryWarningSent: false 
+        const warningUsers = await User.findAll({ 
+            where: {
+                status: 'approved', 
+                expireAt: { 
+                    [Op.gt]: now, 
+                    [Op.lt]: oneDayLater 
+                }, 
+                expiryWarningSent: false 
+            }
         }); 
         for (const u of warningUsers) { 
             const warningText = `⚠️ **Diqqat!**\n\nSizning botdan foydalanish muddatingiz tugashiga **1 kun** qoldi. Botdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n👨‍💼 Admin: @ortiqov_x7`;
             bot.sendMessage(u.chatId, warningText, { parse_mode: "Markdown" }); 
-            await User.findOneAndUpdate({ chatId: u.chatId }, { expiryWarningSent: true }); 
+            await User.update({ expiryWarningSent: true }, { where: { chatId: u.chatId } }); 
         } 
     } catch (error) {
         console.error("Expiry checker error:", error);
