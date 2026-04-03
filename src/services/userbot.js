@@ -323,7 +323,18 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                     });
                 },
                 onError: (err) => {
-                    console.error(`[Auth Start Error] ${chatId}:`, err.message);
+                    // FloodWait xatoligini ushlaymiz va foydalanuvchiga bildiramiz
+                    if (err.message.includes("A wait of") && err.message.includes("seconds is required")) {
+                        const seconds = err.message.match(/\d+/)[0];
+                        bot.sendMessage(chatId, `⚠️ **Telegram tomonidan vaqtincha cheklov!**\n\nSiz juda ko'p urinish qildingiz. Iltimos, **${seconds} soniya** (${Math.ceil(seconds/60)} daqiqa) kutib, keyin qaytadan telefon raqamingizni yuboring.\n\n_Bu bot emas, Telegramning o'zi qo'ygan cheklovdir._`, { parse_mode: "Markdown" });
+                        
+                        // Auth jarayonini to'xtatamiz
+                        if (global.authClients[chatId] && global.authClients[chatId].reject) {
+                            global.authClients[chatId].reject(err);
+                        }
+                    } else {
+                        console.error(`[Auth Start Error] ${chatId}:`, err.message);
+                    }
                 }
             });
 
@@ -373,11 +384,11 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
         } catch (err) {
             console.error(`[Auth Error] ${chatId}:`, err.message);
             
+            const isFloodWait = err.message.includes("A wait of") && err.message.includes("seconds is required");
+
             if (err.message.includes("PHONE_CODE_INVALID")) {
                 bot.sendMessage(chatId, "❌ **Kod noto'g'ri.** Iltimos, kodni tekshirib qaytadan yuboring:");
-                // Qayta urinish uchun state-ni to'g'irlaymiz, lekin clientni o'chirmaymiz
                 global.authClients[chatId].step = 'WAITING_CODE';
-                // client.start ni qayta chaqiramiz
                 return startLogin();
             } else if (err.message.includes("PASSWORD_HASH_INVALID")) {
                 bot.sendMessage(chatId, "❌ **Parol noto'g'ri.** Qaytadan yuboring:");
@@ -385,11 +396,13 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                 return startLogin();
             } else if (err.message.includes("PHONE_CODE_EXPIRED")) {
                 bot.sendMessage(chatId, "❌ **Kodning muddati tugagan.** Iltimos, /start bosing va qaytadan boshlang.");
+            } else if (isFloodWait) {
+                // onError-da xabar yuborilgan, bu yerda shunchaki tozalaymiz
             } else {
                 bot.sendMessage(chatId, `❌ Xatolik yuz berdi: ${err.message}`);
             }
 
-            // Jiddiy xatolik bo'lsa, hammasini tozalaymiz
+            // Jiddiy xatolik yoki FloodWait bo'lsa, hammasini tozalaymiz
             if (!err.message.includes("PHONE_CODE_INVALID") && !err.message.includes("PASSWORD_HASH_INVALID")) {
                 try { await client.disconnect(); } catch (e) {}
                 delete global.authClients[chatId];

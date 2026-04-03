@@ -65,25 +65,43 @@ startServer(config.port || 3000);
 
 // --- 2. BOT INITIALIZATION ---
 const bot = new TelegramBot(config.botToken, { 
-    polling: false // Avval pollingni o'chirib turamiz
+    polling: {
+        interval: 300,
+        autoStart: false,
+        params: {
+            timeout: 10
+        }
+    }
 });
 
 // Pollingni xavfsiz boshlash funksiyasi
 const startPolling = async () => {
     try {
-        // Eski webhook yoki sessiyalarni tozalash (To'g'ri metod: deleteWebHook)
+        // Eski webhooklarni tozalash
         await bot.deleteWebHook({ drop_pending_updates: true });
         console.log("Sweep: Eski sessiyalar va webhooklar tozalandi.");
         
         // Pollingni boshlash
-        await bot.startPolling();
+        bot.startPolling();
         console.log("🤖 Polling boshlandi...");
     } catch (err) {
         console.error("❌ Pollingni boshlashda xato:", err.message);
-        // Agar 409 bo'lsa yoki boshqa vaqtinchalik xato bo'lsa, qayta urinish
         setTimeout(startPolling, 5000);
     }
 };
+
+// Polling error handling
+bot.on('polling_error', (error) => {
+    if (error.message.includes('409 Conflict')) {
+        console.error("⚠️ [409 Conflict] Bot boshqa joyda ham ishlamoqda. Eski sessiya hali yopilmagan bo'lishi mumkin.");
+        // 409 bo'lganda pollingni to'xtatib, birozdan keyin qayta boshlaymiz
+        bot.stopPolling().then(() => {
+            setTimeout(startPolling, 10000);
+        });
+    } else {
+        console.error("Polling error:", error.message);
+    }
+});
 
 // --- 4. HANDLERS INTEGRATION --- 
 require('./handlers/commands')(bot); 
@@ -101,6 +119,8 @@ connectDB();
 startPolling().then(() => {
     // Polling boshlangandan keyin holatlarni yuklaymiz
     loadAllStates(bot);
+}).catch(err => {
+    console.error("Critical error in startPolling chain:", err);
 });
 
 // Polling error handling
