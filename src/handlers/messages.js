@@ -15,7 +15,7 @@ module.exports = (bot) => {
         
         // 1. Session check for features
         if (state && !['WAITING_PHONE', 'WAITING_CODE', 'WAITING_PASSWORD', 'WAITING_TIME', 'WAITING_BROADCAST'].includes(state.step)) {
-            const user = await User.findOne({ chatId });
+            const user = await User.findOne({ where: { chatId } });
             if (!user || !user.session) {
                 delete global.userStates[chatId];
                 return bot.sendMessage(chatId, "⚠️ Botdan foydalanish uchun avval Telegram akkauntingiz bilan tizimga kiring. /start ni bosing.");
@@ -65,7 +65,7 @@ module.exports = (bot) => {
                 const duration = parseTime(text); 
                 if (duration === 0) return bot.sendMessage(chatId, "❌ Noto'g'ri format! Qayta kiriting."); 
                 const expireAt = new Date(Date.now() + duration); 
-                await User.findOneAndUpdate({ chatId: state.targetId }, { status: 'approved', expireAt, expiryWarningSent: false }); 
+                await User.update({ status: 'approved', expireAt, expiryWarningSent: false }, { where: { chatId: state.targetId } }); 
                 bot.sendMessage(chatId, `✅ Tasdiqlandi! Muddat: ${text}`); 
                 bot.sendMessage(state.targetId, `🎉 Siz admin tomonidan tasdiqlandingiz! \n\n 🔰 Tarif: ${text} \n Endi /start ni bosib ro'yxatdan o'tishingiz mumkin.`); 
                 delete global.userStates[chatId]; 
@@ -73,7 +73,7 @@ module.exports = (bot) => {
             } 
         
             if (state.step === 'WAITING_BROADCAST') { 
-                const users = await User.find(); 
+                const users = await User.findAll(); 
                 bot.sendMessage(chatId, `🚀 ${users.length} kishiga yuborish boshlandi...`); 
                 for (const u of users) { 
                     try { await bot.copyMessage(u.chatId, chatId, msg.message_id); } catch (e) {} 

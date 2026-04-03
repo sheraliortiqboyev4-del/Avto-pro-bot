@@ -10,13 +10,13 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const TelegramBot = require('node-telegram-bot-api'); 
-const mongoose = require('mongoose'); 
+const { connectDB, sequelize } = require('./config/db'); 
 const express = require('express');
 const dns = require('dns');
 const os = require('os');
 const config = require('./config'); 
 const User = require('./models/User'); 
-const { blockExpiredUser } = require('./services/userbot'); 
+const { blockExpiredUser, loadAllStates } = require('./services/userbot'); 
 const { withPremiumEmojis } = require('./utils/helpers');
 
 // --- 1. SERVER & DNS SETUP ---
@@ -95,7 +95,13 @@ bot.on('message', (msg) => {
     console.log(`📩 Xabar keldi [${msg.chat.id}]: ${msg.text || '[Media/Other]'}`);
 });
 
-startPolling();
+// --- 3. DATABASE CONNECTION ---
+connectDB();
+
+startPolling().then(() => {
+    // Polling boshlangandan keyin holatlarni yuklaymiz
+    loadAllStates(bot);
+});
 
 // Polling error handling
 bot.on('polling_error', (error) => {
@@ -112,8 +118,8 @@ const shutdown = async (signal) => {
     try {
         await bot.stopPolling();
         console.log("🛑 Polling to'xtatildi.");
-        await mongoose.connection.close();
-        console.log("🔌 MongoDB ulanishi yopildi.");
+        await sequelize.close();
+        console.log("🔌 PostgreSQL ulanishi yopildi.");
         process.exit(0);
     } catch (err) {
         console.error("Shutdown error:", err.message);

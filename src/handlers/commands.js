@@ -54,7 +54,7 @@ module.exports = (bot) => {
         const isMember = await checkMembership(bot, chatId);
         if (!isMember) return sendSubscriptionAsk(bot, chatId);
 
-        let user = await User.findOne({ chatId }); 
+        let user = await User.findOne({ where: { chatId } }); 
         if (!user) { 
             const initialStatus = chatId.toString() === config.adminId.toString() ? 'approved' : 'pending';
             user = await User.create({ chatId, name, username, status: initialStatus }); 
@@ -143,10 +143,9 @@ module.exports = (bot) => {
 
         const user = await User.findOne({ chatId });
         if (!user || !user.session) {
-            return bot.sendMessage(chatId, "⚠️ Botdan foydalanish uchun avval Telegram akkauntingiz bilan tizimga kiring. /start ni bosing.");
+            return bot.sendMessage(chatId, "❌ Menyuni ko'rish uchun avval botga kiring.");
         }
-
-        bot.sendMessage(chatId, "📋 **Asosiy menyu:**", getMainMenu(chatId));
+        bot.sendMessage(chatId, "📊 **Sizning menyuingiz:**", getMainMenu(chatId));
     });
 
     bot.onText(/\/help/, async (msg) => {

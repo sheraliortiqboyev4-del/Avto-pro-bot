@@ -46,7 +46,7 @@ module.exports = (bot) => {
         };
 
         // --- 1. SESSION CHECK (Except for specific ones) ---
-        const user = await User.findOne({ chatId });
+        const user = await User.findOne({ where: { chatId } });
         const allowedCallbacks = ["check_subscription", "admin_panel"];
         const isAdminAction = data.startsWith("admin_");
         
@@ -93,7 +93,7 @@ module.exports = (bot) => {
 
         if (data === "almaz_on" || data === "almaz_off") {
             const isEnabled = data === "almaz_on";
-            await User.findOneAndUpdate({ chatId }, { avtoAlmaz: isEnabled });
+            await User.update({ avtoAlmaz: isEnabled }, { where: { chatId } });
 
             const { avtoAlmazStates } = require('../services/userbot');
             avtoAlmazStates[chatId] = isEnabled;

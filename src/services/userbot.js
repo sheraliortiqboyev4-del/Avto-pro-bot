@@ -22,59 +22,71 @@ const {
 const userClients = {}; 
 const avtoAlmazStates = {}; 
 const utagStates = {}; 
-const reklamaStates = {}; // { chatId: { status: 'running'|'paused'|'stopped', count: 0, total: 0 } }
+const reklamaStates = {}; 
+
+// --- YANGI: Holatlarni bazadan yuklash va botlarni ishga tushirish ---
+const loadAllStates = async (bot) => {
+    try {
+        const users = await User.findAll({ where: { session: { [require('sequelize').Op.ne]: null }, status: 'approved' } });
+        console.log(`🔄 [Init] ${users.length} ta foydalanuvchi botlarini ishga tushirish...`);
+        for (const user of users) {
+            avtoAlmazStates[user.chatId] = user.avtoAlmaz !== false;
+            // Har bir foydalanuvchi uchun userbotni ishga tushiramiz
+            startUserbot(user.chatId, user.session, bot).catch(e => {
+                console.error(`[AutoStart Error] ${user.chatId}:`, e.message);
+            });
+            // Akkauntlar ko'p bo'lsa, Telegram blocklamasligi uchun biroz kutamiz
+            await new Promise(r => setTimeout(r, 1000)); 
+        }
+        console.log(`✅ [States] ${users.length} ta foydalanuvchi holati yuklandi va botlar ishga tushirildi.`);
+    } catch (e) {
+        console.error("loadAllStates error:", e.message);
+    }
+};
 
 const DEFAULT_TAG_MESSAGES = [
-    "Mafia sizni qidirmoqda 🔫",
-    "Sizsiz o‘yin zerikarli 😄",
-    "Tezroq keling, gap bor 😉",
-    "Sizni kutib o‘tiribmiz 👀",
-    "Mafia sizni tanladi 🖤",
-    "Sizsiz boshlamaymiz 😏",
-    "Keling, rol sizniki 🎭",
-    "Siz kech qolyapsiz ⏳",
-    "O‘yin sizni sog‘indi 😂",
-    "Sizsiz kim o‘ynaydi",
-    "O'yinda joy bor 🔫",
-    "Sizsiz qiziq emas 😄",
-    "Keling, hammamiz shu yerdamiz",
-    "Sizni kutishdan charchadik 😂",
-    "Rolingiz tayyor 🎭",
-    "Sizsiz kech o‘tmaydi 🌙",
-    "Keling, sirlar kutmoqda",
-    "Sizni izlashyapti 👀",
-    "Mafia sizni chaqiryapti 🖤",
-    "Sizsiz o‘yin to‘liq emas",
-    "Keling, vaqt keldi ⏳",
-    "Sizsiz hamma jim 😂",
-    "Xamma sizni kutmoqda 👀",
-    "Rol sizni kutmoqda 🎭",
-    "Sizsiz boshlanmaydi 😏",
-    "Keling, qiziq bo‘ladi",
-    "Sizni kutib turibmiz",
-    "Mafia sizni esladi 🖤",
-    "Sizsiz kim kuldiradi 😄",
-    "Keling, o‘yin qiziyapti 🔥",
-    "Sizni qidiryapmiz 🔍",
-    "Mafia sizni unutmagan 🖤",
-    "Sizsiz zerikdik 😂",
-    "Keling, sahna sizniki 🎭",
-    "Sizni kutib qolamiz",
-    "Rolingiz tayyor turibdi",
-    "Sizsiz kech bo‘lmaydi 🌙",
-    "Mafia sizni ko‘rmoqchi",
-    "Keling, joy bor",
-    "Sizsiz bu o‘yin zerikarli",
-    "Sizni kutyapmiz 😉",
-    "Mafia sizni chaqirdi 🔫",
-    "Sizsiz gap chiqmayapti 😂",
-    "Keling, sir ochiladi",
-    "Sizsiz boshlamaymiz",
-    "Rolingiz qiziq 🎭",
-    "Sizni sog‘indik 😄",
-    "Mafia sizni kutmoqda 🖤",
-    "Keling, vaqt o‘tdi ⏳",
-    "Sizsiz bu o‘yin sust"
+"sizni maxsus chaqiryapman 😆",
+"online bo‘lib jim turish – jinoyat",
+"ramantika qlamizmi?🫣",
+"importni bomjdan salom😅",
+"Szam joining",
+"Qalesz, ko‘rinmay ketdizku",
+"Tanidizmi o‘zi 😎",
+"10ta almaz tashavorin",
+"Qoshilmasez tepaman",
+"Oynamismi bugun 😂",
+"Bot kelin",
+"men seni ko'ryapman 👀",
+"Online turib yozmaysizmi 👀",
+"Yozing, kutyapman",
+"Jim turish taqiqlanadi",
+"Yozing darrov",
+"Sizni chaqiryapman ⚡️",
+"Kuzatuvda siz 👀",
+"Jim turish yaxshimas",
+"Gapiring tez",
+"Sizsiz zerikdik 😏",
+"nima gap",
+"Bugun siz bosh rolda",
+"Gap yo‘qmi sizda 💬",
+"Shunaqa jim yuraverasizmi",
+"Almazli oyin kelin",
+"Qani siz",
+"Szi kutib zerikdim",
+"qo'shiling boshlaymiz",
+"Qochib ketmang 😂",
+"Aktivlik qani 🔥",
+"Gap boshlang 💬",
+"Yozib turing",
+"Jim o'tirmang👀",
+"Aktiv bo‘ling",
+"Gapiring tez",
+"Sizni kutyapmiz 💥",
+"Jim turmang",
+"Yozing",
+"Bugun aktiv siz 😎",
+"Szi chaqrganm uchun 10💎 berng😎",
+"Jonkam keling😂"
 ];
 
 // Global xotirada sessiyalarni saqlaymiz
@@ -87,19 +99,94 @@ const startUserbot = async (chatId, sessionStr, bot) => {
         }
 
         const client = new TelegramClient(new StringSession(sessionStr), config.apiId, config.apiHash, { 
-            connectionRetries: 20,
-            requestRetries: 10,
-            timeout: 60000, // 60 soniyaga oshiramiz
+            connectionRetries: 50, // Ulanish urinishlarini 50 taga oshiramiz
+            requestRetries: 15,
+            timeout: 120000, // Kutish vaqtini 2 daqiqaga oshiramiz
             autoReconnect: true,
-            floodSleepThreshold: 60, // Flood wait bo'lganda 60 soniyagacha kutishga ruxsat
+            floodSleepThreshold: 120, // Flood wait uchun 2 daqiqagacha kutishga ruxsat
             deviceModel: "AvtoBotPro_v2",
             systemVersion: "Windows 11",
-            appVersion: "1.0.0"
+            appVersion: "1.0.0",
+            useWSS: false,
+            proxy: undefined
         }); 
         await client.connect(); 
         userClients[chatId] = client; 
+
+        // Ulanish holatini kuzatish
+        client.on('disconnected', () => {
+            console.log(`[GramJS] User ${chatId} ulanish uzildi. Qayta ulanish kutilmoqda...`);
+        });
         
-        // GramJS xatolarini ushlash va avtomatik qayta ulanishni ta'minlash
+        client.on('reconnected', () => {
+            console.log(`[GramJS] User ${chatId} muvaffaqiyatli qayta ulandi.`);
+        });        
+        // --- YANGI: XABARLARNI ESHITISH (Bot guruhda bo'lmasa ham ishlashi uchun) ---
+        client.addEventHandler(async (event) => {
+            const message = event.message;
+            if (!message || !message.message) return;
+
+            const text = message.message;
+            const fromId = message.senderId ? message.senderId.toString() : null;
+            
+            // Peer ID ni aniqlash
+            let peerStr;
+            if (message.peerId instanceof Api.PeerUser) peerStr = message.peerId.userId.toString();
+            else if (message.peerId instanceof Api.PeerChat) peerStr = message.peerId.chatId.toString();
+            else if (message.peerId instanceof Api.PeerChannel) peerStr = message.peerId.channelId.toString();
+
+            // Faqat akkaunt egasi yuborgan buyruqlarni tekshiramiz (/uteg yoki .uteg)
+            const isOwner = fromId === chatId.toString();
+            const isCommand = text.startsWith('/uteg') || text.startsWith('.uteg') || text.startsWith('!uteg');
+
+            if (isOwner && isCommand) {
+                const parts = text.split(' ');
+                const rawCommand = parts[0].toLowerCase();
+                // Komandani tozalash (/uteg@bot -> /uteg, .uteg -> uteg)
+                const command = rawCommand.replace(/^[./!]/, '').split('@')[0];
+
+                try {
+                    // 1. Foydalanuvchi obunasini tekshirish
+                    const { checkMembership } = require('../utils/helpers');
+                    const isMember = await checkMembership(bot, chatId);
+                    if (!isMember) return;
+
+                    // 2. Statusni tekshirish
+                    const user = await User.findOne({ where: { chatId } });
+                    if (!user || user.status !== 'approved') return;
+
+                    // --- BUYRUQLAR ---
+                    if (command === 'utegstop') {
+                        if (utagStates[chatId]) {
+                            utagStates[chatId].status = 'stopped';
+                            await client.sendMessage(message.peerId, { message: "⏹ **Azoblash xizmati to'xtatildi.**" });
+                        }
+                        return;
+                    }
+
+                    if (command === 'utegtext') {
+                        await client.sendMessage(message.peerId, { message: "🚀 **Azoblash xizmati boshlanmoqda... Tugatish uchun /utegStop buyrug'ini yuboring.**" });
+                        startAutoTag(chatId, peerStr, 0, null, bot, 'random_words', true);
+                        return;
+                    }
+
+                    if (command === 'uteg') {
+                        const args = parts.slice(1).join(' ').trim();
+                        if (args) {
+                            await client.sendMessage(message.peerId, { message: `🚀 **Azoblash xizmati ("${args}" bilan) boshlanmoqda... Tugatish uchun /utegStop buyrug'ini yuboring.**` });
+                            startAutoTag(chatId, peerStr, 0, args, bot, 'custom', true);
+                        } else {
+                            await client.sendMessage(message.peerId, { message: "🚀 **Azoblash xizmati (faqat @) boshlanmoqda... Tugatish uchun /utegStop buyrug'ini yuboring.**" });
+                            startAutoTag(chatId, peerStr, 0, null, bot, 'only_mention', true);
+                        }
+                    }
+                } catch (e) {
+                    console.error(`[Userbot Command Error] ${chatId}:`, e.message);
+                }
+            }
+        }, new NewMessage({}));
+
+        // GramJS xatolarini ushlash
         client.on('error', (err) => {
             if (err.message.includes('Not connected') || err.message.includes('TIMEOUT')) {
                 console.log(`[GramJS Reconnect] User ${chatId} ulanish uzildi, qayta ulanishga harakat qilinmoqda...`);
@@ -110,22 +197,42 @@ const startUserbot = async (chatId, sessionStr, bot) => {
 
         console.log(`✅ Userbot ulandi: ${chatId}`);
 
-        // Avto Almaz event handler - Ham yangi, ham tahrirlangan xabarlar uchun
+        // Avto Almaz event handler
         const almazHandler = async (event) => { 
-            handleAlmazClick(event, chatId, bot, avtoAlmazStates);
+            try {
+                await handleAlmazClick(client, event.message, chatId, bot, avtoAlmazStates);
+            } catch (e) {
+                console.error(`[Almaz Error] ${chatId}:`, e.message);
+            }
         };
 
-        // GramJS da EditedMessage o'rniga Raw event yoki NewMessage ni tahrirlanganini ishlatish mumkin
+        // Yangi xabarlar uchun
         client.addEventHandler(almazHandler, new NewMessage({})); 
         
-        // Tahrirlangan xabarlarni tutish uchun Raw event ishlatamiz
+        // Tahrirlangan xabarlar uchun (ba'zi botlar tugmalarni tahrirlangan xabarda yuboradi)
         client.addEventHandler(async (update) => {
-            if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
-                const message = update.message;
-                if (message) {
-                    handleAlmazClick({ message }, chatId, bot, avtoAlmazStates);
+            try {
+                if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
+                    const message = update.message;
+                    if (message) {
+                        await handleAlmazClick(client, message, chatId, bot, avtoAlmazStates);
+                    }
                 }
+            } catch (e) {
+                console.error(`[Edit Update Error] ${chatId}:`, e.message);
             }
+        });
+
+        // Ba'zi hollarda tugmalar Raw update sifatida kelishi mumkin
+        client.addEventHandler(async (update) => {
+            try {
+                if (update instanceof Api.UpdateNewMessage || update instanceof Api.UpdateNewChannelMessage) {
+                    const message = update.message;
+                    if (message && (message.buttons || (message.replyMarkup && message.replyMarkup.rows))) {
+                        await handleAlmazClick(client, message, chatId, bot, avtoAlmazStates);
+                    }
+                }
+            } catch (e) {}
         });
 
     } catch (e) { console.error(`Userbot xatosi (${chatId}):`, e.message); } 
@@ -133,14 +240,14 @@ const startUserbot = async (chatId, sessionStr, bot) => {
 
 const blockExpiredUser = async (user, bot) => { 
     console.log(`[Expiry] User ${user.chatId} muddati tugadi va bloklandi.`); 
-    await User.findOneAndUpdate(
-        { chatId: user.chatId }, 
+    await User.update(
         { 
             status: 'blocked', 
             session: null,
             reydAccounts: [],
             reklamaAccounts: []
-        } 
+        },
+        { where: { chatId: user.chatId } }
     ); 
     
     if (userClients[user.chatId]) { 
@@ -168,15 +275,16 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
     }
 
     const client = new TelegramClient(new StringSession(""), config.apiId, config.apiHash, { 
-        connectionRetries: 20,
-        requestRetries: 10,
-        timeout: 60000,
+        connectionRetries: 50,
+        requestRetries: 15,
+        timeout: 120000,
         autoReconnect: true,
-        floodSleepThreshold: 60,
+        floodSleepThreshold: 120,
         deviceModel: "AvtoBotPro_v2",
         systemVersion: "Windows 11",
         appVersion: "1.0.0",
-        useWSS: false
+        useWSS: false,
+        proxy: undefined
     });
     
     await client.connect();
@@ -224,15 +332,14 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
         const sessionStr = client.session.save();
         
         if (isAdditional) {
-            const updateQuery = isReyd
-                ? { $push: { reydAccounts: { session: sessionStr, phoneNumber } } }
-                : { $push: { reklamaAccounts: { session: sessionStr, phoneNumber } } };
+            const user = await User.findOne({ where: { chatId } });
+            const accounts = isReyd ? (user.reydAccounts || []) : (user.reklamaAccounts || []);
+            accounts.push({ session: sessionStr, phoneNumber, addedAt: new Date() });
 
-            const user = await User.findOneAndUpdate({ chatId }, updateQuery, { new: true });
+            const updateData = isReyd ? { reydAccounts: accounts } : { reklamaAccounts: accounts };
+            await User.update(updateData, { where: { chatId } });
             
-            const accCount = isReyd
-                ? (user.reydAccounts ? user.reydAccounts.length : 0)
-                : (user.reklamaAccounts ? user.reklamaAccounts.length : 0);
+            const accCount = accounts.length;
 
             if (isReyd) {
                 bot.sendMessage(chatId, `✅ Qo'shimcha akkaunt Reyd uchun ulandi: ${phoneNumber}`, getReydMenu(accCount));
@@ -241,7 +348,8 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
             }
         } else {
             // Asosiy akkauntni saqlash
-            const user = await User.findOneAndUpdate({ chatId }, { session: sessionStr, status: 'approved' }, { new: true });
+            await User.update({ session: sessionStr, status: 'approved' }, { where: { chatId } });
+            const user = await User.findOne({ where: { chatId } });
             avtoAlmazStates[chatId] = user ? user.avtoAlmaz : true;
 
             // Avto Almaz event handlerlari...
@@ -466,10 +574,13 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
             const sessionStr = allSessions[i];
             const tempChatId = `${chatId}_${i}`;
             const client = new TelegramClient(new StringSession(sessionStr), config.apiId, config.apiHash, { 
-                connectionRetries: 10,
-                requestRetries: 5,
-                timeout: 30000,
-                autoReconnect: true
+                connectionRetries: 50,
+                requestRetries: 15,
+                timeout: 120000,
+                autoReconnect: true,
+                floodSleepThreshold: 120,
+                useWSS: false,
+                proxy: undefined
             });
             await client.connect();
             if (await client.checkAuthorization()) {
@@ -671,11 +782,13 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
             try { fs.unlinkSync(stickerPath); } catch (cleanupErr) {}
         }
         
+    if (reydSessions[chatId]?.status === 'stopped' || reydSessions[chatId]?.status === 'finished') {
         const finalStatus = reydSessions[chatId]?.status === 'stopped' ? "to'xtatildi" : "tugadi";
         bot.sendMessage(chatId, `🏁 **Avto Reyd ${finalStatus}!**\nJami yuborildi: ${reydSessions[chatId]?.count || 0} ta.`, getMainMenu(chatId));
         
+        const countToAdd = reydSessions[chatId]?.count || 0;
         delete reydSessions[chatId];
-        await User.findOneAndUpdate({ chatId }, { $inc: { reydCount: 1 } });
+        await User.increment({ reydCount: 1 }, { where: { chatId } });
         
         // Barcha vaqtinchalik klientlarni uzish
         for (const key in userClients) {
@@ -684,6 +797,7 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
                 delete userClients[key];
             }
         }
+    }
     }
 };
 
@@ -766,10 +880,13 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     const connectClient = async (index) => {
         if (clients[index]) return clients[index];
         const newClient = new TelegramClient(new StringSession(sessions[index]), config.apiId, config.apiHash, {
-            connectionRetries: 10,
-            requestRetries: 5,
-            timeout: 30000,
-            autoReconnect: true
+            connectionRetries: 50,
+            requestRetries: 15,
+            timeout: 120000,
+            autoReconnect: true,
+            floodSleepThreshold: 120,
+            useWSS: false,
+            proxy: undefined
         });
         await newClient.connect();
         if (!(await newClient.checkAuthorization())) {
@@ -890,21 +1007,25 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     }
 
     // Bazadan reklamani o'chirish
-    await PremiumAd.deleteOne({ chatId });
+    await PremiumAd.destroy({ where: { chatId } });
 
-    await User.findOneAndUpdate({ chatId }, { $inc: { adsCount: count } });
+    await User.increment({ adsCount: count }, { where: { chatId } });
     bot.sendMessage(chatId, `✅ Reklama yakunlandi. Jami yuborildi: ${count} ta.`, getMainMenu(chatId));
     delete reklamaStates[chatId];
     return count;
 };
 
-const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'random') => {
+const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'random', isCommand = false) => {
     const client = await ensureClient(chatId, bot);
 
     try {
         let entity;
-        if (groupLink.includes("t.me/+") || groupLink.includes("joinchat/")) {
-            const hash = groupLink.split('/').pop().replace('+', '');
+        // Agar link raqam bo'lsa (chatId), uni numberga o'tkazamiz
+        const isNumeric = /^-?\d+$/.test(groupLink);
+        const peer = isNumeric ? parseInt(groupLink) : groupLink;
+
+        if (typeof peer === 'string' && (peer.includes("t.me/+") || peer.includes("joinchat/"))) {
+            const hash = peer.split('/').pop().replace('+', '');
             try {
                 const result = await client.invoke(new Api.messages.ImportChatInvite({ hash }));
                 entity = result.chats ? result.chats[0] : result.chat;
@@ -917,21 +1038,24 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
                 }
             }
         } else {
-            entity = await client.getEntity(groupLink);
+            entity = await client.getEntity(peer);
         }
 
-        const participants = await client.getParticipants(entity, { limit: parseInt(limit) || 100 });
+        // Agar limit 0 bo'lsa, barcha a'zolarni olishga harakat qilamiz
+        const fetchLimit = (limit === 0 || limit === "0") ? undefined : parseInt(limit);
+        const participants = await client.getParticipants(entity, { limit: fetchLimit });
         
         // Tarixga saqlash
         const groupTitle = entity.title || entity.username || "Guruh";
-        await User.findOneAndUpdate(
-            { chatId }, 
-            { $pull: { utagHistory: { link: groupLink } } } // Eskisini o'chirish
-        );
-        await User.findOneAndUpdate(
-            { chatId }, 
-            { $push: { utagHistory: { $each: [{ title: groupTitle, link: groupLink }], $slice: -5 } } } // Oxirgi 5 tasini saqlash
-        );
+        const historyLink = (typeof peer === 'string' && peer.startsWith('@')) ? peer : (entity.username ? `@${entity.username}` : groupLink);
+        
+        const user = await User.findOne({ where: { chatId } });
+        let history = user.utagHistory || [];
+        history = history.filter(h => h.link !== historyLink);
+        history.push({ title: groupTitle, link: historyLink, addedAt: new Date() });
+        if (history.length > 5) history = history.slice(-5);
+
+        await User.update({ utagHistory: history }, { where: { chatId } });
 
         let count = 0;
         utagStates[chatId] = { status: 'running', count: 0, total: participants.length };
@@ -948,7 +1072,12 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
             return { reply_markup: { inline_keyboard: [buttons] } };
         };
 
-        const statusMsg = await bot.sendMessage(chatId, `🚀 **Avto Utag boshlandi!**\nJami: ${participants.length} ta foydalanuvchi.\nRejim: ${mode === 'custom' ? 'Matn bilan' : (mode === 'only_mention' ? 'Faqat @' : 'Tasodifiy so\'zlar')}`, getUtagButtons('running'));
+        const modeText = mode === 'custom' ? `Matn bilan ("${tagText}")` : (mode === 'only_mention' ? 'Faqat @' : 'Tasodifiy so\'zlar');
+        const startText = `🚀 **Azoblash xizmati boshlanmoqda...**\nTugatish uchun /utegStop buyrug'ini yuboring.\nGuruh: ${groupTitle}\nJami: ${participants.length} ta foydalanuvchi.\nRejim: ${modeText}`;
+        
+        // Agar komanda orqali bo'lsa (Userbot orqali), bot guruhga yubora olmaydi (agar u yerda bo'lmasa)
+        // Shuning uchun har doim foydalanuvchining o'ziga (chatId) xabar yuboramiz
+        const statusMsg = await bot.sendMessage(chatId, startText, isCommand ? {} : getUtagButtons('running')).catch(() => null);
 
         for (const p of participants) {
             // Holatni tekshirish
@@ -958,23 +1087,15 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
             if (!utagStates[chatId] || utagStates[chatId].status === 'stopped') break;
 
             try {
-                // Xabarni tanlash
-                let messageToSend = "";
-                if (mode === 'custom' && tagText) {
-                    messageToSend = ` ${tagText}`;
-                } else if (mode === 'random_words') {
-                    messageToSend = ` ${shuffledMessages[msgIndex % shuffledMessages.length]}`;
-                    msgIndex++;
-                }
-                
+                // Mention yaratish (usernamesi bor yoki yo'qligiga qarab)
                 let message;
                 if (p.username) {
-                    message = `@${p.username}${messageToSend}`;
+                    message = `@${p.username} ${tagText || shuffledMessages[count % shuffledMessages.length]}`;
                 } else {
                     const name = p.firstName || "Foydalanuvchi";
-                    message = `<a href="tg://user?id=${p.id.toString()}">${name}</a>${messageToSend}`;
+                    message = `<a href="tg://user?id=${p.id.toString()}">${name}</a> ${tagText || shuffledMessages[count % shuffledMessages.length]}`;
                 }
-                
+
                 await client.sendMessage(entity, { 
                     message, 
                     parseMode: p.username ? undefined : 'html' 
@@ -982,12 +1103,13 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
                 count++;
                 utagStates[chatId].count = count;
                 
-                // Har 2 ta xabarda progressni yangilash
-                if (count % 2 === 0 || count === participants.length) {
-                    await bot.editMessageText(`🚀 **Avto UTag jarayoni...**\nProgress: ${count}/${participants.length}`, {
+                // Progressni yangilash
+                if (statusMsg && (count % 5 === 0 || count === participants.length)) {
+                    const buttons = isCommand ? {} : getUtagButtons(utagStates[chatId].status);
+                    await bot.editMessageText(`🚀 **Azoblash xizmati jarayoni...**\nProgress: ${count}/${participants.length}`, {
                         chat_id: chatId,
                         message_id: statusMsg.message_id,
-                        ...getUtagButtons(utagStates[chatId].status)
+                        ...buttons
                     }).catch(() => {});
                 }
 
@@ -1002,10 +1124,10 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
             }
         }
         
-        const finalStatus = utagStates[chatId]?.status === 'stopped' ? "to'xtatildi" : "tugadi";
-        bot.sendMessage(chatId, `🏁 **Avto UTag ${finalStatus}!**\nJami tag qilindi: ${count} ta.`, getMainMenu(chatId));
+        const finalStatus = utagStates[chatId]?.status === 'stopped' ? "to'xtatildi yoki tugadi" : "tugadi";
+        bot.sendMessage(chatId, `🏁 **Azoblash xizmati ${finalStatus}!**\nJami tag qilindi: ${count} ta.`);
         
-        await User.findOneAndUpdate({ chatId }, { $inc: { utagCount: 1 } });
+        await User.increment({ utagCount: 1 }, { where: { chatId } });
         delete utagStates[chatId];
     } catch (e) {
         throw new Error(`UTag xatosi: ${e.message}`);
@@ -1014,5 +1136,5 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
 
 module.exports = { 
     userClients, avtoAlmazStates, utagStates, reklamaStates, reydSessions, startUserbot, blockExpiredUser,
-    initAuth, handleAuthStep, scrapeUsers, startReyd, startReklama, startAutoTag
+    initAuth, handleAuthStep, scrapeUsers, startReyd, startReklama, startAutoTag, loadAllStates
 };

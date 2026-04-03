@@ -179,8 +179,6 @@ function withPremiumEmojis(text) {
     return { cleanText, entities };
 }
 
-const { Markup } = require('telegraf');
-
 const escapeMarkdown = (text) => text ? text.replace(/[_*[\]()~`>#+-=|{}.!]/g, '\\$&') : ""; 
 
 const escapeHTML = (text) => {
@@ -279,10 +277,14 @@ const getAlmazMenu = (isEnabled) => {
     const buttonText = isEnabled ? "🔴 O'chirish" : "🟢 Yoqish";
     const buttonAction = isEnabled ? "almaz_off" : "almaz_on";
 
-    return Markup.inlineKeyboard([
-        [Markup.button.callback(buttonText, buttonAction)],
-        [Markup.button.callback("◀️ Orqaga", "menu_back_main")]
-    ]);
+    return {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: buttonText, callback_data: buttonAction }],
+                [{ text: "◀️ Orqaga", callback_data: "menu_back_main" }]
+            ]
+        }
+    };
 };
 
 function getUtagMenu() {
@@ -337,6 +339,18 @@ function getAdminMenu() {
     };
 }
 
+// Foydalanuvchi guruh admini ekanligini tekshirish
+const isUserAdmin = async (bot, chatId, userId) => {
+    try {
+        if (chatId === userId) return true; // Shaxsiy chatda o'zi admin
+        const member = await bot.getChatMember(chatId, userId);
+        return ['creator', 'administrator'].includes(member.status);
+    } catch (e) {
+        console.error("Admin check error:", e.message);
+        return false;
+    }
+};
+
 module.exports = { 
     escapeMarkdown, 
     escapeHTML,
@@ -353,5 +367,7 @@ module.exports = {
     getUtagMenu,
     getReklamaMenu,
     getReydMenu,
-    getAdminMenu 
+    getAdminMenu,
+    isUserAdmin,
+    EMOJI_MAP
 };
