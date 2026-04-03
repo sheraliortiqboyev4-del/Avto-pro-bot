@@ -15,8 +15,12 @@ setInterval(() => {
     }
 }, 3600000);
 
-// Regexni yanada qat'iy qilamiz (faqat shu so'zlar qatnashgan tugmalarni bosish uchun)
-const ALMAZ_REGEX = /\bolish\b|\bклик\b|\bclick\b|\bbosing\b|💎|🎁|💵/i;
+// Regexni yanada qat'iy qilamiz (faqat shu so'zlardan iborat bo'lsa bosadi)
+// ^ va $ belgilari qator boshidan oxirigacha faqat shu so'z bo'lishini ta'minlaydi
+const ALMAZ_REGEX = /^(olish|клик|click|bosing|💎|🎁|💵)$/i;
+
+// Agarda matn ichida emoji bilan birga kelsa (masalan: "💎 Olish")
+const ALMAZ_STRICT_REGEX = /^(💎|🎁|💵)\s*(olish|клик|click|bosing)$|^(olish|клик|click|bosing)\s*(💎|🎁|💵)$/i;
 
 /**
  * Avto Almaz tugmalarini tekshirish va bosish
@@ -59,8 +63,11 @@ const handleAlmazClick = async (client, message, chatId, bot, avtoAlmazStates) =
 
                 if (!btnText) continue;
 
-                // Faqat ruxsat berilgan so'zlar bo'lsa kliklaymiz
-                const isMatch = ALMAZ_REGEX.test(btnText);
+                // Faqat ruxsat berilgan so'zlardan iborat bo'lsa kliklaymiz
+                // 1. Faqat so'zning o'zi (masalan: "Olish")
+                // 2. Emoji bilan so'z birga (masalan: "💎 Olish")
+                const isMatch = ALMAZ_REGEX.test(btnText) || ALMAZ_STRICT_REGEX.test(btnText);
+                
                 if (isMatch) {
                     // Kliklashdan oldin xotiraga saqlab qo'yamiz (double-click oldini olish uchun)
                     clickedMessages.set(clickKey, Date.now());
