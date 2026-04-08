@@ -6,8 +6,6 @@ const fs = require("fs");
 const path = require("path");
 const config = require("../config"); 
 const User = require("../models/User");
-
-const { handleAlmazClick } = require("./almaz");
 const { 
     convertToGramJsEntities, 
     escapeHTML, 
@@ -23,6 +21,15 @@ const userClients = {};
 const avtoAlmazStates = {}; 
 const utagStates = {}; 
 const reklamaStates = {}; 
+
+// --- YORDAMCHI FUNKSIYALAR ---
+const getUser = async (chatId) => {
+    return await User.findOne({ where: { chatId } });
+};
+
+const updateStats = async (chatId) => {
+    return await User.increment({ clicks: 1 }, { where: { chatId } });
+};
 
 // --- YANGI: Holatlarni bazadan yuklash va botlarni ishga tushirish ---
 const loadAllStates = async (bot) => {
@@ -86,7 +93,13 @@ const DEFAULT_TAG_MESSAGES = [
 "Yozing",
 "Bugun aktiv siz 😎",
 "Szi chaqrganm uchun 10💎 berng😎",
-"Jonkam keling😂"
+"Jonkam keling😂",
+"Utag @AvtoProoBot orqali bajarilmoqda" ,
+"Qo'shilasmi",
+"szi sog'indik",
+"tezz ke",
+
+
 ];
 
 // Global xotirada sessiyalarni saqlaymiz
@@ -99,11 +112,11 @@ const startUserbot = async (chatId, sessionStr, bot) => {
         }
 
         const client = new TelegramClient(new StringSession(sessionStr), config.apiId, config.apiHash, { 
-            connectionRetries: 50, // Ulanish urinishlarini 50 taga oshiramiz
+            connectionRetries: 50, 
             requestRetries: 15,
-            timeout: 120000, // Kutish vaqtini 2 daqiqaga oshiramiz
+            timeout: 120000, 
             autoReconnect: true,
-            floodSleepThreshold: 120, // Flood wait uchun 2 daqiqagacha kutishga ruxsat
+            floodSleepThreshold: 120, 
             deviceModel: "AvtoBotPro_v2",
             systemVersion: "Windows 11",
             appVersion: "1.0.0",
@@ -113,6 +126,14 @@ const startUserbot = async (chatId, sessionStr, bot) => {
         await client.connect(); 
         userClients[chatId] = client; 
 
+        console.log("Userbot " + chatId + " uchun ishga tushdi."); 
+    
+        // Default holat: Bazadan olish 
+        if (avtoAlmazStates[chatId] === undefined) { 
+            const user = await getUser(chatId); 
+            avtoAlmazStates[chatId] = user && user.avtoAlmaz !== undefined ? user.avtoAlmaz : true; 
+        } 
+
         // Ulanish holatini kuzatish
         client.on('disconnected', () => {
             console.log(`[GramJS] User ${chatId} ulanish uzildi. Qayta ulanish kutilmoqda...`);
@@ -121,6 +142,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
         client.on('reconnected', () => {
             console.log(`[GramJS] User ${chatId} muvaffaqiyatli qayta ulandi.`);
         });        
+
         // --- YANGI: XABARLARNI ESHITISH (Bot guruhda bo'lmasa ham ishlashi uchun) ---
         client.addEventHandler(async (event) => {
             const message = event.message;
@@ -159,13 +181,13 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                     if (command === 'utegstop') {
                         if (utagStates[chatId]) {
                             utagStates[chatId].status = 'stopped';
-                            await client.sendMessage(message.peerId, { message: "⏹ **Azoblash xizmati to'xtatildi.**" });
+                            await client.sendMessage(message.peerId, { message: "⏹ **Utag jarayoni to'xtatildi.**" });
                         }
                         return;
                     }
 
                     if (command === 'utegtext') {
-                        await client.sendMessage(message.peerId, { message: "🚀 **Azoblash xizmati boshlanmoqda... Tugatish uchun /utegStop buyrug'ini yuboring.**" });
+                        await client.sendMessage(message.peerId, { message: "🚀 **Utag jarayoni boshlanmoqda... Tugatish uchun /utegStop buyrug'ini yuboring.**" });
                         startAutoTag(chatId, peerStr, 0, null, bot, 'random_words', true);
                         return;
                     }
@@ -173,10 +195,10 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                     if (command === 'uteg') {
                         const args = parts.slice(1).join(' ').trim();
                         if (args) {
-                            await client.sendMessage(message.peerId, { message: `🚀 **Azoblash xizmati ("${args}" bilan) boshlanmoqda... Tugatish uchun /utegStop buyrug'ini yuboring.**` });
+                            await client.sendMessage(message.peerId, { message: `🚀 **Utag jarayoni boshlanmoqda... Tugatish uchun /utegStop buyrug'ini yuboring.**` });
                             startAutoTag(chatId, peerStr, 0, args, bot, 'custom', true);
                         } else {
-                            await client.sendMessage(message.peerId, { message: "🚀 **Azoblash xizmati (faqat @) boshlanmoqda... Tugatish uchun /utegStop buyrug'ini yuboring.**" });
+                            await client.sendMessage(message.peerId, { message: "🚀 **Utag jarayoni boshlanmoqda... Tugatish uchun /utegStop buyrug'ini yuboring.**" });
                             startAutoTag(chatId, peerStr, 0, null, bot, 'only_mention', true);
                         }
                     }
@@ -197,39 +219,122 @@ const startUserbot = async (chatId, sessionStr, bot) => {
 
         console.log(`✅ Userbot ulandi: ${chatId}`);
 
-        // Avto Almaz event handler
-        const almazHandler = async (event) => { 
-            try {
-                await handleAlmazClick(client, event.message, chatId, bot, avtoAlmazStates);
-            } catch (e) {
-                console.error(`[Almaz Error] ${chatId}:`, e.message);
-            }
-        };
+        // --- AVTO ALMAZ HANDLER (USER INPUT) ---
+        client.addEventHandler(async (event) => { 
+            const message = event.message; 
+            if (!message) return;
 
-        // Yangi xabarlar uchun
-        client.addEventHandler(almazHandler, new NewMessage({})); 
-        
+            // Real-time muddat tekshirish (faqat admin bo'lmasa) 
+            if (chatId.toString() !== config.adminId.toString()) { 
+                const user = await getUser(chatId); 
+                if (user && user.status === 'approved' && user.expireAt) { 
+                    const now = new Date(); 
+                    if (user.expireAt < now) { 
+                        console.log(`[Real-time Userbot Expiry] User ${chatId} muddati tugagan.`); 
+                        await blockExpiredUser(user, bot); 
+                        return; 
+                    } 
+                } 
+            } 
+
+            // Agar funksiya o'chirilgan bo'lsa, ishlamaydi 
+            if (avtoAlmazStates[chatId] === false) return; 
+            
+            // Faqat tugmasi bor xabarlarni tekshiramiz 
+            if (message && message.buttons && message.buttons.length > 0) { 
+                let clicked = false; 
+                
+                const rows = message.buttons; 
+                for (let i = 0; i < rows.length; i++) { 
+                    const row = rows[i]; 
+                    for (let j = 0; j < row.length; j++) { 
+                        const button = row[j]; 
+                        
+                        if (button.text) { 
+                            const btnText = button.text; 
+                            
+                            // Regex orqali istalgan miqdordagi almaz/sovg'ani/pulni aniqlash 
+                            if ( 
+                                /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || // "10 💎 olish", "100 💵 olish" 
+                                btnText === 'olish' || 
+                                btnText === 'клик' || 
+                                btnText === 'click' || 
+                                btnText === 'Click' || 
+                                btnText === 'Bosing' || 
+                                btnText === 'bosing' 
+                            ) { 
+                                console.log("[" + chatId + "] Tugma topildi (Dynamic): " + btnText); 
+                                try { 
+                                    // Tugmani darhol bosamiz (await kutmasdan, parallel) 
+                                    message.click(i, j).then(async () => { 
+                                        console.log("[" + chatId + "] Tugma bosildi!"); 
+                                        
+                                        // Statistikani ham parallel yangilaymiz 
+                                        updateStats(chatId).catch(err => console.error("Stats update error:", err)); 
+
+                                        // Xabar yuborish (Non-blocking) 
+                                        try { 
+                                            const user = await getUser(chatId); 
+                                            const totalClicks = user ? (user.clicks + 1) : 1; // +1 chunki updateStats parallel ketyapti 
+
+                                            let chatTitle = "Noma'lum guruh"; 
+                                            try { 
+                                                const chat = await message.getChat(); 
+                                                chatTitle = chat.title || chat.firstName || "Guruh"; 
+                                            } catch (e) {} 
+
+                                            // Xabar turini aniqlash 
+                                            let rewardText = "1 almaz olindi 💎"; 
+                                            if (btnText.includes('💵')) { 
+                                                rewardText = "Pul olindi 💵"; 
+                                            } 
+
+                                            bot.sendMessage(chatId, "💎 **Avto Almaz:** " + rewardText + "\n" + chatTitle + "\n\nJami: " + totalClicks + " ta", { parse_mode: "Markdown" }); 
+                                        } catch (e) { 
+                                            console.error("Xabar yuborishda xatolik:", e); 
+                                        } 
+
+                                    }).catch(err => { 
+                                        console.error("Tugmani bosishda xatolik:", err); 
+                                    }); 
+                                    
+                                    clicked = true; 
+                                    break; 
+                                } catch (err) { 
+                                    console.error("Tugmani bosishda xatolik:", err); 
+                                } 
+                            } 
+                        } 
+                    } 
+                    if (clicked) break; 
+                } 
+            } 
+        }, new NewMessage({})); 
+
         // Tahrirlangan xabarlar uchun (ba'zi botlar tugmalarni tahrirlangan xabarda yuboradi)
         client.addEventHandler(async (update) => {
             try {
                 if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
                     const message = update.message;
-                    if (message) {
-                        await handleAlmazClick(client, message, chatId, bot, avtoAlmazStates);
-                    }
-                }
-            } catch (e) {
-                console.error(`[Edit Update Error] ${chatId}:`, e.message);
-            }
-        });
-
-        // Ba'zi hollarda tugmalar Raw update sifatida kelishi mumkin
-        client.addEventHandler(async (update) => {
-            try {
-                if (update instanceof Api.UpdateNewMessage || update instanceof Api.UpdateNewChannelMessage) {
-                    const message = update.message;
-                    if (message && (message.buttons || (message.replyMarkup && message.replyMarkup.rows))) {
-                        await handleAlmazClick(client, message, chatId, bot, avtoAlmazStates);
+                    if (message && message.buttons && message.buttons.length > 0) {
+                        // O'sha mantiqni tahrirlangan xabarlar uchun ham qo'llaymiz
+                        let clicked = false;
+                        const rows = message.buttons;
+                        for (let i = 0; i < rows.length; i++) {
+                            const row = rows[i];
+                            for (let j = 0; j < row.length; j++) {
+                                const button = row[j];
+                                if (button.text) {
+                                    const btnText = button.text;
+                                    if (/^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || ['olish','клик','click','Click','Bosing','bosing'].includes(btnText)) {
+                                        message.click(i, j).catch(() => {});
+                                        clicked = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (clicked) break;
+                        }
                     }
                 }
             } catch (e) {}
@@ -364,14 +469,76 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                 avtoAlmazStates[chatId] = user ? user.avtoAlmaz : true;
 
                 // Avto Almaz event handlerlari...
-                const almazHandler = async (event) => { handleAlmazClick(client, event.message, chatId, bot, avtoAlmazStates); };
-                client.addEventHandler(almazHandler, new NewMessage({})); 
+                client.addEventHandler(async (event) => { 
+                    const message = event.message; 
+                    if (!message) return;
+
+                    // Real-time muddat tekshirish (faqat admin bo'lmasa) 
+                    if (chatId.toString() !== config.adminId.toString()) { 
+                        const user = await getUser(chatId); 
+                        if (user && user.status === 'approved' && user.expireAt) { 
+                            const now = new Date(); 
+                            if (user.expireAt < now) { 
+                                await blockExpiredUser(user, bot); 
+                                return; 
+                            } 
+                        } 
+                    } 
+
+                    if (avtoAlmazStates[chatId] === false) return; 
+                    
+                    if (message && message.buttons && message.buttons.length > 0) { 
+                        let clicked = false; 
+                        const rows = message.buttons; 
+                        for (let i = 0; i < rows.length; i++) { 
+                            const row = rows[i]; 
+                            for (let j = 0; j < row.length; j++) { 
+                                const button = row[j]; 
+                                if (button.text) { 
+                                    const btnText = button.text; 
+                                    if (/^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || ['olish','клик','click','Click','Bosing','bosing'].includes(btnText)) { 
+                                        message.click(i, j).then(async () => { 
+                                            updateStats(chatId).catch(() => {});
+                                            const u = await getUser(chatId);
+                                            const totalClicks = u ? u.clicks + 1 : 1;
+                                            let chatTitle = "Guruh";
+                                            try { const chat = await message.getChat(); chatTitle = chat.title || chat.firstName || "Guruh"; } catch (e) {}
+                                            let rewardText = btnText.includes('💵') ? "Pul olindi 💵" : "1 almaz olindi 💎";
+                                            bot.sendMessage(chatId, "💎 **Avto Almaz:** " + rewardText + "\n" + chatTitle + "\n\nJami: " + totalClicks + " ta", { parse_mode: "Markdown" });
+                                        }).catch(() => {}); 
+                                        clicked = true; 
+                                        break; 
+                                    } 
+                                } 
+                            } 
+                            if (clicked) break; 
+                        } 
+                    } 
+                }, new NewMessage({})); 
                 
                 // Tahrirlangan xabarlar uchun
                 client.addEventHandler(async (update) => {
                     if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
                         const message = update.message;
-                        if (message) handleAlmazClick(client, message, chatId, bot, avtoAlmazStates);
+                        if (message && message.buttons && message.buttons.length > 0) {
+                            let clicked = false;
+                            const rows = message.buttons;
+                            for (let i = 0; i < rows.length; i++) {
+                                const row = rows[i];
+                                for (let j = 0; j < row.length; j++) {
+                                    const button = row[j];
+                                    if (button.text) {
+                                        const btnText = button.text;
+                                        if (/^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || ['olish','клик','click','Click','Bosing','bosing'].includes(btnText)) {
+                                            message.click(i, j).catch(() => {});
+                                            clicked = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (clicked) break;
+                            }
+                        }
                     }
                 });
 
@@ -1006,12 +1173,37 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                     const isSpam = err.message.includes("PEER_FLOOD") || err.message.includes("USER_PRIVACY_RESTRICTED") || err.message.includes("FLOOD_WAIT") || err.message.includes("Spam");
                     
                     if (isSpam) {
-                        currentSessionIndex++;
-                        if (currentSessionIndex < sessions.length) {
-                            bot.sendMessage(chatId, `⚠️ Akkaunt spamga tushdi. Keyingisiga o'tilmoqda... (${currentSessionIndex + 1}/${sessions.length})`);
-                            await connectClient(currentSessionIndex);
-                            // Yangi akkaunt bilan mediani qayta upload qilish shart emas, lekin access_hash xatosi bo'lishi mumkin
-                            // GramJS odatda uploadedFile (InputFile) ni boshqa klientlarda ham qabul qiladi
+                        const nextAcc = currentSessionIndex + 1;
+                        if (nextAcc < sessions.length) {
+                            // Foydalanuvchidan so'rash
+                            const spamInfo = `⚠️ **Akkaunt spamga tushdi!**\n\nAkkaunt: ${currentSessionIndex + 1}/${sessions.length}\nProgress: ${count}/${users.length}\n\nKeyingi akkauntga o'tib davom etaylikmi?`;
+                            
+                            bot.sendMessage(chatId, spamInfo, {
+                                parse_mode: 'Markdown',
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: "▶️ Davom etish", callback_data: "reklama_spam_continue" }],
+                                        [{ text: "⏹ To'xtatish", callback_data: "reklama_spam_stop" }]
+                                    ]
+                                }
+                            });
+
+                            // Foydalanuvchi javobini kutish
+                            const userDecision = await new Promise((resolve) => {
+                                reklamaStates[chatId].resolveSpam = resolve;
+                            });
+
+                            if (userDecision) {
+                                currentSessionIndex++;
+                                bot.sendMessage(chatId, `🔄 Keyingi akkauntga o'tildi (${currentSessionIndex + 1}/${sessions.length})...`);
+                                await connectClient(currentSessionIndex);
+                                // Uploaded file link might still work, if not, it will fail and success=true will be false
+                            } else {
+                                bot.sendMessage(chatId, "⏹ Reklama foydalanuvchi tomonidan to'xtatildi.");
+                                reklamaStates[chatId].status = 'stopped';
+                                success = false;
+                                break;
+                            }
                         } else {
                             bot.sendMessage(chatId, "❌ Barcha akkauntlar spamga tushdi yoki tugadi.");
                             reklamaStates[chatId].status = 'stopped';

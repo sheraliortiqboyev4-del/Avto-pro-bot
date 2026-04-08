@@ -153,10 +153,22 @@ module.exports = (bot) => {
             global.userStates[chatId] = { step: 'WAITING_REK_TEXT', usersList: text };
             bot.sendMessage(chatId, "✍️ Reklama xabarini yuboring (Matn, rasm, stiker va h.k.):");
         } else if (state.step === 'WAITING_REK_TEXT') {
-            bot.sendMessage(chatId, "🚀 Reklama yuborish boshlandi...");
-            const count = await startReklama(chatId, state.usersList, msg, bot);
-            bot.sendMessage(chatId, `✅ Reklama ${count} ta foydalanuvchi orqali yakunlandi.`);
-            delete global.userStates[chatId];
+            global.userStates[chatId] = { ...state, step: 'CONFIRM_REK', reklamaMsg: msg };
+            
+            const rekInfo = `📢 **Reklama Ma'lumotlari:**\n\n` +
+                `👥 Userlar soni: ${state.usersList.split(/\s+/).filter(u => u.startsWith('@')).length} ta\n` +
+                `📩 Xabar turi: ${msg.photo ? "Rasm" : (msg.sticker ? "Stiker" : (msg.video ? "Video" : "Matn"))}\n\n` +
+                `Tayyormisiz? "Boshlash" tugmasini bosing.`;
+
+            bot.sendMessage(chatId, rekInfo, {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "🚀 Boshlash", callback_data: "reklama_start_confirm" }],
+                        [{ text: "❌ Bekor qilish", callback_data: "reklama_cancel" }]
+                    ]
+                }
+            });
         }
 
         if (state.step === 'WAITING_UTAG_LINK') {

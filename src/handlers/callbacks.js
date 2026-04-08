@@ -184,6 +184,61 @@ module.exports = (bot) => {
             return await safeAnswer();
         }
 
+        if (data === "reklama_start_confirm") {
+            await safeAnswer({ text: "🚀 Reklama boshlandi!" });
+            
+            const state = global.userStates[chatId];
+            if (!state || state.step !== 'CONFIRM_REK') {
+                return;
+            }
+
+            const { startReklama } = require('../services/userbot');
+            try {
+                await bot.deleteMessage(chatId, messageId);
+            } catch (e) {}
+            
+            // Async chaqiramiz
+            startReklama(chatId, state.usersList, state.reklamaMsg, bot).catch(err => {
+                console.error("Reklama error:", err.message);
+                bot.sendMessage(chatId, "❌ Reklama boshlashda xatolik: " + err.message);
+            });
+            
+            delete global.userStates[chatId];
+            return;
+        }
+
+        if (data === "reklama_cancel") {
+            await safeAnswer();
+            delete global.userStates[chatId];
+            return await safeEdit(chatId, messageId, "❌ Reklama bekor qilindi.", { reply_markup: { inline_keyboard: [[{ text: "🔙 Orqaga", callback_data: "menu_reklama" }]] } });
+        }
+
+        if (data === "reklama_spam_continue") {
+            const { reklamaStates } = require('../services/userbot');
+            if (reklamaStates[chatId] && reklamaStates[chatId].resolveSpam) {
+                reklamaStates[chatId].resolveSpam(true);
+                delete reklamaStates[chatId].resolveSpam;
+                await safeAnswer({ text: "▶️ Davom etilmoqda..." });
+                try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
+            } else {
+                await safeAnswer({ text: "❌ Jarayon topilmadi.", show_alert: true });
+            }
+            return;
+        }
+
+        if (data === "reklama_spam_stop") {
+            const { reklamaStates } = require('../services/userbot');
+            if (reklamaStates[chatId] && reklamaStates[chatId].resolveSpam) {
+                reklamaStates[chatId].resolveSpam(false);
+                delete reklamaStates[chatId].resolveSpam;
+                await safeAnswer({ text: "⏹ To'xtatildi." });
+                try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
+            } else {
+                await safeAnswer({ text: "❌ Jarayon topilmadi.", show_alert: true });
+            }
+            return;
+        }
+
         if (data.startsWith("reklama_")) {
             const { reklamaStates } = require('../services/userbot');
             if (!reklamaStates[chatId]) {
