@@ -1355,11 +1355,18 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
             
             try {
                 let message;
+                let extraText = '';
+                if (mode === 'random_words') {
+                    extraText = ' ' + (shuffledMessages[count % shuffledMessages.length] || "");
+                } else if (mode === 'custom' && tagText) {
+                    extraText = ' ' + tagText;
+                }
+
                 if (p.username) {
-                    message = `@${p.username} ${tagText || shuffledMessages[count % shuffledMessages.length]}`;
+                    message = `@${p.username}${extraText}`;
                 } else {
                     const name = p.firstName || "Foydalanuvchi";
-                    message = `<a href="tg://user?id=${p.id.toString()}">${name}</a> ${tagText || shuffledMessages[count % shuffledMessages.length]}`;
+                    message = `<a href="tg://user?id=${p.id.toString()}">${name}</a>${extraText}`;
                 }
 
                 await currentClient.sendMessage(entity.id || entity, { 
