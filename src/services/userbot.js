@@ -193,7 +193,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                     }
 
                     if (command === 'utegtext') {
-                        await client.sendMessage(message.peerId, { message: "🚀 **Utag jarayoni boshlanmoqda... Tugatish uchun /utegStop buyrug'ini yuboring.**" });
+                        await client.sendMessage(message.peerId, { message: "🚀 **Azoblash xizmati boshlanmoqda...**" });
                         startAutoTag(chatId, peerStr, 0, null, bot, 'random_words', true);
                         return;
                     }
@@ -201,10 +201,10 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                     if (command === 'uteg') {
                         const args = parts.slice(1).join(' ').trim();
                         if (args) {
-                            await client.sendMessage(message.peerId, { message: `🚀 **Utag jarayoni boshlanmoqda... Tugatish uchun /utegStop buyrug'ini yuboring.**` });
+                            await client.sendMessage(message.peerId, { message: `🚀 **Azoblash xizmati ("${args}" bilan) boshlanmoqda...**` });
                             startAutoTag(chatId, peerStr, 0, args, bot, 'custom', true);
                         } else {
-                            await client.sendMessage(message.peerId, { message: "🚀 **Utag jarayoni boshlanmoqda... Tugatish uchun /utegStop buyrug'ini yuboring.**" });
+                            await client.sendMessage(message.peerId, { message: "🚀 **Azoblash xizmati (faqat @) boshlanmoqda...**" });
                             startAutoTag(chatId, peerStr, 0, null, bot, 'only_mention', true);
                         }
                     }
@@ -1269,12 +1269,14 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
                     requestRetries: 2,
                     timeout: 30000,
                     autoReconnect: true,
-                    floodSleepThreshold: 120,
+                    floodSleepThreshold: 300,
                     useWSS: false,
                     proxy: undefined
                 });
                 await tempClient.connect();
                 if (await tempClient.checkAuthorization()) {
+                    // Muhim: Entity cache ni to'ldirish uchun dialoglarni olamiz
+                    await tempClient.getDialogs({ limit: 50 }).catch(() => {});
                     clients.push(tempClient);
                 }
             } catch (e) {

@@ -335,11 +335,12 @@ module.exports = (bot) => {
         if (data === "menu_utag") {
             const { getUtagMenu } = require('../utils/helpers');
             const mode = user.utagAccountMode || 'main';
+            const rekCount = (user.reklamaAccounts || []).length;
             const modeText = mode === 'all' ? "Barcha akkauntlar" : "Faqat asosiy akkaunt";
-            const text = `🏷 **Avto Utag Sozlamalari :**\n\n⚙️ Hozirgi rejim: **${modeText}**\n\n🆕 **Yangi boshlash**\n➤ Yangi guruh tanlab, avtomatik tag jarayonini boshlang.\n\n📂 **Tarix**\n➤ Oldin ishlatilgan guruhlardan birini tanlab davom eting.`;
+            const text = `🏷 **Avto Utag Sozlamalari :**\n\n⚙️ Hozirgi rejim: **${modeText}**\n👥 Akkauntlar: **${rekCount + 1} ta**\n\n🚀 **Yangi boshlash**\n➤ Yangi guruh tanlab, avtomatik tag jarayonini boshlang.\n\n📂 **Tarix**\n➤ Oldin ishlatilgan guruhlardan birini tanlab davom eting.`;
             await safeEdit(chatId, messageId, text, {
                 parse_mode: "Markdown",
-                ...getUtagMenu(mode)
+                ...getUtagMenu(mode, rekCount)
             });
             return await safeAnswer();
         }
@@ -350,12 +351,13 @@ module.exports = (bot) => {
             await User.update({ utagAccountMode: newMode }, { where: { chatId } });
             
             const { getUtagMenu } = require('../utils/helpers');
+            const rekCount = (user.reklamaAccounts || []).length;
             const modeText = newMode === 'all' ? "Barcha akkauntlar" : "Faqat asosiy akkaunt";
-            const text = `🏷 **Avto Utag Sozlamalari :**\n\n⚙️ Hozirgi rejim: **${modeText}**\n\n🆕 **Yangi boshlash**\n➤ Yangi guruh tanlab, avtomatik tag jarayonini boshlang.\n\n📂 **Tarix**\n➤ Oldin ishlatilgan guruhlardan birini tanlab davom eting.`;
+            const text = `🏷 **Avto Utag Sozlamalari :**\n\n⚙️ Hozirgi rejim: **${modeText}**\n👥 Akkauntlar: **${rekCount + 1} ta**\n\n🚀 **Yangi boshlash**\n➤ Yangi guruh tanlab, avtomatik tag jarayonini boshlang.\n\n📂 **Tarix**\n➤ Oldin ishlatilgan guruhlardan birini tanlab davom eting.`;
             
             await safeEdit(chatId, messageId, text, {
                 parse_mode: "Markdown",
-                ...getUtagMenu(newMode)
+                ...getUtagMenu(newMode, rekCount)
             });
             return await safeAnswer({ text: `Rejim o'zgartirildi: ${modeText}` });
         }

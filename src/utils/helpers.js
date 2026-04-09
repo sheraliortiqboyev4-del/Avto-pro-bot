@@ -287,13 +287,17 @@ const getAlmazMenu = (isEnabled) => {
     };
 };
 
-function getUtagMenu(accountMode = 'main') {
+function getUtagMenu(accountMode = 'main', rekCount = 0) {
     const modeText = accountMode === 'all' ? "🌐 Barcha akkauntlar" : "👤 Faqat asosiy";
     return {
         reply_markup: {
             inline_keyboard: [
-                [{ text: "🆕 Yangi boshlash", callback_data: "utag_start_new" }],
-                [{ text: `⚙️ Akkauntlar: ${modeText}`, callback_data: "utag_change_mode" }],
+                [{ text: "🚀 Yangi boshlash", callback_data: "utag_start_new" }],
+                [{ text: `⚙️ Rejim: ${modeText}`, callback_data: "utag_change_mode" }],
+                [
+                    { text: `➕ Akkaunt qo'shish (${rekCount}/10)`, callback_data: "reklama_add_acc" },
+                    { text: "🗑 Tozalash", callback_data: "reklama_clear_accs" }
+                ],
                 [{ text: "📂 Tarix", callback_data: "utag_history" }],
                 [{ text: "🔙 Orqaga", callback_data: "menu_back_main" }]
             ]
