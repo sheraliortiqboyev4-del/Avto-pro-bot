@@ -1306,6 +1306,11 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
             entity = await mainClient.getEntity(peer);
         }
 
+        // Barcha qo'shimcha clientlar entity ni ko'rib olishi kerak (cache uchun)
+        for (let i = 1; i < clients.length; i++) {
+            try { await clients[i].getEntity(peer).catch(() => {}); } catch (e) {}
+        }
+
         const fetchLimit = (limit === 0 || limit === "0") ? undefined : parseInt(limit);
         const participants = await mainClient.getParticipants(entity, { limit: fetchLimit });
         
@@ -1357,9 +1362,7 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
                     message = `<a href="tg://user?id=${p.id.toString()}">${name}</a> ${tagText || shuffledMessages[count % shuffledMessages.length]}`;
                 }
 
-                // Har bir akkaunt uchun nishonni qayta olish kerak bo'lishi mumkin (access_hash)
-                // Lekin bitta guruhda bo'lsa va client.sendMessage ishlamasa, keyingisiga o'tamiz
-                await currentClient.sendMessage(entity, { 
+                await currentClient.sendMessage(entity.id || entity, { 
                     message, 
                     parseMode: p.username ? undefined : 'html' 
                 });
@@ -1367,8 +1370,10 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
                 count++;
                 utagStates[chatId].count = count;
                 
-                // Navbatdagi clientga o'tamiz (rotatsiya)
-                currentClientIndex = (currentClientIndex + 1) % clients.length;
+                // Navbatdagi clientga o'tamiz (har 2 ta xabardan keyin rotatsiya)
+                if (count % 2 === 0) {
+                    currentClientIndex = (currentClientIndex + 1) % clients.length;
+                }
 
                 if (statusMsg && (count % 5 === 0 || count === participants.length)) {
                     const buttons = isCommand ? {} : getUtagButtons(utagStates[chatId].status);
