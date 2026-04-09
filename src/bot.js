@@ -6,6 +6,8 @@ process.on('uncaughtException', (err) => {
 });
 
 process.on('unhandledRejection', (reason, promise) => {
+    // 429 xatolarini unhandled deb ko'rsatmaslik uchun (chunki biz wrapperda ushlayapmiz)
+    if (reason && reason.message && reason.message.includes('429')) return;
     console.error('❌ UNHANDLED REJECTION at:', promise, 'reason:', reason);
 });
 
@@ -73,6 +75,61 @@ const bot = new TelegramBot(config.botToken, {
         }
     }
 });
+
+// --- WRAPPER FOR TELEGRAM BOT METHODS (ANTI-FLOOD & ERROR PROTECTION) ---
+const originalSendMessage = bot.sendMessage.bind(bot);
+bot.sendMessage = async (chatId, text, options = {}, retryCount = 0) => {
+    try {
+        return await originalSendMessage(chatId, text, options);
+    } catch (error) {
+        if (error.code === 'ETELEGRAM' && error.response && error.response.body && error.response.body.parameters) {
+            const retryAfter = error.response.body.parameters.retry_after;
+            if (retryAfter && retryCount < 3) {
+                console.log(`⚠️ [429 Flood] bot.sendMessage uchun ${retryAfter} soniya kutilmoqda... (Urinish: ${retryCount + 1})`);
+                await new Promise(r => setTimeout(r, (retryAfter + 1) * 1000));
+                return bot.sendMessage(chatId, text, options, retryCount + 1);
+            }
+        }
+        console.error(`❌ [bot.sendMessage Error] to ${chatId}:`, error.message);
+        throw error;
+    }
+};
+
+const originalEditMessageText = bot.editMessageText.bind(bot);
+bot.editMessageText = async (text, options = {}, retryCount = 0) => {
+    try {
+        return await originalEditMessageText(text, options);
+    } catch (error) {
+        if (error.message.includes("message is not modified")) return;
+        if (error.code === 'ETELEGRAM' && error.response && error.response.body && error.response.body.parameters) {
+            const retryAfter = error.response.body.parameters.retry_after;
+            if (retryAfter && retryCount < 3) {
+                console.log(`⚠️ [429 Flood] bot.editMessageText uchun ${retryAfter} soniya kutilmoqda... (Urinish: ${retryCount + 1})`);
+                await new Promise(r => setTimeout(r, (retryAfter + 1) * 1000));
+                return bot.editMessageText(text, options, retryCount + 1);
+            }
+        }
+        console.error(`❌ [bot.editMessageText Error]:`, error.message);
+        throw error;
+    }
+};
+
+const originalAnswerCallbackQuery = bot.answerCallbackQuery.bind(bot);
+bot.answerCallbackQuery = async (callbackQueryId, options = {}, retryCount = 0) => {
+    try {
+        return await originalAnswerCallbackQuery(callbackQueryId, options);
+    } catch (error) {
+        if (error.message.includes("query is too old") || error.message.includes("query ID is invalid")) return;
+        if (error.code === 'ETELEGRAM' && error.response && error.response.body && error.response.body.parameters) {
+            const retryAfter = error.response.body.parameters.retry_after;
+            if (retryAfter && retryCount < 2) {
+                await new Promise(r => setTimeout(r, (retryAfter + 1) * 1000));
+                return bot.answerCallbackQuery(callbackQueryId, options, retryCount + 1);
+            }
+        }
+        console.error(`❌ [bot.answerCallbackQuery Error]:`, error.message);
+    }
+};
 
 // Pollingni xavfsiz boshlash funksiyasi
 const startPolling = async () => {

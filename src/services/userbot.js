@@ -114,9 +114,9 @@ const startUserbot = async (chatId, sessionStr, bot) => {
         const client = new TelegramClient(new StringSession(sessionStr), config.apiId, config.apiHash, { 
             connectionRetries: 50, 
             requestRetries: 15,
-            timeout: 120000, 
+            timeout: 60000, // Timeoutni 1 daqiqaga kamaytiramiz (render uchun qulayroq)
             autoReconnect: true,
-            floodSleepThreshold: 120, 
+            floodSleepThreshold: 300, // Flood wait uchun 5 daqiqagacha avtomatik kutishga ruxsat beramiz
             deviceModel: "AvtoBotPro_v2",
             systemVersion: "Windows 11",
             appVersion: "1.0.0",
