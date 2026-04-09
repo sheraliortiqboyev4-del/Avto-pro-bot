@@ -76,12 +76,23 @@ const bot = new TelegramBot(config.botToken, {
     }
 });
 
-// --- WRAPPER FOR TELEGRAM BOT METHODS (ANTI-FLOOD & ERROR PROTECTION) ---
-const originalSendMessage = bot.sendMessage.bind(bot);
+// --- WRAPPER FOR TELEGRAM BOT METHODS (ANTI-FLOOD, PREMIUM EMOJIS & ERROR PROTECTION) ---
+const baseSendMessage = bot.sendMessage.bind(bot);
 bot.sendMessage = async (chatId, text, options = {}, retryCount = 0) => {
     try {
-        return await originalSendMessage(chatId, text, options);
+        const { cleanText, entities } = withPremiumEmojis(text);
+        let finalOptions = { ...options };
+        let finalText = text;
+
+        if (entities && entities.length > 0) {
+            finalOptions.entities = entities;
+            delete finalOptions.parse_mode; 
+            finalText = cleanText;
+        }
+
+        return await baseSendMessage(chatId, finalText, finalOptions);
     } catch (error) {
+        // 429 Too Many Requests (Flood)
         if (error.code === 'ETELEGRAM' && error.response && error.response.body && error.response.body.parameters) {
             const retryAfter = error.response.body.parameters.retry_after;
             if (retryAfter && retryCount < 3) {
@@ -90,17 +101,38 @@ bot.sendMessage = async (chatId, text, options = {}, retryCount = 0) => {
                 return bot.sendMessage(chatId, text, options, retryCount + 1);
             }
         }
+        
         console.error(`❌ [bot.sendMessage Error] to ${chatId}:`, error.message);
+        
+        // Agar xato bo'lsa, mutlaqo oddiy matn ko'rinishida yuborishga harakat qilamiz
+        if (retryCount === 0) {
+            try {
+                const safeText = text ? text.toString().replace(/[_*`]/g, '') : "Xatolik yuz berdi";
+                return await baseSendMessage(chatId, safeText, { chat_id: chatId });
+            } catch (e) {}
+        }
         throw error;
     }
 };
 
-const originalEditMessageText = bot.editMessageText.bind(bot);
+const baseEditMessageText = bot.editMessageText.bind(bot);
 bot.editMessageText = async (text, options = {}, retryCount = 0) => {
     try {
-        return await originalEditMessageText(text, options);
+        if (!text) return;
+        const { cleanText, entities } = withPremiumEmojis(text);
+        let finalOptions = { ...options };
+        let finalText = text;
+
+        if (entities && entities.length > 0) {
+            finalOptions.entities = entities;
+            delete finalOptions.parse_mode; 
+            finalText = cleanText;
+        }
+
+        return await baseEditMessageText(finalText, finalOptions);
     } catch (error) {
         if (error.message.includes("message is not modified")) return;
+        
         if (error.code === 'ETELEGRAM' && error.response && error.response.body && error.response.body.parameters) {
             const retryAfter = error.response.body.parameters.retry_after;
             if (retryAfter && retryCount < 3) {
@@ -109,15 +141,22 @@ bot.editMessageText = async (text, options = {}, retryCount = 0) => {
                 return bot.editMessageText(text, options, retryCount + 1);
             }
         }
+        
         console.error(`❌ [bot.editMessageText Error]:`, error.message);
+        
+        if (retryCount === 0) {
+            try {
+                return await baseEditMessageText(text.replace(/[_*`]/g, ''), { ...options, parse_mode: undefined, entities: undefined });
+            } catch (e) {}
+        }
         throw error;
     }
 };
 
-const originalAnswerCallbackQuery = bot.answerCallbackQuery.bind(bot);
+const baseAnswerCallbackQuery = bot.answerCallbackQuery.bind(bot);
 bot.answerCallbackQuery = async (callbackQueryId, options = {}, retryCount = 0) => {
     try {
-        return await originalAnswerCallbackQuery(callbackQueryId, options);
+        return await baseAnswerCallbackQuery(callbackQueryId, options);
     } catch (error) {
         if (error.message.includes("query is too old") || error.message.includes("query ID is invalid")) return;
         if (error.code === 'ETELEGRAM' && error.response && error.response.body && error.response.body.parameters) {
@@ -180,15 +219,6 @@ startPolling().then(() => {
     console.error("Critical error in startPolling chain:", err);
 });
 
-// Polling error handling
-bot.on('polling_error', (error) => {
-    if (error.message.includes('409 Conflict')) {
-        console.error("⚠️ [409 Conflict] Bot boshqa joyda ham ishlamoqda. Eski sessiya hali yopilmagan bo'lishi mumkin.");
-    } else {
-        console.error("Polling error:", error.message);
-    }
-});
-
 // --- GRACEFUL SHUTDOWN (Render Deploy uchun) ---
 const shutdown = async (signal) => {
     console.log(`\n Industrial shutdown (${signal})...`);
@@ -206,46 +236,6 @@ const shutdown = async (signal) => {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT')); 
-
-// Interceptors for Premium Emojis
-const originalSendMessage = bot.sendMessage.bind(bot);
-const originalEditMessageText = bot.editMessageText.bind(bot);
-
-bot.sendMessage = async function(chatId, text, options = {}) {
-    // Premium emoji wrapperini vaqtincha soddalashtiramiz yoki xatolarni yaxshiroq ushlaymiz
-    try {
-        const { cleanText, entities } = withPremiumEmojis(text);
-        let finalOptions = { ...options };
-        
-        if (entities && entities.length > 0) {
-            finalOptions.entities = entities;
-            delete finalOptions.parse_mode; 
-            text = cleanText;
-        }
-        return await originalSendMessage(chatId, text, finalOptions);
-    } catch (e) {
-        console.error(`[Wrapper Error] Failed to send to ${chatId}:`, e.message);
-        // Xatolik bo'lsa, mutlaqo oddiy matn ko'rinishida yuboramiz
-        const safeText = text ? text.toString().replace(/[_*`]/g, '') : "Xatolik yuz berdi";
-        return await originalSendMessage(chatId, safeText, { chat_id: chatId });
-    }
-};
-
-bot.editMessageText = async function(text, options = {}) {
-    const { cleanText, entities } = withPremiumEmojis(text);
-    let finalOptions = { ...options };
-    if (entities.length > 0) {
-        finalOptions.entities = entities; // JSON.stringify KERAK EMAS
-        delete finalOptions.parse_mode; 
-        text = cleanText;
-    }
-    try {
-        return await originalEditMessageText(text, finalOptions);
-    } catch (e) {
-        console.error(`Failed to edit message:`, e.message);
-        return await originalEditMessageText(text.replace(/[_*`]/g, ''), { ...options, parse_mode: undefined, entities: undefined });
-    }
-};
 
 // Global states 
 global.userStates = {}; 
