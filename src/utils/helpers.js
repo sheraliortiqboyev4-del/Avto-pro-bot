@@ -287,11 +287,13 @@ const getAlmazMenu = (isEnabled) => {
     };
 };
 
-function getUtagMenu() {
+function getUtagMenu(accountMode = 'main') {
+    const modeText = accountMode === 'all' ? "🌐 Barcha akkauntlar" : "👤 Faqat asosiy";
     return {
         reply_markup: {
             inline_keyboard: [
                 [{ text: "🆕 Yangi boshlash", callback_data: "utag_start_new" }],
+                [{ text: `⚙️ Akkauntlar: ${modeText}`, callback_data: "utag_change_mode" }],
                 [{ text: "📂 Tarix", callback_data: "utag_history" }],
                 [{ text: "🔙 Orqaga", callback_data: "menu_back_main" }]
             ]

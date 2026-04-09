@@ -334,18 +334,60 @@ module.exports = (bot) => {
 
         if (data === "menu_utag") {
             const { getUtagMenu } = require('../utils/helpers');
-            const text = "🏷 **Avto Utag Sozlamalari :**\n\n🆕 **Yangi boshlash**\n➤ Yangi guruh tanlab, avtomatik tag jarayonini boshlang.\n\n📂 **Tarix**\n➤ Oldin ishlatilgan guruhlardan birini tanlab davom eting.";
+            const mode = user.utagAccountMode || 'main';
+            const modeText = mode === 'all' ? "Barcha akkauntlar" : "Faqat asosiy akkaunt";
+            const text = `🏷 **Avto Utag Sozlamalari :**\n\n⚙️ Hozirgi rejim: **${modeText}**\n\n🆕 **Yangi boshlash**\n➤ Yangi guruh tanlab, avtomatik tag jarayonini boshlang.\n\n📂 **Tarix**\n➤ Oldin ishlatilgan guruhlardan birini tanlab davom eting.`;
             await safeEdit(chatId, messageId, text, {
                 parse_mode: "Markdown",
-                ...getUtagMenu()
+                ...getUtagMenu(mode)
             });
             return await safeAnswer();
         }
 
+        if (data === "utag_change_mode") {
+            const currentMode = user.utagAccountMode || 'main';
+            const newMode = currentMode === 'all' ? 'main' : 'all';
+            await User.update({ utagAccountMode: newMode }, { where: { chatId } });
+            
+            const { getUtagMenu } = require('../utils/helpers');
+            const modeText = newMode === 'all' ? "Barcha akkauntlar" : "Faqat asosiy akkaunt";
+            const text = `🏷 **Avto Utag Sozlamalari :**\n\n⚙️ Hozirgi rejim: **${modeText}**\n\n🆕 **Yangi boshlash**\n➤ Yangi guruh tanlab, avtomatik tag jarayonini boshlang.\n\n📂 **Tarix**\n➤ Oldin ishlatilgan guruhlardan birini tanlab davom eting.`;
+            
+            await safeEdit(chatId, messageId, text, {
+                parse_mode: "Markdown",
+                ...getUtagMenu(newMode)
+            });
+            return await safeAnswer({ text: `Rejim o'zgartirildi: ${modeText}` });
+        }
+
         if (data === "utag_start_new") {
+            if (!user.utagAccountMode) {
+                const text = "🛠 **Avto Utag rejimini tanlang:**\n\nSiz bir marta rejimni tanlasangiz, bot uni eslab qoladi. Keyinchalik uni sozlamalar orqali o'zgartirishingiz mumkin.";
+                const buttons = [
+                    [{ text: "👤 Faqat asosiy akkaunt", callback_data: "utag_set_mode_main" }],
+                    [{ text: "🌐 Barcha akkauntlar", callback_data: "utag_set_mode_all" }],
+                    [{ text: "🔙 Orqaga", callback_data: "menu_utag" }]
+                ];
+                await safeEdit(chatId, messageId, text, {
+                    parse_mode: "Markdown",
+                    reply_markup: { inline_keyboard: buttons }
+                });
+                return await safeAnswer();
+            }
             global.userStates[chatId] = { step: 'WAITING_UTAG_LINK' };
             bot.sendMessage(chatId, "🔗 Qaysi guruhda tag qilmoqchisiz? (Guruh linki yoki username yuboring):");
             return await safeAnswer();
+        }
+
+        if (data.startsWith("utag_set_mode_")) {
+            const mode = data.replace('utag_set_mode_', ''); // main or all
+            await User.update({ utagAccountMode: mode }, { where: { chatId } });
+            await safeAnswer({ text: `Rejim eslab qolindi: ${mode === 'all' ? 'Barcha akkauntlar' : 'Faqat asosiy'}` });
+            
+            global.userStates[chatId] = { step: 'WAITING_UTAG_LINK' };
+            bot.sendMessage(chatId, "🔗 Qaysi guruhda tag qilmoqchisiz? (Guruh linki yoki username yuboring):");
+            try { await bot.deleteMessage(chatId, messageId); } catch(e) {}
+            return;
         }
 
         if (data.startsWith("utag_mode_")) {

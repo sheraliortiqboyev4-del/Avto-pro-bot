@@ -177,6 +177,12 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                     const user = await User.findOne({ where: { chatId } });
                     if (!user || user.status !== 'approved') return;
 
+                    // 3. Akkaunt rejimini tekshirish (agar o'rnatilmagan bo'lsa)
+                    if (!user.utagAccountMode) {
+                        await client.sendMessage(message.peerId, { message: "⚠️ **Avto UTag rejimi o'rnatilmagan.**\nIltimos, botga kirib rejimni tanlang (Asosiy menyu -> Avto UTag)." });
+                        return;
+                    }
+
                     // --- BUYRUQLAR ---
                     if (command === 'utegstop') {
                         if (utagStates[chatId]) {
@@ -1239,40 +1245,71 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
 };
 
 const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'random', isCommand = false) => {
-    const client = await ensureClient(chatId, bot);
+    const user = await User.findOne({ where: { chatId } });
+    if (!user) throw new Error("Foydalanuvchi topilmadi.");
+
+    // Akkauntlarni tayyorlash
+    const sessions = [user.session];
+    if (user.utagAccountMode === 'all') {
+        const rekAccs = (user.reklamaAccounts || []).map(acc => acc.session);
+        sessions.push(...rekAccs);
+    }
+
+    const clients = [];
+    // Asosiy clientni har doim ishlatamiz (ensureClient orqali ulanadi)
+    const mainClient = await ensureClient(chatId, bot);
+    clients.push(mainClient);
+
+    // Qo'shimcha clientlarni ulash (agar 'all' bo'lsa)
+    if (user.utagAccountMode === 'all' && sessions.length > 1) {
+        for (let i = 1; i < sessions.length; i++) {
+            try {
+                const tempClient = new TelegramClient(new StringSession(sessions[i]), config.apiId, config.apiHash, {
+                    connectionRetries: 5,
+                    requestRetries: 2,
+                    timeout: 30000,
+                    autoReconnect: true,
+                    floodSleepThreshold: 120,
+                    useWSS: false,
+                    proxy: undefined
+                });
+                await tempClient.connect();
+                if (await tempClient.checkAuthorization()) {
+                    clients.push(tempClient);
+                }
+            } catch (e) {
+                console.error(`[UTag] Akkaunt ${i} ulanishda xato:`, e.message);
+            }
+        }
+    }
 
     try {
         let entity;
-        // Agar link raqam bo'lsa (chatId), uni numberga o'tkazamiz
         const isNumeric = /^-?\d+$/.test(groupLink);
         const peer = isNumeric ? parseInt(groupLink) : groupLink;
 
+        // Nishonni (entity) aniqlash (asosiy client orqali)
         if (typeof peer === 'string' && (peer.includes("t.me/+") || peer.includes("joinchat/"))) {
             const hash = peer.split('/').pop().replace('+', '');
             try {
-                const result = await client.invoke(new Api.messages.ImportChatInvite({ hash }));
+                const result = await mainClient.invoke(new Api.messages.ImportChatInvite({ hash }));
                 entity = result.chats ? result.chats[0] : result.chat;
             } catch (err) {
                 if (err.message.includes("USER_ALREADY_PARTICIPANT")) {
-                    const check = await client.invoke(new Api.messages.CheckChatInvite({ hash }));
+                    const check = await mainClient.invoke(new Api.messages.CheckChatInvite({ hash }));
                     entity = check.chat;
-                } else {
-                    throw err;
-                }
+                } else { throw err; }
             }
         } else {
-            entity = await client.getEntity(peer);
+            entity = await mainClient.getEntity(peer);
         }
 
-        // Agar limit 0 bo'lsa, barcha a'zolarni olishga harakat qilamiz
         const fetchLimit = (limit === 0 || limit === "0") ? undefined : parseInt(limit);
-        const participants = await client.getParticipants(entity, { limit: fetchLimit });
+        const participants = await mainClient.getParticipants(entity, { limit: fetchLimit });
         
-        // Tarixga saqlash
         const groupTitle = entity.title || entity.username || "Guruh";
         const historyLink = (typeof peer === 'string' && peer.startsWith('@')) ? peer : (entity.username ? `@${entity.username}` : groupLink);
         
-        const user = await User.findOne({ where: { chatId } });
         let history = user.utagHistory || [];
         history = history.filter(h => h.link !== historyLink);
         history.push({ title: groupTitle, link: historyLink, addedAt: new Date() });
@@ -1283,9 +1320,7 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
         let count = 0;
         utagStates[chatId] = { status: 'running', count: 0, total: participants.length };
 
-        // Xabarlarni aralashtirish (shuffle) funksiyasi
         const shuffledMessages = [...DEFAULT_TAG_MESSAGES].sort(() => Math.random() - 0.5);
-        let msgIndex = 0;
 
         const getUtagButtons = (status) => {
             const buttons = [];
@@ -1296,21 +1331,22 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
         };
 
         const modeText = mode === 'custom' ? `Matn bilan ("${tagText}")` : (mode === 'only_mention' ? 'Faqat @' : 'Tasodifiy so\'zlar');
-        const startText = `🚀 **Azoblash xizmati boshlanmoqda...**\nTugatish uchun /utegStop buyrug'ini yuboring.\nGuruh: ${groupTitle}\nJami: ${participants.length} ta foydalanuvchi.\nRejim: ${modeText}`;
+        const accText = user.utagAccountMode === 'all' ? `Barcha akkauntlar (${clients.length} ta)` : "Faqat asosiy akkaunt";
+        const startText = `🚀 **Azoblash xizmati boshlanmoqda...**\nTugatish uchun /utegStop buyrug'ini yuboring.\nGuruh: ${groupTitle}\nJami: ${participants.length} ta foydalanuvchi.\nRejim: ${modeText}\nAkkauntlar: ${accText}`;
         
-        // Agar komanda orqali bo'lsa (Userbot orqali), bot guruhga yubora olmaydi (agar u yerda bo'lmasa)
-        // Shuning uchun har doim foydalanuvchining o'ziga (chatId) xabar yuboramiz
         const statusMsg = await bot.sendMessage(chatId, startText, isCommand ? {} : getUtagButtons('running')).catch(() => null);
 
+        let currentClientIndex = 0;
+
         for (const p of participants) {
-            // Holatni tekshirish
             while (utagStates[chatId]?.status === 'paused') {
                 await new Promise(r => setTimeout(r, 1000));
             }
             if (!utagStates[chatId] || utagStates[chatId].status === 'stopped') break;
 
+            const currentClient = clients[currentClientIndex];
+            
             try {
-                // Mention yaratish (usernamesi bor yoki yo'qligiga qarab)
                 let message;
                 if (p.username) {
                     message = `@${p.username} ${tagText || shuffledMessages[count % shuffledMessages.length]}`;
@@ -1319,14 +1355,19 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
                     message = `<a href="tg://user?id=${p.id.toString()}">${name}</a> ${tagText || shuffledMessages[count % shuffledMessages.length]}`;
                 }
 
-                await client.sendMessage(entity, { 
+                // Har bir akkaunt uchun nishonni qayta olish kerak bo'lishi mumkin (access_hash)
+                // Lekin bitta guruhda bo'lsa va client.sendMessage ishlamasa, keyingisiga o'tamiz
+                await currentClient.sendMessage(entity, { 
                     message, 
                     parseMode: p.username ? undefined : 'html' 
                 });
+                
                 count++;
                 utagStates[chatId].count = count;
                 
-                // Progressni yangilash
+                // Navbatdagi clientga o'tamiz (rotatsiya)
+                currentClientIndex = (currentClientIndex + 1) % clients.length;
+
                 if (statusMsg && (count % 5 === 0 || count === participants.length)) {
                     const buttons = isCommand ? {} : getUtagButtons(utagStates[chatId].status);
                     await bot.editMessageText(`🚀 **Azoblash xizmati jarayoni...**\nProgress: ${count}/${participants.length}`, {
@@ -1336,13 +1377,24 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
                     }).catch(() => {});
                 }
 
-                await new Promise(r => setTimeout(r, 1000)); 
+                // Delay: Akkauntlar ko'p bo'lsa tezroq, kam bo'lsa sekinroq
+                const delay = clients.length > 1 ? 500 : 1000;
+                await new Promise(r => setTimeout(r, delay)); 
             } catch (e) {
                 if (e.message.includes("FLOOD_WAIT")) {
                     const waitTime = parseInt(e.message.match(/\d+/)[0]);
-                    await new Promise(r => setTimeout(r, waitTime * 1000));
+                    // Agar bu akkaunt flood bo'lsa, uni vaqtincha tashlab ketamiz
+                    if (clients.length > 1) {
+                        clients.splice(currentClientIndex, 1);
+                        if (clients.length === 0) break; // Hech qaysi akkaunt qolmasa to'xtatamiz
+                        currentClientIndex = currentClientIndex % clients.length;
+                    } else {
+                        await new Promise(r => setTimeout(r, waitTime * 1000));
+                    }
                 } else {
                     console.error(`Tag xatosi (User: ${p.id}):`, e.message);
+                    // Keyingi clientga o'tib urinib ko'ramiz
+                    currentClientIndex = (currentClientIndex + 1) % clients.length;
                 }
             }
         }
@@ -1354,6 +1406,11 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
         delete utagStates[chatId];
     } catch (e) {
         throw new Error(`UTag xatosi: ${e.message}`);
+    } finally {
+        // Qo'shimcha clientlarni uzish (asosiy clientdan tashqari)
+        for (let i = 1; i < clients.length; i++) {
+            try { await clients[i].disconnect(); } catch (e) {}
+        }
     }
 };
 

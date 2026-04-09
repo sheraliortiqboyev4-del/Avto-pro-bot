@@ -70,6 +70,11 @@ const User = sequelize.define('User', {
         type: DataTypes.INTEGER,
         defaultValue: 0
     },
+    utagAccountMode: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        defaultValue: null // null, 'main', or 'all'
+    },
     utagHistory: {
         type: DataTypes.JSONB,
         defaultValue: []
