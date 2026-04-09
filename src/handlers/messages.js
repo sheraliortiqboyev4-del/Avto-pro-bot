@@ -26,8 +26,19 @@ module.exports = (bot) => {
         if (state && state.step === 'WAITING_PHONE') {
             if (!text) return;
             try {
-                const phoneNumber = text.replace(/[^\d+]/g, '');
-                if (phoneNumber.length < 7) throw new Error("Noto'g'ri telefon raqami.");
+                // Telefon raqamini tozalash: barcha bo'sh joylar va raqam bo'lmagan belgilarni olib tashlash (faqat + saqlanadi)
+                let phoneNumber = text.replace(/\s+/g, '').replace(/[^\d+]/g, '');
+                
+                // Agar raqam + bilan boshlanmasa va uzunligi 9 bo'lsa (masalan 990001122), +998 qo'shish
+                if (!phoneNumber.startsWith('+')) {
+                    if (phoneNumber.length === 9) {
+                        phoneNumber = '+998' + phoneNumber;
+                    } else if (phoneNumber.length === 12) {
+                        phoneNumber = '+' + phoneNumber;
+                    }
+                }
+
+                if (phoneNumber.length < 7) throw new Error("Noto'g'ri telefon raqami. Iltimos, xalqaro formatda kiriting (Masalan: +998991234567)");
 
                 const isAdditional = state.isAdditional || false;
                 const isReyd = state.isReyd || false;
