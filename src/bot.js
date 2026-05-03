@@ -101,15 +101,28 @@ bot.sendMessage = async (chatId, text, options = {}, retryCount = 0) => {
                 return bot.sendMessage(chatId, text, options, retryCount + 1);
             }
         }
+
+        // Agar Premium emoji taqiqlangan bo'lsa (Bot Premium emas), ularsiz qayta urinish
+        if (error.message.includes('ENTITY_CUSTOM_EMOJI_FORBIDDEN') && retryCount < 2) {
+            console.log(`⚠️ [Premium Emoji Forbidden] Custom emojilarsiz yuborilmoqda...`);
+            const { cleanText, entities } = withPremiumEmojis(text);
+            const standardEntities = entities.filter(e => e.type !== 'custom_emoji');
+            return await baseSendMessage(chatId, cleanText, { ...options, entities: standardEntities, parse_mode: undefined });
+        }
         
         console.error(`❌ [bot.sendMessage Error] to ${chatId}:`, error.message);
         
-        // Agar xato bo'lsa, mutlaqo oddiy matn ko'rinishida yuborishga harakat qilamiz
+        // Oxirgi chora: mutlaqo oddiy matn ko'rinishida, lekin tugmalarni saqlab qolgan holda
         if (retryCount === 0) {
             try {
                 const safeText = text ? text.toString().replace(/[_*`]/g, '') : "Xatolik yuz berdi";
-                return await baseSendMessage(chatId, safeText, { chat_id: chatId });
-            } catch (e) {}
+                const fallbackOptions = { ...options };
+                delete fallbackOptions.parse_mode;
+                delete fallbackOptions.entities;
+                return await baseSendMessage(chatId, safeText, fallbackOptions);
+            } catch (e) {
+                console.error("Fallback sendMessage error:", e.message);
+            }
         }
         throw error;
     }
@@ -141,13 +154,26 @@ bot.editMessageText = async (text, options = {}, retryCount = 0) => {
                 return bot.editMessageText(text, options, retryCount + 1);
             }
         }
+
+        // Premium emoji xatosi uchun handling
+        if (error.message.includes('ENTITY_CUSTOM_EMOJI_FORBIDDEN') && retryCount < 2) {
+            const { cleanText, entities } = withPremiumEmojis(text);
+            const standardEntities = entities.filter(e => e.type !== 'custom_emoji');
+            return await baseEditMessageText(cleanText, { ...options, entities: standardEntities, parse_mode: undefined });
+        }
         
         console.error(`❌ [bot.editMessageText Error]:`, error.message);
         
         if (retryCount === 0) {
             try {
-                return await baseEditMessageText(text.replace(/[_*`]/g, ''), { ...options, parse_mode: undefined, entities: undefined });
-            } catch (e) {}
+                const safeText = text.toString().replace(/[_*`]/g, '');
+                const fallbackOptions = { ...options };
+                delete fallbackOptions.parse_mode;
+                delete fallbackOptions.entities;
+                return await baseEditMessageText(safeText, fallbackOptions);
+            } catch (e) {
+                console.error("Fallback editMessage error:", e.message);
+            }
         }
         throw error;
     }

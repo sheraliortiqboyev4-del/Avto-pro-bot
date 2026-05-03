@@ -108,68 +108,83 @@ function withPremiumEmojis(text) {
     if (!text) return { cleanText: "", entities: [] };
     let entities = [];
     let cleanText = text;
+
+    // 1. Markdown va Custom Emojilarni qayta ishlash
+    // Muhim: Markdown belgilarini olib tashlashda offsetlarni to'g'ri hisoblash kerak
     
-    // 1. Boldlarni qidirish (**bold**)
+    // Bold (**text**)
     const boldRegex = /\*\*(.*?)\*\*/g;
-    let match;
-    while ((match = boldRegex.exec(cleanText)) !== null) {
-        const offset = getUtf16Length(cleanText.substring(0, match.index));
-        const length = getUtf16Length(match[1]);
+    let boldMatch;
+    while ((boldMatch = boldRegex.exec(cleanText)) !== null) {
+        const fullMatch = boldMatch[0];
+        const innerText = boldMatch[1];
+        const offset = boldMatch.index;
+        const length = innerText.length;
+
         entities.push({ type: "bold", offset, length });
-        cleanText = cleanText.slice(0, match.index) + match[1] + cleanText.slice(match.index + match[0].length);
-        boldRegex.lastIndex = match.index + match[1].length; 
+        
+        // cleanText'ni yangilaymiz (belgilarni olib tashlaymiz)
+        cleanText = cleanText.slice(0, offset) + innerText + cleanText.slice(offset + fullMatch.length);
+        
+        // Regex lastIndex'ni yangilangan matnga moslashtiramiz
+        boldRegex.lastIndex = offset + length;
     }
 
-    // 2. Code qidirish (`code`)
+    // Code (`text`)
     const codeRegex = /`(.*?)`/g;
-    while ((match = codeRegex.exec(cleanText)) !== null) {
-        const offset = getUtf16Length(cleanText.substring(0, match.index));
-        const length = getUtf16Length(match[1]);
+    let codeMatch;
+    while ((codeMatch = codeRegex.exec(cleanText)) !== null) {
+        const fullMatch = codeMatch[0];
+        const innerText = codeMatch[1];
+        const offset = codeMatch.index;
+        const length = innerText.length;
+
         entities.push({ type: "code", offset, length });
-        cleanText = cleanText.slice(0, match.index) + match[1] + cleanText.slice(match.index + match[0].length);
-        codeRegex.lastIndex = match.index + match[1].length;
+        
+        cleanText = cleanText.slice(0, offset) + innerText + cleanText.slice(offset + fullMatch.length);
+        codeRegex.lastIndex = offset + length;
     }
 
-    // 3. Bot buyruqlarini qidirish (/command)
+    // 2. Standart Telegram entitylari (Commands, Mentions)
+    // Bu entitylar cleanText o'zgarmaganda ham ishlaydi
+    
+    // Commands (/start)
     const commandRegex = /(\/[a-zA-Z0-9_]+)/g;
-    while ((match = commandRegex.exec(cleanText)) !== null) {
-        const offset = getUtf16Length(cleanText.substring(0, match.index));
-        const length = getUtf16Length(match[1]);
-        entities.push({ type: "bot_command", offset, length });
+    let cmdMatch;
+    while ((cmdMatch = commandRegex.exec(cleanText)) !== null) {
+        entities.push({ type: "bot_command", offset: cmdMatch.index, length: cmdMatch[0].length });
     }
 
-    // 4. Usernamelarni qidirish (@username)
+    // Mentions (@username)
     const mentionRegex = /(@[a-zA-Z0-9_]+)/g;
-    while ((match = mentionRegex.exec(cleanText)) !== null) {
-        const offset = getUtf16Length(cleanText.substring(0, match.index));
-        const length = getUtf16Length(match[1]);
-        entities.push({ type: "mention", offset, length });
+    let mMatch;
+    while ((mMatch = mentionRegex.exec(cleanText)) !== null) {
+        entities.push({ type: "mention", offset: mMatch.index, length: mMatch[0].length });
     }
-    
-    // 5. Emojilarni qidirish
+
+    // 3. Premium Emojilar (Custom Emojis)
     const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
-    const matches = Array.from(cleanText.matchAll(emojiRegex));
-    
-    for (const ematch of matches) {
-        const emoji = ematch[0];
+    let eMatch;
+    while ((eMatch = emojiRegex.exec(cleanText)) !== null) {
+        const emoji = eMatch[0];
         let mappedId = EMOJI_MAP[emoji];
         
         if (!mappedId && EMOJI_MAP[emoji + '\uFE0F']) mappedId = EMOJI_MAP[emoji + '\uFE0F'];
         else if (!mappedId && emoji.endsWith('\uFE0F') && EMOJI_MAP[emoji.slice(0, -1)]) mappedId = EMOJI_MAP[emoji.slice(0, -1)];
 
         if (mappedId) {
-            const offset = getUtf16Length(cleanText.substring(0, ematch.index));
-            const length = getUtf16Length(emoji);
-            
             entities.push({
                 type: "custom_emoji",
-                offset: offset,
-                length: length,
+                offset: eMatch.index,
+                length: emoji.length,
                 custom_emoji_id: mappedId
             });
         }
     }
-    
+
+    // Entitylarni offset bo'yicha saralaymiz (Telegram talabi)
+    entities.sort((a, b) => a.offset - b.offset);
+
     return { cleanText, entities };
 }
 
