@@ -100,14 +100,8 @@ const EMOJI_MAP = {
     '📍': '5228967510006580700',
 };
 
-// UTF-16 asosida matn uzunligini to'g'ri hisoblash
-const getUtf16Length = (str) => {
-    let length = 0;
-    for (let i = 0; i < str.length; i++) {
-        length += str.charCodeAt(i) > 0xFFFF ? 2 : 1;
-    }
-    return length;
-};
+// UTF-16 asosida matn uzunligini to'g'ri hisoblash (Telegram uchun .length kifoya)
+const getUtf16Length = (str) => str.length;
 
 // Matn ichidan barcha emojilarni topib, ularni custom_emoji entitylariga aylantiruvchi universal funksiya
 function withPremiumEmojis(text) {
