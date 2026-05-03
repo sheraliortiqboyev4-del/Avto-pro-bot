@@ -201,9 +201,10 @@ module.exports = (bot) => {
             parse_mode: "Markdown",
             reply_markup: { 
                 inline_keyboard: [
-                    [{ text: "✅ 1 Oy", callback_data: `admin_approve_1month_${targetId}` }, { text: "👑 VIP", callback_data: `admin_approve_vip_${targetId}` }],
-                    [{ text: "✅ Tasdiqlash (Boshqa)", callback_data: `admin_approve_${targetId}` }],
-                    [{ text: "🚫 Bloklash", callback_data: `admin_block_${targetId}` }, { text: "🔓 Blokdan ochish", callback_data: `admin_unblock_${targetId}` }]
+                    [{ text: "✅ 1 Oy (Standard)", callback_data: `admin_approve_1month_${targetId}` }],
+                    [{ text: "👑 VIP (Cheksiz)", callback_data: `admin_approve_vip_${targetId}` }],
+                    [{ text: "✍️ Qo'lda tasdiqlash", callback_data: `admin_approve_${targetId}` }],
+                    [{ text: "🚫 Bloklash", callback_data: `admin_block_${targetId}` }]
                 ] 
             } 
         }); 
