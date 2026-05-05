@@ -164,54 +164,49 @@ module.exports = (bot) => {
 
     // Admin Commands
     bot.onText(/\/info_(\d+)/, async (msg, match) => { 
-        try {
-            if (msg.chat.id.toString() !== config.adminId.toString()) return; 
-            const targetId = match[1]; 
-            const user = await User.findOne({ where: { chatId: targetId } }); 
-            if (!user) return bot.sendMessage(config.adminId, `❌ Foydalanuvchi topilmadi. (ID: ${targetId})`); 
-            
-            const statusText = user.status === 'approved' ? "✅ Tasdiqlangan" : (user.status === 'blocked' ? "🚫 Bloklangan" : "⏳ Tasdiqlanmagan");
-            const tarifText = user.subscriptionType || "Oddiy";
-            let remainingTime = formatRemainingTime(user.expireAt);
-            if (remainingTime.includes("Cheksiz")) remainingTime = "Cheksiz";
+        if (msg.chat.id.toString() !== config.adminId.toString()) return; 
+        const targetId = match[1]; 
+        const user = await User.findOne({ where: { chatId: targetId } }); 
+        if (!user) return bot.sendMessage(config.adminId, "❌ Foydalanuvchi topilmadi."); 
+        
+        const statusText = user.status === 'approved' ? "✅ Tasdiqlangan" : (user.status === 'blocked' ? "🚫 Bloklangan" : "⏳ Tasdiqlanmagan");
+        const tarifText = user.subscriptionType || "Oddiy";
+        let remainingTime = formatRemainingTime(user.expireAt);
+        if (remainingTime.includes("Cheksiz")) remainingTime = "Cheksiz";
 
-            const rekAccCount = user.reklamaAccounts ? user.reklamaAccounts.length : 0;
-            const reydAccCount = user.reydAccounts ? user.reydAccounts.length : 0;
-            
-            const joinedDate = user.joinedAt ? new Date(user.joinedAt) : new Date();
-            const regDate = `${joinedDate.getFullYear()}-${String(joinedDate.getMonth() + 1).padStart(2, '0')}-${String(joinedDate.getDate()).padStart(2, '0')} ${String(joinedDate.getHours()).padStart(2, '0')}:${String(joinedDate.getMinutes()).padStart(2, '0')}`;
+        const rekAccCount = user.reklamaAccounts ? user.reklamaAccounts.length : 0;
+        const reydAccCount = user.reydAccounts ? user.reydAccounts.length : 0;
+        
+        const joinedDate = user.joinedAt ? new Date(user.joinedAt) : new Date();
+        const regDate = `${joinedDate.getFullYear()}-${String(joinedDate.getMonth() + 1).padStart(2, '0')}-${String(joinedDate.getDate()).padStart(2, '0')} ${String(joinedDate.getHours()).padStart(2, '0')}:${String(joinedDate.getMinutes()).padStart(2, '0')}`;
 
-            const text = `👤 **Foydalanuvchi Ma'lumotlari:**\n\n` +
-                `📛 **Ism:** [${user.name || "Noma'lum"}](tg://user?id=${user.chatId})\n` +
-                `🆔 **ID:** \`${user.chatId}\`\n` +
-                `🔰 **Holat:** ${statusText}\n` +
-                `⏰ **Tarif:** ${tarifText}\n` +
-                `⏳ **Qolgan vaqt:** ${remainingTime}\n\n` +
-                `🗂 **Ulangan akkauntlar soni:**\n` +
-                `📣 Reklama: ${rekAccCount} ta | ⚔️ Reyd: ${reydAccCount} ta\n\n` +
-                `📊 **Statistika:**\n` +
-                `⚔️ Reydlar: ${user.reydCount || 0} ta\n` +
-                `👥 Yig'ilgan userlar: ${user.usersGathered || 0} ta\n` +
-                `📢 Yuborilgan reklamalar: ${user.adsCount || 0} ta\n` +
-                `🏷 Utaglar: ${user.utagCount || 0} ta\n` +
-                `💎 Almazlar: ${user.clicks || 0} ta\n\n` +
-                `📅 **Ro'yxatdan o'tgan:** ${regDate}`;
+        const text = `👤 **Foydalanuvchi Ma'lumotlari:**\n\n` +
+            `📛 **Ism:** [${user.name || "Noma'lum"}](tg://user?id=${user.chatId})\n` +
+            `🆔 **ID:** \`${user.chatId}\`\n` +
+            `🔰 **Holat:** ${statusText}\n` +
+            `⏰ **Tarif:** ${tarifText}\n` +
+            `⏳ **Qolgan vaqt:** ${remainingTime}\n\n` +
+            `🗂 **Ulangan akkauntlar soni:**\n` +
+            `📣 Reklama: ${rekAccCount} ta | ⚔️ Reyd: ${reydAccCount} ta\n\n` +
+            `📊 **Statistika:**\n` +
+            `⚔️ Reydlar: ${user.reydCount || 0} ta\n` +
+            `👥 Yig'ilgan userlar: ${user.usersGathered || 0} ta\n` +
+            `📢 Yuborilgan reklamalar: ${user.adsCount || 0} ta\n` +
+            `🏷 Utaglar: ${user.utagCount || 0} ta\n` +
+            `💎 Almazlar: ${user.clicks || 0} ta\n\n` +
+            `📅 **Ro'yxatdan o'tgan:** ${regDate}`;
 
-            bot.sendMessage(config.adminId, text, { 
-                parse_mode: "Markdown",
-                reply_markup: { 
-                    inline_keyboard: [
-                        [{ text: "✅ 1 Oy (Standard)", callback_data: `admin_approve_1month_${targetId}` }],
-                        [{ text: "👑 VIP (Cheksiz)", callback_data: `admin_approve_vip_${targetId}` }],
-                        [{ text: "✍️ Qo'lda tasdiqlash", callback_data: `admin_approve_${targetId}` }],
-                        [{ text: "🚫 Bloklash", callback_data: `admin_block_${targetId}` }]
-                    ] 
-                } 
-            }); 
-        } catch (error) {
-            console.error("Info command error:", error.message);
-            bot.sendMessage(config.adminId, "❌ Info buyrug'ida xatolik yuz berdi.");
-        }
+        bot.sendMessage(config.adminId, text, { 
+            parse_mode: "Markdown",
+            reply_markup: { 
+                inline_keyboard: [
+                    [{ text: "✅ 1 Oy (Standard)", callback_data: `admin_approve_1month_${targetId}` }],
+                    [{ text: "👑 VIP (Cheksiz)", callback_data: `admin_approve_vip_${targetId}` }],
+                    [{ text: "✍️ Qo'lda tasdiqlash", callback_data: `admin_approve_${targetId}` }],
+                    [{ text: "🚫 Bloklash", callback_data: `admin_block_${targetId}` }]
+                ] 
+            } 
+        }); 
     });
 
     bot.onText(/\/stats/, async (msg) => {
