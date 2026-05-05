@@ -14,28 +14,33 @@ module.exports = (bot) => {
         const text = msg.text;
         const state = global.userStates[chatId]; 
 
-        // 1. Agar xabar buyruq bo'lsa (/start, /menu va h.k.), messages.js uni qayta ishlamasligi kerak
-        // Bu commands.js ga yo'l beradi va screenshotdagi "Noto'g'ri telefon raqami" xatosini yo'qotadi
-        if (text && text.startsWith('/')) return;
-        
-        // 2. Majburiy obuna tekshiruvi (barcha xabarlar uchun)
-        const isMember = await checkMembership(bot, chatId);
-        if (!isMember) {
-            // Adminni tekshirmaymiz (checkMembership ichida allaqachon bor)
-            return sendSubscriptionAsk(bot, chatId);
+        // 1. Agar xabar buyruq bo'lsa, uni commands.js ga topshiramiz
+        if (text && (text.startsWith('/') || (msg.entities && msg.entities.some(e => e.type === 'bot_command')))) {
+            return;
         }
         
-        // 3. Session check for features
-        if (state && !['WAITING_PHONE', 'WAITING_CODE', 'WAITING_PASSWORD', 'WAITING_TIME', 'WAITING_BROADCAST'].includes(state.step)) {
+        // 2. Majburiy obuna tekshiruvi (faqat matnli xabarlar va holati bor userlar uchun)
+        if (state) {
+            const isMember = await checkMembership(bot, chatId);
+            if (!isMember) {
+                return sendSubscriptionAsk(bot, chatId);
+            }
+        }
+        
+        // 3. Agar hech qanday holatda bo'lmasa, xabarni e'tiborsiz qoldiramiz
+        if (!state) return;
+
+        // 4. Session check for features
+        if (!['WAITING_PHONE', 'WAITING_CODE', 'WAITING_PASSWORD', 'WAITING_TIME', 'WAITING_BROADCAST'].includes(state.step)) {
             const user = await User.findOne({ where: { chatId } });
             if (!user || !user.session) {
                 delete global.userStates[chatId];
                 return bot.sendMessage(chatId, "⚠️ Botdan foydalanish uchun avval Telegram akkauntingiz bilan tizimga kiring. /start ni bosing.");
             }
         }
-        
+
         // Auth logic
-        if (state && state.step === 'WAITING_PHONE') {
+        if (state.step === 'WAITING_PHONE') {
             if (!text) return;
             try {
                 // Telefon raqamini tozalash: barcha bo'sh joylar va raqam bo'lmagan belgilarni olib tashlash (faqat + saqlanadi)
@@ -63,11 +68,10 @@ module.exports = (bot) => {
             return;
         }
 
-        if (state && (state.step === 'WAITING_CODE' || state.step === 'WAITING_PASSWORD')) {
+        if (state.step === 'WAITING_CODE' || state.step === 'WAITING_PASSWORD') {
             if (!text) return;
             try {
                 await handleAuthStep(chatId, text);
-                // Natija initAuth ichidagi .then() yoki .catch() orqali yuboriladi
             } catch (e) {
                 if (e.message === "AUTH_NOT_FOUND") {
                     bot.sendMessage(chatId, "❌ Sessiya topilmadi. Iltimos, /start bosing.");
@@ -78,8 +82,6 @@ module.exports = (bot) => {
             }
             return;
         }
-
-        if (!state) return;
 
         // Admin logic
         if (chatId.toString() === config.adminId.toString()) {

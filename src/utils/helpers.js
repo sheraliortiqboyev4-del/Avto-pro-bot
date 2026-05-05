@@ -231,21 +231,32 @@ const formatRemainingTime = (expireAt) => {
 async function checkMembership(bot, userId) {
     if (config.adminId && userId.toString() === config.adminId.toString()) return true; 
     
-    const channels = await Channel.findAll();
-    if (channels.length === 0) return true;
+    try {
+        const channels = await Channel.findAll();
+        if (channels.length === 0) return true;
 
-    for (const channel of channels) {
-        try {
-            const chatMember = await bot.getChatMember(channel.channelId, userId);
-            if (chatMember.status === 'left' || chatMember.status === 'kicked') {
-                return false;
+        for (const channel of channels) {
+            try {
+                const chatMember = await bot.getChatMember(channel.channelId, userId);
+                // Member statuses that are considered "subscribed"
+                const subscribedStatuses = ['creator', 'administrator', 'member'];
+                if (!subscribedStatuses.includes(chatMember.status)) {
+                    return false;
+                }
+            } catch (e) {
+                console.error(`Kanalga a'zolikni tekshirishda xatolik (${channel.channelId}):`, e.message);
+                // Agar kanal topilmasa yoki bot admin bo'lmasa, xavfsizlik uchun false qaytaramiz
+                // Bu adminni kanallarni to'g'ri sozlashga majbur qiladi
+                if (e.message.includes("chat not found") || e.message.includes("bot is not a member")) {
+                    // return false; // Bu yerda false qaytarish foydalanuvchini bloklab qo'yishi mumkin
+                }
             }
-        } catch (e) {
-            console.error(`Kanalga a'zolikni tekshirishda xatolik (${channel.channelId}):`, e.message);
-            // Agar bot kanal admini bo'lmasa ham xato berishi mumkin, bu holda tekshirishni o'tkazib yuboramiz
         }
+        return true;
+    } catch (err) {
+        console.error("checkMembership global error:", err.message);
+        return true; // Xatolik bo'lsa bot to'xtab qolmasligi uchun true
     }
-    return true;
 }
 
 // Helper: Obuna xabari
