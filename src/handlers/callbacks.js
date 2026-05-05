@@ -53,12 +53,6 @@ module.exports = (bot) => {
         const isAdminAction = data.startsWith("admin_");
         
         if (!isAdminAction && !allowedCallbacks.includes(data)) {
-            const isMember = await checkMembership(bot, chatId);
-            if (!isMember) {
-                await safeAnswer({ text: "⚠️ Botdan foydalanish uchun avval kanallarga a'zo bo'ling!", show_alert: true });
-                return sendSubscriptionAsk(bot, chatId);
-            }
-
             if (!user || !user.session) {
                 await safeAnswer({ 
                     text: "⚠️ Botdan foydalanish uchun avval Telegram akkauntingiz bilan tizimga kiring. /start ni bosing.", 
@@ -69,6 +63,12 @@ module.exports = (bot) => {
         }
 
         // --- 2. SUBSCRIPTION CHECK ---
+        const isMember = await checkMembership(bot, chatId);
+        if (!isMember && data !== "check_subscription") {
+            await safeAnswer({ text: "⚠️ Botdan foydalanish uchun avval kanallarga a'zo bo'ling!", show_alert: true });
+            return sendSubscriptionAsk(bot, chatId);
+        }
+
         if (data === "check_subscription") {
             const isMember = await checkMembership(bot, chatId);
             if (isMember) {

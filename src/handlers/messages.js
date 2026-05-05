@@ -3,7 +3,7 @@ const path = require('path');
 const User = require('../models/User');
 const Channel = require('../models/Channel');
 const config = require('../config');
-const { parseTime } = require('../utils/helpers');
+const { parseTime, checkMembership, sendSubscriptionAsk } = require('../utils/helpers');
 const { initAuth, handleAuthStep, scrapeUsers, startReyd, startReklama, startAutoTag } = require('../services/userbot');
 
 if (!global.userStates) global.userStates = {};
@@ -13,8 +13,19 @@ module.exports = (bot) => {
         const chatId = msg.chat.id; 
         const text = msg.text;
         const state = global.userStates[chatId]; 
+
+        // 1. Agar xabar buyruq bo'lsa (/start, /menu va h.k.), messages.js uni qayta ishlamasligi kerak
+        // Bu commands.js ga yo'l beradi va screenshotdagi "Noto'g'ri telefon raqami" xatosini yo'qotadi
+        if (text && text.startsWith('/')) return;
         
-        // 1. Session check for features
+        // 2. Majburiy obuna tekshiruvi (barcha xabarlar uchun)
+        const isMember = await checkMembership(bot, chatId);
+        if (!isMember) {
+            // Adminni tekshirmaymiz (checkMembership ichida allaqachon bor)
+            return sendSubscriptionAsk(bot, chatId);
+        }
+        
+        // 3. Session check for features
         if (state && !['WAITING_PHONE', 'WAITING_CODE', 'WAITING_PASSWORD', 'WAITING_TIME', 'WAITING_BROADCAST'].includes(state.step)) {
             const user = await User.findOne({ where: { chatId } });
             if (!user || !user.session) {
