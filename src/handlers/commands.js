@@ -50,10 +50,6 @@ module.exports = (bot) => {
         const name = msg.from.first_name; 
         const username = msg.from.username; 
     
-        // 1. Obuna tekshirish
-        const isMember = await checkMembership(bot, chatId);
-        if (!isMember) return sendSubscriptionAsk(bot, chatId);
-
         let user = await User.findOne({ where: { chatId } }); 
         if (!user) { 
             const initialStatus = chatId.toString() === config.adminId.toString() ? 'approved' : 'pending';
@@ -150,8 +146,6 @@ module.exports = (bot) => {
 
     bot.onText(/\/help/, async (msg) => {
         const chatId = msg.chat.id;
-        const isMember = await checkMembership(bot, chatId);
-        if (!isMember) return sendSubscriptionAsk(bot, chatId);
         bot.sendMessage(chatId, HELP_TEXT);
     });
 
