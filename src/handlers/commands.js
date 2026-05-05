@@ -71,10 +71,10 @@ module.exports = (bot) => {
             });
 
             // Adminga xabar yuborish
-            const now = new Date().toLocaleString('en-US', { timeZone: 'UTC' }); // Yoki foydalanuvchi vaqti
-            const adminNotifyText = `🆕 **Yangi foydalanuvchi!**\n\n👤 **Ism:** [${name}](tg://user?id=${chatId})\n🆔 **ID:** \`${chatId}\`\n📅 **Vaqt:** ${now}\n\nBlokdan ochish uchun tugmani bosing:`;
+            const now = new Date().toLocaleString('en-US', { timeZone: 'UTC' }); 
+            const safeName = (name || "Foydalanuvchi").replace(/[\[\]()]/g, ''); // Markdown belgilarini tozalash
+            const adminNotifyText = `🆕 **Yangi foydalanuvchi!**\n\n👤 **Ism:** [${safeName}](tg://user?id=${chatId})\n🆔 **ID:** \`${chatId}\`\n📅 **Vaqt:** ${now}\n\nBlokdan ochish uchun tugmani bosing:`;
             bot.sendMessage(config.adminId, adminNotifyText, {
-                parse_mode: "Markdown",
                 reply_markup: {
                     inline_keyboard: [
                         [{ text: "✅ 1 Oy (Standard)", callback_data: `admin_approve_1month_${chatId}` }],
@@ -88,11 +88,10 @@ module.exports = (bot) => {
 
         if (user.status !== 'approved') { 
             // Adminga xabar yuborish
-            const isPending = user.status === 'pending';
+            const safeName = (name || user.name || "Foydalanuvchi").replace(/[\[\]()]/g, '');
             const adminHeader = "🆕 **Yangi foydalanuvchi!**";
-            const adminText = `${adminHeader}\n\n👤 **Ism:** [${name}](tg://user?id=${chatId})\n🆔 **ID:** \`${chatId}\`\n\nTasdiqlash uchun quyidagi tugmani bosing:`;
+            const adminText = `${adminHeader}\n\n👤 **Ism:** [${safeName}](tg://user?id=${chatId})\n🆔 **ID:** \`${chatId}\`\n\nTasdiqlash uchun quyidagi tugmani bosing:`;
             bot.sendMessage(config.adminId, adminText, {
-                parse_mode: "Markdown",
                 reply_markup: {
                     inline_keyboard: [
                         [{ text: "✅ 1 Oy (Standard)", callback_data: `admin_approve_1month_${chatId}` }],
@@ -180,8 +179,9 @@ module.exports = (bot) => {
         const joinedDate = user.joinedAt ? new Date(user.joinedAt) : new Date();
         const regDate = `${joinedDate.getFullYear()}-${String(joinedDate.getMonth() + 1).padStart(2, '0')}-${String(joinedDate.getDate()).padStart(2, '0')} ${String(joinedDate.getHours()).padStart(2, '0')}:${String(joinedDate.getMinutes()).padStart(2, '0')}`;
 
+        const safeName = (user.name || "Noma'lum").replace(/[\[\]()]/g, '');
         const text = `👤 **Foydalanuvchi Ma'lumotlari:**\n\n` +
-            `📛 **Ism:** [${user.name || "Noma'lum"}](tg://user?id=${user.chatId})\n` +
+            `📛 **Ism:** [${safeName}](tg://user?id=${user.chatId})\n` +
             `🆔 **ID:** \`${user.chatId}\`\n` +
             `🔰 **Holat:** ${statusText}\n` +
             `⏰ **Tarif:** ${tarifText}\n` +
@@ -197,7 +197,6 @@ module.exports = (bot) => {
             `📅 **Ro'yxatdan o'tgan:** ${regDate}`;
 
         bot.sendMessage(config.adminId, text, { 
-            parse_mode: "Markdown",
             reply_markup: { 
                 inline_keyboard: [
                     [{ text: "✅ 1 Oy (Standard)", callback_data: `admin_approve_1month_${targetId}` }],

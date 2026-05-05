@@ -146,6 +146,22 @@ function withPremiumEmojis(text) {
         codeRegex.lastIndex = offset + length;
     }
 
+    // Links ([text](url))
+    const linkRegex = /\[(.*?)\]\((.*?)\)/g;
+    let linkMatch;
+    while ((linkMatch = linkRegex.exec(cleanText)) !== null) {
+        const fullMatch = linkMatch[0];
+        const innerText = linkMatch[1];
+        const url = linkMatch[2];
+        const offset = linkMatch.index;
+        const length = innerText.length;
+
+        entities.push({ type: "text_link", offset, length, url });
+        
+        cleanText = cleanText.slice(0, offset) + innerText + cleanText.slice(offset + fullMatch.length);
+        linkRegex.lastIndex = offset + length;
+    }
+
     // 2. Standart Telegram entitylari (Commands, Mentions)
     // Bu entitylar cleanText o'zgarmaganda ham ishlaydi
     
