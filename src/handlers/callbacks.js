@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Channel = require('../models/Channel');
 const config = require('../config');
 const { sequelize } = require('../config/db');
 const { 
@@ -48,10 +49,16 @@ module.exports = (bot) => {
 
         // --- 1. SESSION CHECK (Except for specific ones) ---
         const user = await User.findOne({ where: { chatId } });
-        const allowedCallbacks = ["check_subscription", "admin_panel"];
+        const allowedCallbacks = ["check_subscription"];
         const isAdminAction = data.startsWith("admin_");
         
         if (!isAdminAction && !allowedCallbacks.includes(data)) {
+            const isMember = await checkMembership(bot, chatId);
+            if (!isMember) {
+                await safeAnswer({ text: "⚠️ Botdan foydalanish uchun avval kanallarga a'zo bo'ling!", show_alert: true });
+                return sendSubscriptionAsk(bot, chatId);
+            }
+
             if (!user || !user.session) {
                 await safeAnswer({ 
                     text: "⚠️ Botdan foydalanish uchun avval Telegram akkauntingiz bilan tizimga kiring. /start ni bosing.", 
@@ -687,6 +694,67 @@ module.exports = (bot) => {
             bot.sendMessage(chatId, "📣 Barchaga yuboriladigan xabarni yuboring:"); 
             return await safeAnswer();
         } 
+
+        // --- 4. CHANNELS MANAGEMENT ---
+        if (data === "admin_channels") {
+            if (chatId.toString() !== config.adminId.toString()) return;
+            const channels = await Channel.findAll();
+            let text = "📢 **Majburiy obuna kanallari:**\n\n";
+            const buttons = [];
+            
+            if (channels.length === 0) {
+                text += "Hozircha kanallar qo'shilmagan.";
+            } else {
+                channels.forEach(c => {
+                    text += `🔹 **${c.name}**\nID: \`${c.channelId}\`\nURL: ${c.url}\n\n`;
+                    buttons.push([{ text: `❌ ${c.name} ni o'chirish`, callback_data: `admin_del_channel_${c.id}` }]);
+                });
+            }
+            
+            buttons.push([{ text: "➕ Yangi kanal qo'shish", callback_data: "admin_add_channel" }]);
+            buttons.push([{ text: "🔙 Orqaga", callback_data: "admin_panel" }]);
+            
+            await safeEdit(chatId, messageId, text, {
+                parse_mode: "Markdown",
+                reply_markup: { inline_keyboard: buttons }
+            });
+            return await safeAnswer();
+        }
+
+        if (data === "admin_add_channel") {
+            if (chatId.toString() !== config.adminId.toString()) return;
+            global.userStates[chatId] = { step: 'WAITING_CHANNEL_ID' };
+            bot.sendMessage(chatId, "🆔 Yangi kanalning **ID raqamini** yuboring (Masalan: `-100123456789`):");
+            return await safeAnswer();
+        }
+
+        if (data.startsWith("admin_del_channel_")) {
+            if (chatId.toString() !== config.adminId.toString()) return;
+            const channelId = data.split('_')[3];
+            await Channel.destroy({ where: { id: channelId } });
+            await safeAnswer({ text: "✅ Kanal o'chirildi!", show_alert: true });
+            
+            // Kanallar ro'yxatini yangilash
+            const channels = await Channel.findAll();
+            let text = "📢 **Majburiy obuna kanallari:**\n\n";
+            const buttons = [];
+            if (channels.length === 0) {
+                text += "Hozircha kanallar qo'shilmagan.";
+            } else {
+                channels.forEach(c => {
+                    text += `🔹 **${c.name}**\nID: \`${c.channelId}\`\nURL: ${c.url}\n\n`;
+                    buttons.push([{ text: `❌ ${c.name} ni o'chirish`, callback_data: `admin_del_channel_${c.id}` }]);
+                });
+            }
+            buttons.push([{ text: "➕ Yangi kanal qo'shish", callback_data: "admin_add_channel" }]);
+            buttons.push([{ text: "🔙 Orqaga", callback_data: "admin_panel" }]);
+            
+            await safeEdit(chatId, messageId, text, {
+                parse_mode: "Markdown",
+                reply_markup: { inline_keyboard: buttons }
+            });
+            return;
+        }
 
         await safeAnswer(); 
     });

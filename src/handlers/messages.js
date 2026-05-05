@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const User = require('../models/User');
+const Channel = require('../models/Channel');
 const config = require('../config');
 const { parseTime } = require('../utils/helpers');
 const { initAuth, handleAuthStep, scrapeUsers, startReyd, startReklama, startAutoTag } = require('../services/userbot');
@@ -93,6 +94,36 @@ module.exports = (bot) => {
                 delete global.userStates[chatId]; 
                 return;
             } 
+
+            if (state.step === 'WAITING_CHANNEL_ID') {
+                if (!text) return;
+                global.userStates[chatId] = { step: 'WAITING_CHANNEL_NAME', channelId: text };
+                bot.sendMessage(chatId, "✍️ Kanal uchun **nom** kiriting:");
+                return;
+            }
+
+            if (state.step === 'WAITING_CHANNEL_NAME') {
+                if (!text) return;
+                global.userStates[chatId] = { ...state, step: 'WAITING_CHANNEL_URL', name: text };
+                bot.sendMessage(chatId, "🔗 Kanal **linkini** yuboring (Masalan: `https://t.me/avtobot_news`):");
+                return;
+            }
+
+            if (state.step === 'WAITING_CHANNEL_URL') {
+                if (!text) return;
+                try {
+                    await Channel.create({
+                        channelId: state.channelId,
+                        name: state.name,
+                        url: text
+                    });
+                    bot.sendMessage(chatId, "✅ Kanal muvaffaqiyatli qo'shildi!");
+                    delete global.userStates[chatId];
+                } catch (e) {
+                    bot.sendMessage(chatId, "❌ Xatolik: " + e.message);
+                }
+                return;
+            }
         }
 
         // Features logic

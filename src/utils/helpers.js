@@ -1,4 +1,5 @@
 const config = require('../config');
+const Channel = require('../models/Channel');
 
 const { Api } = require("telegram");
 
@@ -230,16 +231,18 @@ const formatRemainingTime = (expireAt) => {
 async function checkMembership(bot, userId) {
     if (config.adminId && userId.toString() === config.adminId.toString()) return true; 
     
-    if (!config.channels || config.channels.length === 0) return true;
+    const channels = await Channel.findAll();
+    if (channels.length === 0) return true;
 
-    for (const channel of config.channels) {
+    for (const channel of channels) {
         try {
-            const chatMember = await bot.getChatMember(channel.id, userId);
+            const chatMember = await bot.getChatMember(channel.channelId, userId);
             if (chatMember.status === 'left' || chatMember.status === 'kicked') {
                 return false;
             }
         } catch (e) {
-            console.error(`Kanalga a'zolikni tekshirishda xatolik (${channel.id}):`, e.message);
+            console.error(`Kanalga a'zolikni tekshirishda xatolik (${channel.channelId}):`, e.message);
+            // Agar bot kanal admini bo'lmasa ham xato berishi mumkin, bu holda tekshirishni o'tkazib yuboramiz
         }
     }
     return true;
@@ -247,7 +250,8 @@ async function checkMembership(bot, userId) {
 
 // Helper: Obuna xabari
 async function sendSubscriptionAsk(bot, chatId) {
-    const buttons = config.channels.map((channel) => {
+    const channels = await Channel.findAll();
+    const buttons = channels.map((channel) => {
         return [{ text: `📢 ${channel.name} ga a'zo bo'lish`, url: channel.url }];
     });
     
@@ -348,7 +352,8 @@ function getAdminMenu() {
                 [{ text: "📊 Statistika", callback_data: "admin_stats" }, { text: "👥 Barcha A'zolar", callback_data: "admin_all_users" }],
                 [{ text: "⏳ Kutilayotganlar", callback_data: "admin_pending" }, { text: "✅ Tasdiqlanganlar", callback_data: "admin_approved" }],
                 [{ text: "🚫 Bloklanganlar", callback_data: "admin_blocked" }, { text: "📣 Barchaga Xabar", callback_data: "admin_broadcast" }],
-                [{ text: "🔙 Orqaga", callback_data: "menu_back_main" }]
+                [{ text: "� Kanallar sozlamasi", callback_data: "admin_channels" }],
+                [{ text: "�� Orqaga", callback_data: "menu_back_main" }]
             ]
         }
     };

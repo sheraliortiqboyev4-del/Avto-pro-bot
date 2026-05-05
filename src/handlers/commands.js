@@ -149,11 +149,17 @@ module.exports = (bot) => {
     });
 
     bot.onText(/\/help/, async (msg) => {
-        bot.sendMessage(msg.chat.id, HELP_TEXT);
+        const chatId = msg.chat.id;
+        const isMember = await checkMembership(bot, chatId);
+        if (!isMember) return sendSubscriptionAsk(bot, chatId);
+        bot.sendMessage(chatId, HELP_TEXT);
     });
 
     bot.onText(/\/profile/, async (msg) => {
         const chatId = msg.chat.id;
+        const isMember = await checkMembership(bot, chatId);
+        if (!isMember) return sendSubscriptionAsk(bot, chatId);
+
         const user = await User.findOne({ where: { chatId } });
         if (!user) return bot.sendMessage(chatId, "❌ Ro'yxatdan o'tmagansiz.");
 
