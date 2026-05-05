@@ -72,7 +72,7 @@ module.exports = (bot) => {
 
             // Adminga xabar yuborish
             const now = new Date().toLocaleString('en-US', { timeZone: 'UTC' }); // Yoki foydalanuvchi vaqti
-            const adminNotifyText = `⛔ **Bloklangan foydalanuvchi qaytdi!**\n\n👤 Ism: ${name}\n🆔 ID: \`${chatId}\`\n📅 Vaqt: ${now}\n\nBlokdan ochish uchun tugmani bosing:`;
+            const adminNotifyText = `🆕 **Yangi foydalanuvchi!**\n\n👤 Ism: ${name}\n🆔 ID: \`${chatId}\`\n📅 Vaqt: ${now}\n\nBlokdan ochish uchun tugmani bosing:`;
             bot.sendMessage(config.adminId, adminNotifyText, {
                 parse_mode: "Markdown",
                 reply_markup: {
@@ -80,7 +80,7 @@ module.exports = (bot) => {
                         [{ text: "✅ 1 Oy (Standard)", callback_data: `admin_approve_1month_${chatId}` }],
                         [{ text: "👑 VIP (Cheksiz)", callback_data: `admin_approve_vip_${chatId}` }],
                         [{ text: "✍️ Qo'lda tasdiqlash", callback_data: `admin_approve_${chatId}` }],
-                        [{ text: "✅ Blokdan ochish", callback_data: `admin_unblock_${chatId}` }]
+                        // [{ text: "✅ Blokdan ochish", callback_data: `admin_unblock_${chatId}` }]
                     ]
                 }
             });
@@ -90,7 +90,7 @@ module.exports = (bot) => {
         if (user.status !== 'approved') { 
             // Adminga xabar yuborish
             const isPending = user.status === 'pending';
-            const adminHeader = isPending ? "⏳ **Kutilayotgan foydalanuvchi qaytdi!**" : "🆕 **Yangi foydalanuvchi!**";
+            const adminHeader = isPending ? "🆕 **Yangi foydalanuvchi!**" : "🆕 **Yangi foydalanuvchi!**";
             const adminText = `${adminHeader}\n\nIsm: ${name}\nUsername: @${username || 'yo\'q'}\nID: \`${chatId}\`\n\nTasdiqlash uchun quyidagi tugmani bosing:`;
             bot.sendMessage(config.adminId, adminText, {
                 reply_markup: {
