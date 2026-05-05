@@ -146,7 +146,7 @@ function withPremiumEmojis(text) {
         codeRegex.lastIndex = offset + length;
     }
 
-    // Links ([text](url))
+    // 4. Linklarni qidirish ([text](url))
     const linkRegex = /\[(.*?)\]\((.*?)\)/g;
     let linkMatch;
     while ((linkMatch = linkRegex.exec(cleanText)) !== null) {
@@ -156,13 +156,23 @@ function withPremiumEmojis(text) {
         const offset = linkMatch.index;
         const length = innerText.length;
 
-        entities.push({ type: "text_link", offset, length, url });
+        if (url.startsWith('tg://user?id=')) {
+            const userId = url.split('=')[1];
+            entities.push({ 
+                type: "text_mention", 
+                offset, 
+                length, 
+                user: { id: parseInt(userId) } 
+            });
+        } else {
+            entities.push({ type: "text_link", offset, length, url });
+        }
         
         cleanText = cleanText.slice(0, offset) + innerText + cleanText.slice(offset + fullMatch.length);
         linkRegex.lastIndex = offset + length;
     }
 
-    // 2. Standart Telegram entitylari (Commands, Mentions)
+    // 5. Standart Telegram entitylari (Commands, Mentions)
     // Bu entitylar cleanText o'zgarmaganda ham ishlaydi
     
     // Commands (/start)
