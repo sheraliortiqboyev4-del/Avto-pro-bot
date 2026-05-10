@@ -1,5 +1,6 @@
 const { Sequelize } = require('sequelize');
 const config = require('./index');
+const { connectMongoDB } = require('./mongodb');
 
 const sequelize = new Sequelize(config.databaseUrl, {
     dialect: 'postgres',
@@ -20,6 +21,9 @@ const connectDB = async () => {
         // Modelarni sinxronizatsiya qilish (tablelarni yaratish)
         await sequelize.sync({ alter: true });
         console.log('✅ Ma\'lumotlar bazasi sinxronizatsiya qilindi.');
+        
+        // MongoDB'ga ulanish
+        await connectMongoDB();
     } catch (error) {
         console.error('❌ PostgreSQL ulanishida xato:', error.message);
         // Qayta urinish

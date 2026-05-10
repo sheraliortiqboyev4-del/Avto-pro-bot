@@ -6,6 +6,7 @@ module.exports = {
     apiHash: process.env.API_HASH || "b18441a1ff607e10a989891a5462e627", 
     adminId: parseInt(process.env.ADMIN_ID), 
     databaseUrl: process.env.DATABASE_URL, 
+    mongodbUrl: process.env.MONGODB_URL || 'mongodb://localhost:27017/avtobotpro',
     port: process.env.PORT || 3000,
     channels: [
         // { id: '@ortiqov_w', name: 'Personal', url: 'https://t.me/ortiqov_w' },
