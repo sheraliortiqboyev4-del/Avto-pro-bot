@@ -1,85 +1,91 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const userSchema = new mongoose.Schema({
+const User = sequelize.define('User', {
     chatId: {
-        type: Number,
-        required: true,
-        unique: true
+        type: DataTypes.BIGINT,
+        allowNull: false,
+        unique: true,
+        primaryKey: true
     },
     name: {
-        type: String,
-        default: null
+        type: DataTypes.STRING,
+        allowNull: true
     },
     username: {
-        type: String,
-        default: null
+        type: DataTypes.STRING,
+        allowNull: true
     },
     status: {
-        type: String,
-        default: 'pending'
+        type: DataTypes.STRING,
+        defaultValue: 'pending' // approved, blocked, pending
     },
     subscriptionType: {
-        type: String,
-        default: 'free'
+        type: DataTypes.STRING,
+        defaultValue: 'free' // monthly, vip, free, expired
     },
     session: {
-        type: String,
-        default: null
+        type: DataTypes.TEXT,
+        allowNull: true,
+        defaultValue: null
     },
     reydAccounts: {
-        type: Array,
-        default: []
+        type: DataTypes.JSONB,
+        defaultValue: []
     },
     reklamaAccounts: {
-        type: Array,
-        default: []
+        type: DataTypes.JSONB,
+        defaultValue: []
     },
     expireAt: {
-        type: Date,
-        default: null
+        type: DataTypes.DATE,
+        allowNull: true,
+        defaultValue: null
     },
     avtoAlmaz: {
-        type: Boolean,
-        default: true
+        type: DataTypes.BOOLEAN,
+        defaultValue: true
     },
     expiryWarningSent: {
-        type: Boolean,
-        default: false
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
     },
     clicks: {
-        type: Number,
-        default: 0
+        type: DataTypes.INTEGER,
+        defaultValue: 0
     },
     reydCount: {
-        type: Number,
-        default: 0
+        type: DataTypes.INTEGER,
+        defaultValue: 0
     },
     usersGathered: {
-        type: Number,
-        default: 0
+        type: DataTypes.INTEGER,
+        defaultValue: 0
     },
     adsCount: {
-        type: Number,
-        default: 0
+        type: DataTypes.INTEGER,
+        defaultValue: 0
     },
     utagCount: {
-        type: Number,
-        default: 0
+        type: DataTypes.INTEGER,
+        defaultValue: 0
     },
     utagAccountMode: {
-        type: String,
-        default: null
+        type: DataTypes.STRING,
+        allowNull: true,
+        defaultValue: null // null, 'main', or 'all'
     },
     utagHistory: {
-        type: Array,
-        default: []
+        type: DataTypes.JSONB,
+        defaultValue: []
     },
     joinedAt: {
-        type: Date,
-        default: Date.now
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW
     }
 }, {
-    collection: 'users'
+    tableName: 'users',
+    timestamps: false
 });
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = User;

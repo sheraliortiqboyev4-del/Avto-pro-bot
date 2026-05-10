@@ -253,9 +253,8 @@ const shutdown = async (signal) => {
     try {
         await bot.stopPolling();
         console.log("🛑 Polling to'xtatildi.");
-        const mongoose = require('mongoose');
-        await mongoose.disconnect();
-        console.log("🔌 MongoDB ulanishi yopildi.");
+        await sequelize.close();
+        console.log("🔌 PostgreSQL ulanishi yopildi.");
         process.exit(0);
     } catch (err) {
         console.error("Shutdown error:", err.message);
@@ -273,13 +272,16 @@ global.userStates = {};
 setInterval(async () => { 
     try {
         const now = new Date(); 
+        const { Op } = require('sequelize');
         
         // Expiry check - Status 'approved' bo'lgan va muddati o'tganlarni bloklash
-        const expiredUsers = await User.find({ 
-            status: 'approved', 
-            expireAt: { 
-                $ne: null, 
-                $lt: now 
+        const expiredUsers = await User.findAll({ 
+            where: {
+                status: 'approved', 
+                expireAt: { 
+                    [Op.ne]: null, 
+                    [Op.lt]: now 
+                } 
             }
         }); 
         for (const user of expiredUsers) { 
@@ -288,18 +290,20 @@ setInterval(async () => {
 
         // 1 kunlik (24 soat) ogohlantirish 
         const oneDayLater = new Date(now.getTime() + 86400000); 
-        const warningUsers = await User.find({ 
-            status: 'approved', 
-            expireAt: { 
-                $gt: now, 
-                $lt: oneDayLater 
-            }, 
-            expiryWarningSent: false 
+        const warningUsers = await User.findAll({ 
+            where: {
+                status: 'approved', 
+                expireAt: { 
+                    [Op.gt]: now, 
+                    [Op.lt]: oneDayLater 
+                }, 
+                expiryWarningSent: false 
+            }
         }); 
         for (const u of warningUsers) { 
             const warningText = `⚠️ **Diqqat!**\n\nSizning botdan foydalanish muddatingiz tugashiga **1 kun** qoldi. Botdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n👨‍💼 Admin: @ortiqov_x7`;
             bot.sendMessage(u.chatId, warningText, { parse_mode: "Markdown" }); 
-            await User.updateOne({ chatId: u.chatId }, { expiryWarningSent: true }); 
+            await User.update({ expiryWarningSent: true }, { where: { chatId: u.chatId } }); 
         } 
     } catch (error) {
         console.error("Expiry checker error:", error);
