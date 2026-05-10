@@ -50,7 +50,7 @@ module.exports = (bot) => {
         const name = msg.from.first_name; 
         const username = msg.from.username; 
     
-        let user = await User.findOne({ where: { chatId } }); 
+        let user = await User.findOne({ chatId }); 
         if (!user) { 
             const initialStatus = chatId.toString() === config.adminId.toString() ? 'approved' : 'pending';
             user = await User.create({ chatId, name, username, status: initialStatus }); 
@@ -137,7 +137,7 @@ module.exports = (bot) => {
         const isMember = await checkMembership(bot, chatId);
         if (!isMember) return sendSubscriptionAsk(bot, chatId);
 
-        const user = await User.findOne({ where: { chatId } });
+        const user = await User.findOne({ chatId });
         if (!user || !user.session) {
             return bot.sendMessage(chatId, "❌ Menyuni ko'rish uchun avval botga kiring.");
         }
@@ -154,7 +154,7 @@ module.exports = (bot) => {
         const isMember = await checkMembership(bot, chatId);
         if (!isMember) return sendSubscriptionAsk(bot, chatId);
 
-        const user = await User.findOne({ where: { chatId } });
+        const user = await User.findOne({ chatId });
         if (!user) return bot.sendMessage(chatId, "❌ Ro'yxatdan o'tmagansiz.");
 
         const accCount = (user.reklamaAccounts ? user.reklamaAccounts.length : 0) + (user.reydAccounts ? user.reydAccounts.length : 0) + (user.session ? 1 : 0);

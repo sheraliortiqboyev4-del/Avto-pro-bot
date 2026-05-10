@@ -90,7 +90,7 @@ module.exports = (bot) => {
                 const duration = parseTime(text); 
                 if (duration === 0) return bot.sendMessage(chatId, "❌ Noto'g'ri format! Qayta kiriting."); 
                 const expireAt = new Date(Date.now() + duration); 
-                await User.update({ status: 'approved', expireAt, expiryWarningSent: false }, { where: { chatId: state.targetId } }); 
+                await User.updateOne({ status: 'approved', expireAt, expiryWarningSent: false }, { where: { chatId: state.targetId } }); 
                 bot.sendMessage(chatId, `✅ Tasdiqlandi! Muddat: ${text}`); 
                 bot.sendMessage(state.targetId, `🎉 Siz admin tomonidan tasdiqlandingiz! \n\n 🔰 Tarif: ${text} \n Endi /start ni bosib ro'yxatdan o'tishingiz mumkin.`); 
                 delete global.userStates[chatId]; 

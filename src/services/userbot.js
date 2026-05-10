@@ -351,7 +351,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
 
 const blockExpiredUser = async (user, bot) => { 
     console.log(`[Expiry] User ${user.chatId} muddati tugadi va bloklandi.`); 
-    await User.update(
+    await User.updateOne(
         { 
             status: 'blocked', 
             session: null,
@@ -459,7 +459,7 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                 accounts.push({ session: sessionStr, phoneNumber, addedAt: new Date() });
 
                 const updateData = isReyd ? { reydAccounts: accounts } : { reklamaAccounts: accounts };
-                await User.update(updateData, { where: { chatId } });
+                await User.updateOne(updateData, { where: { chatId } });
                 
                 const accCount = accounts.length;
 
@@ -470,7 +470,7 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                 }
             } else {
                 // Asosiy akkauntni saqlash
-                await User.update({ session: sessionStr, status: 'approved' }, { where: { chatId } });
+                await User.updateOne({ session: sessionStr, status: 'approved' }, { where: { chatId } });
                 const user = await User.findOne({ where: { chatId } });
                 avtoAlmazStates[chatId] = user ? user.avtoAlmaz : true;
 
@@ -735,7 +735,7 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
         });
 
         // Bazani yangilash
-        await User.increment({ usersGathered: gatheredUserIds.size }, { where: { chatId } });
+        await User.updateOne({ chatId }, { $inc: { usersGathered: gatheredUserIds.size } });
 
         return true;
     } catch (error) { 
@@ -749,7 +749,7 @@ const reydSessions = {}; // { chatId: { status: 'running'|'stopped' } }
 const ensureClient = async (chatId, bot) => {
     if (userClients[chatId] && userClients[chatId].connected) return userClients[chatId];
     
-    const user = await User.findOne({ where: { chatId } });
+    const user = await User.findOne({ chatId });
     if (!user || !user.session) throw new Error("Asosiy akkaunt ulanmagan.");
     
     await startUserbot(chatId, user.session, bot);
@@ -761,7 +761,7 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
         throw new Error("Reyd allaqachon ishga tushirilgan.");
     }
 
-    const user = await User.findOne({ where: { chatId } });
+    const user = await User.findOne({ chatId });
     if (!user) {
         throw new Error("Foydalanuvchi topilmadi.");
     }
@@ -1322,7 +1322,7 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
         history.push({ title: groupTitle, link: historyLink, addedAt: new Date() });
         if (history.length > 5) history = history.slice(-5);
 
-        await User.update({ utagHistory: history }, { where: { chatId } });
+        await User.updateOne({ utagHistory: history }, { where: { chatId } });
 
         let count = 0;
         utagStates[chatId] = { status: 'running', count: 0, total: participants.length };

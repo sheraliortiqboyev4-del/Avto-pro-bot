@@ -1,32 +1,29 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/db');
+const mongoose = require('mongoose');
 
-const PremiumAd = sequelize.define('PremiumAd', {
+const premiumAdSchema = new mongoose.Schema({
     chatId: {
-        type: DataTypes.BIGINT,
-        allowNull: false,
-        unique: true,
-        primaryKey: true
+        type: Number,
+        required: true,
+        unique: true
     },
     content: {
-        type: DataTypes.JSONB,
-        allowNull: false
+        type: mongoose.Schema.Types.Mixed,
+        required: true
     },
     usersList: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        default: null
     },
     status: {
-        type: DataTypes.STRING,
-        defaultValue: 'pending'
+        type: String,
+        default: 'pending'
     },
     createdAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW
+        type: Date,
+        default: Date.now
     }
 }, {
-    tableName: 'premium_ads',
-    timestamps: false
+    collection: 'premium_ads'
 });
 
-module.exports = PremiumAd;
+module.exports = mongoose.model('PremiumAd', premiumAdSchema);

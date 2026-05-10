@@ -1,28 +1,21 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/db');
+const mongoose = require('mongoose');
 
-const Channel = sequelize.define('Channel', {
-    id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-    },
+const channelSchema = new mongoose.Schema({
     channelId: {
-        type: DataTypes.STRING,
-        allowNull: false,
+        type: String,
+        required: true,
         unique: true
     },
     name: {
-        type: DataTypes.STRING,
-        allowNull: false
+        type: String,
+        required: true
     },
     url: {
-        type: DataTypes.STRING,
-        allowNull: false
+        type: String,
+        required: true
     }
 }, {
-    tableName: 'channels',
-    timestamps: false
+    collection: 'channels'
 });
 
-module.exports = Channel;
+module.exports = mongoose.model('Channel', channelSchema);
