@@ -1,8 +1,6 @@
 const User = require('../models/User');
 const Channel = require('../models/Channel');
 const config = require('../config');
-const { sequelize } = require('../config/db');
-const { sequelize } = require('../config/db');
 const { 
     getAdminMenu, 
     getMainMenu, 
