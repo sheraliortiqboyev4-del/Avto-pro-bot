@@ -2,31 +2,35 @@ const { Sequelize } = require('sequelize');
 const config = require('./index');
 const { connectMongoDB } = require('./mongodb');
 
-const sequelize = new Sequelize(config.databaseUrl, {
-    dialect: 'postgres',
-    logging: false, // Konsolda SQL so'rovlarni ko'rsatmaslik uchun
-    dialectOptions: {
-        ssl: {
-            require: true,
-            rejectUnauthorized: false // Render kabi platformalar uchun kerak
+let sequelize;
+
+if (config.databaseUrl) {
+    sequelize = new Sequelize(config.databaseUrl, {
+        dialect: 'postgres',
+        logging: false,
+        dialectOptions: {
+            ssl: {
+                require: true,
+                rejectUnauthorized: false
+            }
         }
-    }
-});
+    });
+}
 
 const connectDB = async () => {
     try {
-        await sequelize.authenticate();
-        console.log('✅ PostgreSQL ulanishi muvaffaqiyatli.');
+        if (config.databaseUrl && sequelize) {
+            await sequelize.authenticate();
+            console.log('✅ PostgreSQL ulanishi muvaffaqiyatli.');
+            await sequelize.sync({ alter: true });
+            console.log('✅ Ma\'lumotlar bazasi sinxronizatsiya qilindi.');
+        } else {
+            console.log('ℹ️ PostgreSQL konfiguratsiyasi topilmadi, faqat MongoDB ishlatiladi.');
+        }
         
-        // Modelarni sinxronizatsiya qilish (tablelarni yaratish)
-        await sequelize.sync({ alter: true });
-        console.log('✅ Ma\'lumotlar bazasi sinxronizatsiya qilindi.');
-        
-        // MongoDB'ga ulanish
         await connectMongoDB();
     } catch (error) {
-        console.error('❌ PostgreSQL ulanishida xato:', error.message);
-        // Qayta urinish
+        console.error('❌ DB ulanishida xato:', error.message);
         setTimeout(connectDB, 5000);
     }
 };

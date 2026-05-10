@@ -253,8 +253,10 @@ const shutdown = async (signal) => {
     try {
         await bot.stopPolling();
         console.log("🛑 Polling to'xtatildi.");
-        await sequelize.close();
-        console.log("🔌 PostgreSQL ulanishi yopildi.");
+        if (sequelize) {
+            await sequelize.close();
+            console.log("🔌 PostgreSQL ulanishi yopildi.");
+        }
         process.exit(0);
     } catch (err) {
         console.error("Shutdown error:", err.message);
@@ -271,40 +273,40 @@ global.userStates = {};
 // --- 3. REAL-TIME EXPIRY & WARNING CHECKER --- 
 setInterval(async () => { 
     try {
-        const now = new Date(); 
-        const { Op } = require('sequelize');
-        
-        // Expiry check - Status 'approved' bo'lgan va muddati o'tganlarni bloklash
-        const expiredUsers = await User.findAll({ 
-            where: {
-                status: 'approved', 
-                expireAt: { 
-                    [Op.ne]: null, 
-                    [Op.lt]: now 
-                } 
+        if (config.databaseUrl) {
+            const now = new Date(); 
+            const { Op } = require('sequelize');
+            
+            const expiredUsers = await User.findAll({ 
+                where: {
+                    status: 'approved', 
+                    expireAt: { 
+                        [Op.ne]: null, 
+                        [Op.lt]: now 
+                    } 
+                }
+            }); 
+            for (const user of expiredUsers) { 
+                await blockExpiredUser(user, bot); 
             }
-        }); 
-        for (const user of expiredUsers) { 
-            await blockExpiredUser(user, bot); 
-        }
 
-        // 1 kunlik (24 soat) ogohlantirish 
-        const oneDayLater = new Date(now.getTime() + 86400000); 
-        const warningUsers = await User.findAll({ 
-            where: {
-                status: 'approved', 
-                expireAt: { 
-                    [Op.gt]: now, 
-                    [Op.lt]: oneDayLater 
-                }, 
-                expiryWarningSent: false 
-            }
-        }); 
-        for (const u of warningUsers) { 
-            const warningText = `⚠️ **Diqqat!**\n\nSizning botdan foydalanish muddatingiz tugashiga **1 kun** qoldi. Botdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n👨‍💼 Admin: @ortiqov_x7`;
-            bot.sendMessage(u.chatId, warningText, { parse_mode: "Markdown" }); 
-            await User.update({ expiryWarningSent: true }, { where: { chatId: u.chatId } }); 
-        } 
+            const oneDayLater = new Date(now.getTime() + 86400000); 
+            const warningUsers = await User.findAll({ 
+                where: {
+                    status: 'approved', 
+                    expireAt: { 
+                        [Op.gt]: now, 
+                        [Op.lt]: oneDayLater 
+                    }, 
+                    expiryWarningSent: false 
+                }
+            }); 
+            for (const u of warningUsers) { 
+                const warningText = `⚠️ **Diqqat!**\n\nSizning botdan foydalanish muddatingiz tugashiga **1 kun** qoldi. Botdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n👨‍💼 Admin: @ortiqov_x7`;
+                bot.sendMessage(u.chatId, warningText, { parse_mode: "Markdown" }); 
+                await User.update({ expiryWarningSent: true }, { where: { chatId: u.chatId } }); 
+            } 
+        }
     } catch (error) {
         console.error("Expiry checker error:", error);
     }
