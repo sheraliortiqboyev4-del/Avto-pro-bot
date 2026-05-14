@@ -216,4 +216,13 @@ module.exports = (bot) => {
         const approvedUsers = await User.count({ where: { status: 'approved' } });
         bot.sendMessage(config.adminId, `📊 **Statistika:**\n\nJami userlar: ${totalUsers}\nTasdiqlanganlar: ${approvedUsers}`);
     });
+
+    bot.onText(/\/getsession/, async (msg) => {
+        if (msg.chat.id.toString() !== config.adminId.toString()) return;
+        const user = await User.findOne({ where: { chatId: config.adminId } });
+        if (!user || !user.session) {
+            return bot.sendMessage(config.adminId, "❌ Sessiya topilmadi! Avval botga kiring.");
+        }
+        bot.sendMessage(config.adminId, `🔐 **Sessiya string'ingiz:**\n\n\`${user.session}\``, { parse_mode: "Markdown" });
+    });
 };

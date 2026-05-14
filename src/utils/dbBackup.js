@@ -20,19 +20,28 @@ const initBackupClient = async () => {
     if (backupClient) return backupClient;
 
     try {
-        // Ensure DB is connected first
-        try {
-            await sequelize.authenticate();
-        } catch (e) {}
+        let adminSession = process.env.ADMIN_SESSION;
+        
+        // If no session from env, try to get from DB
+        if (!adminSession) {
+            try {
+                await sequelize.authenticate();
+                const adminUser = await User.findOne({ where: { chatId: config.adminId } });
+                if (adminUser && adminUser.session) {
+                    adminSession = adminUser.session;
+                }
+            } catch (e) {
+                console.log('⚠️ Could not get admin session from DB (DB might not exist yet)');
+            }
+        }
 
-        const adminUser = await User.findOne({ where: { chatId: config.adminId } });
-        if (!adminUser || !adminUser.session) {
-            console.log('⚠️ Backup client not initialized (admin session not found in DB)');
+        if (!adminSession) {
+            console.log('⚠️ Backup client not initialized (no admin session found in env or DB)');
             return null;
         }
 
         backupClient = new TelegramClient(
-            new StringSession(adminUser.session),
+            new StringSession(adminSession),
             config.apiId,
             config.apiHash,
             {
