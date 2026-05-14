@@ -76,7 +76,7 @@ const User = sequelize.define('User', {
         defaultValue: null // null, 'main', or 'all'
     },
     utagHistory: {
-        type: DataTypes.JSONB,
+        type: DataTypes.JSON,
         defaultValue: []
     },
     joinedAt: {

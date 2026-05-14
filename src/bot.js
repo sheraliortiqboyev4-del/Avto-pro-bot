@@ -251,10 +251,11 @@ startPolling().then(() => {
 const shutdown = async (signal) => {
     console.log(`\n Industrial shutdown (${signal})...`);
     try {
+        await backupDB();
         await bot.stopPolling();
         console.log("🛑 Polling to'xtatildi.");
         await sequelize.close();
-        console.log("🔌 PostgreSQL ulanishi yopildi.");
+        console.log("🔌 SQLite ulanishi yopildi.");
         process.exit(0);
     } catch (err) {
         console.error("Shutdown error:", err.message);

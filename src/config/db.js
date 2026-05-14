@@ -12,7 +12,7 @@ const connectDB = async () => {
         await sequelize.authenticate();
         console.log('✅ SQLite ulanishi muvaffaqiyatli.');
         
-        await sequelize.sync({ alter: true });
+        await sequelize.sync();
         console.log('✅ Ma\'lumotlar bazasi sinxronizatsiya qilindi.');
     } catch (error) {
         console.error('❌ SQLite ulanishida xato:', error.message);

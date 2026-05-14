@@ -1,9 +1,11 @@
-node_modules/
+node_modules
 .env
-logs/
-temp/
 *.log
-ecosystem.config.js
 database.sqlite
 *.sqlite
 *.sqlite-journal
+temp
+logs
+.git
+.gitignore
+.vscode
