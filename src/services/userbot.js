@@ -267,8 +267,11 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                                 btnText === 'click' || 
                                 btnText === 'Click' || 
                                 btnText === 'Bosing' || 
-                                btnText === 'bosing' 
-                            ) { 
+                                btnText === 'bosing' ||
+                                btnText === '💎 1 ta olmos olish' ||
+                                btnText === '1🎁 olish'
+
+                             ) { 
                                 console.log("[" + chatId + "] Tugma topildi (Dynamic): " + btnText); 
                                 try { 
                                     // Tugmani darhol bosamiz (await kutmasdan, parallel) 
