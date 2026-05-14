@@ -9,7 +9,7 @@ const PremiumAd = sequelize.define('PremiumAd', {
         primaryKey: true
     },
     content: {
-        type: DataTypes.JSONB,
+        type: DataTypes.JSON,
         allowNull: false
     },
     usersList: {

@@ -30,11 +30,11 @@ const User = sequelize.define('User', {
         defaultValue: null
     },
     reydAccounts: {
-        type: DataTypes.JSONB,
+        type: DataTypes.JSON,
         defaultValue: []
     },
     reklamaAccounts: {
-        type: DataTypes.JSONB,
+        type: DataTypes.JSON,
         defaultValue: []
     },
     expireAt: {
