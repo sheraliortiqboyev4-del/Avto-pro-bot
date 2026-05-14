@@ -22,6 +22,7 @@ const config = require('./config');
 const User = require('./models/User'); 
 const { blockExpiredUser, loadAllStates } = require('./services/userbot'); 
 const { withPremiumEmojis } = require('./utils/helpers');
+const { restoreDB, backupDB } = require('./utils/dbBackup');
 
 // --- 1. SERVER & DNS SETUP ---
 try {
