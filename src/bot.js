@@ -237,15 +237,21 @@ bot.on('message', (msg) => {
     console.log(`📩 Xabar keldi [${msg.chat.id}]: ${msg.text || '[Media/Other]'}`);
 });
 
-// --- 3. DATABASE CONNECTION ---
-connectDB();
+// --- 3. DATABASE CONNECTION & RESTORE ---
+const initBot = async () => {
+    try {
+        console.log('🔄 Initializing bot...');
+        await restoreDB();
+        await connectDB();
+        await startPolling();
+        // Polling boshlangandan keyin holatlarni yuklaymiz
+        loadAllStates(bot);
+    } catch (err) {
+        console.error("Critical error in initBot chain:", err);
+    }
+};
 
-startPolling().then(() => {
-    // Polling boshlangandan keyin holatlarni yuklaymiz
-    loadAllStates(bot);
-}).catch(err => {
-    console.error("Critical error in startPolling chain:", err);
-});
+initBot();
 
 // --- GRACEFUL SHUTDOWN (Render Deploy uchun) ---
 const shutdown = async (signal) => {

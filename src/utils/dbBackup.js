@@ -113,10 +113,14 @@ const restoreDB = async () => {
 
 const backupDB = async () => {
     try {
+        console.log(`📤 Checking DB for backup: ${DB_PATH}`);
         if (!fs.existsSync(DB_PATH)) {
             console.log('⚠️ Database file not found for backup');
             return false;
         }
+
+        const stats = fs.statSync(DB_PATH);
+        console.log(`📤 DB size for backup: ${stats.size} bytes`);
 
         const client = await initBackupClient();
         if (!client) {
@@ -131,7 +135,9 @@ const backupDB = async () => {
             try {
                 await client.deleteMessages('me', [oldBackup.id]);
                 console.log('🗑 Old backup deleted');
-            } catch (e) {}
+            } catch (e) {
+                console.error('🗑 Error deleting old backup:', e.message);
+            }
         }
 
         await client.sendFile('me', {
@@ -146,6 +152,7 @@ const backupDB = async () => {
         return true;
     } catch (error) {
         console.error('❌ Backup database error:', error.message);
+        console.error(error.stack);
         return false;
     }
 };
