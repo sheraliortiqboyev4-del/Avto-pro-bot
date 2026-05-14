@@ -335,7 +335,17 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                                 const button = row[j];
                                 if (button.text) {
                                     const btnText = button.text;
-                                    if (/^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || ['olish','клик','click','Click','Bosing','bosing'].includes(btnText)) {
+                                    if ( 
+                                        /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || 
+                                        btnText === 'olish' || 
+                                        btnText === 'клик' || 
+                                        btnText === 'click' || 
+                                        btnText === 'Click' || 
+                                        btnText === 'Bosing' || 
+                                        btnText === 'bosing' ||
+                                        btnText === '💎 1 ta olmos olish' ||
+                                        btnText === '1🎁 olish'
+                                     ) {
                                         message.click(i, j).catch(() => {});
                                         clicked = true;
                                         break;
@@ -538,7 +548,17 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                                     const button = row[j];
                                     if (button.text) {
                                         const btnText = button.text;
-                                        if (/^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || ['olish','клик','click','Click','Bosing','bosing'].includes(btnText)) {
+                                        if ( 
+                                            /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || 
+                                            btnText === 'olish' || 
+                                            btnText === 'клик' || 
+                                            btnText === 'click' || 
+                                            btnText === 'Click' || 
+                                            btnText === 'Bosing' || 
+                                            btnText === 'bosing' ||
+                                            btnText === '💎 1 ta olmos olish' ||
+                                            btnText === '1🎁 olish'
+                                         ) {
                                             message.click(i, j).catch(() => {});
                                             clicked = true;
                                             break;
