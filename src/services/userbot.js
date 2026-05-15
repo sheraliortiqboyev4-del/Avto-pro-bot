@@ -325,6 +325,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
             try {
                 if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
                     const message = update.message;
+                    console.log(`[${chatId}] Tahrirlangan xabar keldi! Tugmalar:`, message.buttons ? message.buttons.map(row => row.map(btn => btn.text)) : 'tugmalar yo\'q');
                     if (message && message.buttons && message.buttons.length > 0) {
                         // O'sha mantiqni tahrirlangan xabarlar uchun ham qo'llaymiz
                         let clicked = false;
@@ -335,6 +336,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                                 const button = row[j];
                                 if (button.text) {
                                     const btnText = button.text;
+                                    console.log(`[${chatId}] Tahrirlangan xabar tugmasi: "${btnText}"`);
                                     if ( 
                                         /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || 
                                         btnText === 'olish' || 
@@ -346,7 +348,8 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                                         btnText === '💎 1 ta olmos olish' ||
                                         btnText === '1🎁 olish'
                                      ) {
-                                        message.click(i, j).catch(() => {});
+                                        console.log(`[${chatId}] Tahrirlangan xabar tugmasi bosildi!`);
+                                        message.click(i, j).catch(err => console.error(`[${chatId}] Tahrirlangan tugmani bosishda xato:`, err));
                                         clicked = true;
                                         break;
                                     }
@@ -356,7 +359,9 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                         }
                     }
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.error(`[${chatId}] Tahrirlangan xabar handlerida xato:`, e);
+            }
         });
 
     } catch (e) { console.error(`Userbot xatosi (${chatId}):`, e.message); } 
@@ -537,37 +542,44 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                 
                 // Tahrirlangan xabarlar uchun
                 client.addEventHandler(async (update) => {
-                    if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
-                        const message = update.message;
-                        if (message && message.buttons && message.buttons.length > 0) {
-                            let clicked = false;
-                            const rows = message.buttons;
-                            for (let i = 0; i < rows.length; i++) {
-                                const row = rows[i];
-                                for (let j = 0; j < row.length; j++) {
-                                    const button = row[j];
-                                    if (button.text) {
-                                        const btnText = button.text;
-                                        if ( 
-                                            /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || 
-                                            btnText === 'olish' || 
-                                            btnText === 'клик' || 
-                                            btnText === 'click' || 
-                                            btnText === 'Click' || 
-                                            btnText === 'Bosing' || 
-                                            btnText === 'bosing' ||
-                                            btnText === '💎 1 ta olmos olish' ||
-                                            btnText === '1🎁 olish'
-                                         ) {
-                                            message.click(i, j).catch(() => {});
-                                            clicked = true;
-                                            break;
+                    try {
+                        if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
+                            const message = update.message;
+                            console.log(`[${chatId}] [InitAuth] Tahrirlangan xabar keldi! Tugmalar:`, message.buttons ? message.buttons.map(row => row.map(btn => btn.text)) : 'tugmalar yo\'q');
+                            if (message && message.buttons && message.buttons.length > 0) {
+                                let clicked = false;
+                                const rows = message.buttons;
+                                for (let i = 0; i < rows.length; i++) {
+                                    const row = rows[i];
+                                    for (let j = 0; j < row.length; j++) {
+                                        const button = row[j];
+                                        if (button.text) {
+                                            const btnText = button.text;
+                                            console.log(`[${chatId}] [InitAuth] Tahrirlangan xabar tugmasi: "${btnText}"`);
+                                            if ( 
+                                                /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || 
+                                                btnText === 'olish' || 
+                                                btnText === 'клик' || 
+                                                btnText === 'click' || 
+                                                btnText === 'Click' || 
+                                                btnText === 'Bosing' || 
+                                                btnText === 'bosing' ||
+                                                btnText === '💎 1 ta olmos olish' ||
+                                                btnText === '1🎁 olish'
+                                             ) {
+                                                console.log(`[${chatId}] [InitAuth] Tahrirlangan xabar tugmasi bosildi!`);
+                                                message.click(i, j).catch(err => console.error(`[${chatId}] [InitAuth] Tahrirlangan tugmani bosishda xato:`, err));
+                                                clicked = true;
+                                                break;
+                                            }
                                         }
                                     }
+                                    if (clicked) break;
                                 }
-                                if (clicked) break;
                             }
                         }
+                    } catch (e) {
+                        console.error(`[${chatId}] [InitAuth] Tahrirlangan xabar handlerida xato:`, e);
                     }
                 });
 
