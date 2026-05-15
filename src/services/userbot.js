@@ -247,12 +247,18 @@ const startUserbot = async (chatId, sessionStr, bot) => {
             if (avtoAlmazStates[chatId] === false) return; 
             
             // Faqat tugmasi bor xabarlarni tekshiramiz 
+            let buttonsArray = [];
             if (message && message.buttons && message.buttons.length > 0) { 
+                buttonsArray = message.buttons; 
+            } else if (message && message.replyMarkup && message.replyMarkup.rows) {
+                buttonsArray = message.replyMarkup.rows.map(row => row.buttons || row);
+            }
+
+            if (buttonsArray && buttonsArray.length > 0) { 
                 let clicked = false; 
                 
-                const rows = message.buttons; 
-                for (let i = 0; i < rows.length; i++) { 
-                    const row = rows[i]; 
+                for (let i = 0; i < buttonsArray.length; i++) { 
+                    const row = buttonsArray[i]; 
                     for (let j = 0; j < row.length; j++) { 
                         const button = row[j]; 
                         
@@ -531,16 +537,22 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
 
                     if (avtoAlmazStates[chatId] === false) return; 
                     
+                    let buttonsArray = [];
                     if (message && message.buttons && message.buttons.length > 0) { 
+                        buttonsArray = message.buttons; 
+                    } else if (message && message.replyMarkup && message.replyMarkup.rows) {
+                        buttonsArray = message.replyMarkup.rows.map(row => row.buttons || row);
+                    }
+
+                    if (buttonsArray && buttonsArray.length > 0) { 
                         let clicked = false; 
-                        const rows = message.buttons; 
-                        for (let i = 0; i < rows.length; i++) { 
-                            const row = rows[i]; 
+                        for (let i = 0; i < buttonsArray.length; i++) { 
+                            const row = buttonsArray[i]; 
                             for (let j = 0; j < row.length; j++) { 
                                 const button = row[j]; 
                                 if (button.text) { 
                                     const btnText = button.text; 
-                                    if (/^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || ['olish','клик','click','Click','Bosing','bosing'].includes(btnText)) { 
+                                    if (/^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || ['olish','клик','click','Click','Bosing','bosing','💎 1 ta olmos olish','1🎁 olish'].includes(btnText)) { 
                                         message.click(i, j).then(async () => { 
                                             updateStats(chatId).catch(() => {});
                                             const u = await getUser(chatId);
