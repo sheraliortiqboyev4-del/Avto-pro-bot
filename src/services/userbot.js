@@ -323,18 +323,25 @@ const startUserbot = async (chatId, sessionStr, bot) => {
         // Tahrirlangan xabarlar uchun (ba'zi botlar tugmalarni tahrirlangan xabarda yuboradi)
         client.addEventHandler(async (update) => {
             try {
+                console.log(`[${chatId}] Update keldi!`, JSON.stringify(update, null, 2));
                 if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
                     const message = update.message;
-                    console.log(`[${chatId}] Tahrirlangan xabar keldi!`);
-                    console.log(`[${chatId}] message.buttons:`, message.buttons ? message.buttons.map(row => row.map(btn => btn.text)) : 'yo\'q');
-                    console.log(`[${chatId}] message.replyMarkup:`, message.replyMarkup ? JSON.stringify(message.replyMarkup) : 'yo\'q');
+                    console.log(`[${chatId}] Tahrirlangan xabar keldi! To'liq message:`, JSON.stringify(message, null, 2));
+                    
+                    // Biraz kutamiz (tugmalar tayyor bo'lishi uchun)
+                    await new Promise(r => setTimeout(r, 1000));
                     
                     // Barcha tugma manbalarini tekshiramiz
                     let buttons = message.buttons;
+                    console.log(`[${chatId}] message.buttons:`, buttons ? buttons.map(row => row.map(btn => btn.text)) : 'yo\'q');
+                    
                     if (!buttons || buttons.length === 0) {
                         // replyMarkup dan tugmalarni olishga harakat qilamiz
-                        if (message.replyMarkup && message.replyMarkup.rows) {
-                            buttons = message.replyMarkup.rows;
+                        if (message.replyMarkup) {
+                            console.log(`[${chatId}] message.replyMarkup:`, JSON.stringify(message.replyMarkup, null, 2));
+                            if (message.replyMarkup.rows) {
+                                buttons = message.replyMarkup.rows;
+                            }
                         }
                     }
                     
@@ -346,6 +353,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                             const row = rows[i];
                             for (let j = 0; j < row.length; j++) {
                                 const button = row[j];
+                                console.log(`[${chatId}] Tugma [${i},${j}]:`, JSON.stringify(button, null, 2));
                                 if (button.text) {
                                     const btnText = button.text;
                                     console.log(`[${chatId}] Tahrirlangan xabar tugmasi: "${btnText}"`);
@@ -360,8 +368,13 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                                         btnText === '💎 1 ta olmos olish' ||
                                         btnText === '1🎁 olish'
                                      ) {
-                                        console.log(`[${chatId}] Tahrirlangan xabar tugmasi bosildi!`);
-                                        message.click(i, j).catch(err => console.error(`[${chatId}] Tahrirlangan tugmani bosishda xato:`, err));
+                                        console.log(`[${chatId}] Tahrirlangan xabar tugmasi bosilmoqda!`);
+                                        try {
+                                            await message.click(i, j);
+                                            console.log(`[${chatId}] Tahrirlangan xabar tugmasi muvaffaqiyatli bosildi!`);
+                                        } catch (err) {
+                                            console.error(`[${chatId}] Tahrirlangan tugmani bosishda xato:`, err);
+                                        }
                                         clicked = true;
                                         break;
                                     }
