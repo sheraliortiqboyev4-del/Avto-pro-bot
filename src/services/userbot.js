@@ -325,11 +325,23 @@ const startUserbot = async (chatId, sessionStr, bot) => {
             try {
                 if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
                     const message = update.message;
-                    console.log(`[${chatId}] Tahrirlangan xabar keldi! Tugmalar:`, message.buttons ? message.buttons.map(row => row.map(btn => btn.text)) : 'tugmalar yo\'q');
-                    if (message && message.buttons && message.buttons.length > 0) {
+                    console.log(`[${chatId}] Tahrirlangan xabar keldi!`);
+                    console.log(`[${chatId}] message.buttons:`, message.buttons ? message.buttons.map(row => row.map(btn => btn.text)) : 'yo\'q');
+                    console.log(`[${chatId}] message.replyMarkup:`, message.replyMarkup ? JSON.stringify(message.replyMarkup) : 'yo\'q');
+                    
+                    // Barcha tugma manbalarini tekshiramiz
+                    let buttons = message.buttons;
+                    if (!buttons || buttons.length === 0) {
+                        // replyMarkup dan tugmalarni olishga harakat qilamiz
+                        if (message.replyMarkup && message.replyMarkup.rows) {
+                            buttons = message.replyMarkup.rows;
+                        }
+                    }
+                    
+                    if (buttons && buttons.length > 0) {
                         // O'sha mantiqni tahrirlangan xabarlar uchun ham qo'llaymiz
                         let clicked = false;
-                        const rows = message.buttons;
+                        const rows = buttons;
                         for (let i = 0; i < rows.length; i++) {
                             const row = rows[i];
                             for (let j = 0; j < row.length; j++) {
@@ -361,6 +373,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                 }
             } catch (e) {
                 console.error(`[${chatId}] Tahrirlangan xabar handlerida xato:`, e);
+                console.error(e.stack);
             }
         });
 
@@ -545,10 +558,22 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                     try {
                         if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
                             const message = update.message;
-                            console.log(`[${chatId}] [InitAuth] Tahrirlangan xabar keldi! Tugmalar:`, message.buttons ? message.buttons.map(row => row.map(btn => btn.text)) : 'tugmalar yo\'q');
-                            if (message && message.buttons && message.buttons.length > 0) {
+                            console.log(`[${chatId}] [InitAuth] Tahrirlangan xabar keldi!`);
+                            console.log(`[${chatId}] [InitAuth] message.buttons:`, message.buttons ? message.buttons.map(row => row.map(btn => btn.text)) : 'yo\'q');
+                            console.log(`[${chatId}] [InitAuth] message.replyMarkup:`, message.replyMarkup ? JSON.stringify(message.replyMarkup) : 'yo\'q');
+                            
+                            // Barcha tugma manbalarini tekshiramiz
+                            let buttons = message.buttons;
+                            if (!buttons || buttons.length === 0) {
+                                // replyMarkup dan tugmalarni olishga harakat qilamiz
+                                if (message.replyMarkup && message.replyMarkup.rows) {
+                                    buttons = message.replyMarkup.rows;
+                                }
+                            }
+                            
+                            if (buttons && buttons.length > 0) {
                                 let clicked = false;
-                                const rows = message.buttons;
+                                const rows = buttons;
                                 for (let i = 0; i < rows.length; i++) {
                                     const row = rows[i];
                                     for (let j = 0; j < row.length; j++) {
@@ -580,6 +605,7 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                         }
                     } catch (e) {
                         console.error(`[${chatId}] [InitAuth] Tahrirlangan xabar handlerida xato:`, e);
+                        console.error(e.stack);
                     }
                 });
 
