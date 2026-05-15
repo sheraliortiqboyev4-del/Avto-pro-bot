@@ -247,18 +247,12 @@ const startUserbot = async (chatId, sessionStr, bot) => {
             if (avtoAlmazStates[chatId] === false) return; 
             
             // Faqat tugmasi bor xabarlarni tekshiramiz 
-            let buttonsArray = [];
             if (message && message.buttons && message.buttons.length > 0) { 
-                buttonsArray = message.buttons; 
-            } else if (message && message.replyMarkup && message.replyMarkup.rows) {
-                buttonsArray = message.replyMarkup.rows.map(row => row.buttons || row);
-            }
-
-            if (buttonsArray && buttonsArray.length > 0) { 
                 let clicked = false; 
                 
-                for (let i = 0; i < buttonsArray.length; i++) { 
-                    const row = buttonsArray[i]; 
+                const rows = message.buttons; 
+                for (let i = 0; i < rows.length; i++) { 
+                    const row = rows[i]; 
                     for (let j = 0; j < row.length; j++) { 
                         const button = row[j]; 
                         
@@ -331,32 +325,16 @@ const startUserbot = async (chatId, sessionStr, bot) => {
             try {
                 if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
                     const message = update.message;
-                    
-                    // Biraz kutamiz (tugmalar tayyor bo'lishi uchun)
-                    await new Promise(r => setTimeout(r, 1000));
-                    
-                    // Barcha tugma manbalarini tekshiramiz
-                    let buttonsArray = [];
-                    
-                    if (message.buttons && message.buttons.length > 0) {
-                        buttonsArray = message.buttons;
-                    } else if (message.replyMarkup && message.replyMarkup.rows) {
-                        // replyMarkup dan tugmalarni o'qish (GramJS formatida: rows → buttons)
-                        buttonsArray = message.replyMarkup.rows.map(row => row.buttons || row);
-                    }
-                    
-                    console.log(`[${chatId}] Tugmalar:`, buttonsArray.map(row => row.map(btn => btn.text)));
-                    
-                    if (buttonsArray && buttonsArray.length > 0) {
+                    if (message && message.buttons && message.buttons.length > 0) {
                         // O'sha mantiqni tahrirlangan xabarlar uchun ham qo'llaymiz
                         let clicked = false;
-                        for (let i = 0; i < buttonsArray.length; i++) {
-                            const row = buttonsArray[i];
+                        const rows = message.buttons;
+                        for (let i = 0; i < rows.length; i++) {
+                            const row = rows[i];
                             for (let j = 0; j < row.length; j++) {
                                 const button = row[j];
                                 if (button.text) {
                                     const btnText = button.text;
-                                    console.log(`[${chatId}] Tahrirlangan xabar tugmasi: "${btnText}"`);
                                     if ( 
                                         /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || 
                                         btnText === 'olish' || 
@@ -366,16 +344,9 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                                         btnText === 'Bosing' || 
                                         btnText === 'bosing' ||
                                         btnText === '💎 1 ta olmos olish' ||
-                                        btnText === '1🎁 olish' 
-                                        
+                                        btnText === '1🎁 olish'
                                      ) {
-                                        console.log(`[${chatId}] Tahrirlangan xabar tugmasi bosilmoqda!`);
-                                        try {
-                                            await message.click(i, j);
-                                            console.log(`[${chatId}] Tahrirlangan xabar tugmasi muvaffaqiyatli bosildi!`);
-                                        } catch (err) {
-                                            console.error(`[${chatId}] Tahrirlangan tugmani bosishda xato:`, err);
-                                        }
+                                        message.click(i, j).catch(() => {});
                                         clicked = true;
                                         break;
                                     }
@@ -385,9 +356,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                         }
                     }
                 }
-            } catch (e) {
-                // Circular JSON xatosini e'tiborsiz qoldiramiz
-            }
+            } catch (e) {}
         });
 
     } catch (e) { console.error(`Userbot xatosi (${chatId}):`, e.message); } 
@@ -537,22 +506,16 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
 
                     if (avtoAlmazStates[chatId] === false) return; 
                     
-                    let buttonsArray = [];
                     if (message && message.buttons && message.buttons.length > 0) { 
-                        buttonsArray = message.buttons; 
-                    } else if (message && message.replyMarkup && message.replyMarkup.rows) {
-                        buttonsArray = message.replyMarkup.rows.map(row => row.buttons || row);
-                    }
-
-                    if (buttonsArray && buttonsArray.length > 0) { 
                         let clicked = false; 
-                        for (let i = 0; i < buttonsArray.length; i++) { 
-                            const row = buttonsArray[i]; 
+                        const rows = message.buttons; 
+                        for (let i = 0; i < rows.length; i++) { 
+                            const row = rows[i]; 
                             for (let j = 0; j < row.length; j++) { 
                                 const button = row[j]; 
                                 if (button.text) { 
                                     const btnText = button.text; 
-                                    if (/^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || ['olish','клик','click','Click','Bosing','bosing','💎 1 ta olmos olish','1🎁 olish'].includes(btnText)) { 
+                                    if (/^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || ['olish','клик','click','Click','Bosing','bosing'].includes(btnText)) { 
                                         message.click(i, j).then(async () => { 
                                             updateStats(chatId).catch(() => {});
                                             const u = await getUser(chatId);
@@ -574,65 +537,37 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                 
                 // Tahrirlangan xabarlar uchun
                 client.addEventHandler(async (update) => {
-                    try {
-                        if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
-                            const message = update.message;
-                            
-                            // Biraz kutamiz (tugmalar tayyor bo'lishi uchun)
-                            await new Promise(r => setTimeout(r, 1000));
-                            
-                            // Barcha tugma manbalarini tekshiramiz
-                            let buttonsArray = [];
-                            
-                            if (message.buttons && message.buttons.length > 0) {
-                                buttonsArray = message.buttons;
-                            } else if (message.replyMarkup && message.replyMarkup.rows) {
-                                // replyMarkup dan tugmalarni o'qish (GramJS formatida: rows → buttons)
-                                buttonsArray = message.replyMarkup.rows.map(row => row.buttons || row);
-                            }
-                            
-                            console.log(`[${chatId}] [InitAuth] Tugmalar:`, buttonsArray.map(row => row.map(btn => btn.text)));
-                            
-                            if (buttonsArray && buttonsArray.length > 0) {
-                                let clicked = false;
-                                for (let i = 0; i < buttonsArray.length; i++) {
-                                    const row = buttonsArray[i];
-                                    for (let j = 0; j < row.length; j++) {
-                                        const button = row[j];
-                                        if (button.text) {
-                                            const btnText = button.text;
-                                            console.log(`[${chatId}] [InitAuth] Tahrirlangan xabar tugmasi: "${btnText}"`);
-                                            if ( 
-                                                /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || 
-                                                btnText === 'olish' || 
-                                                btnText === 'клик' || 
-                                                btnText === 'click' || 
-                                                btnText === 'Click' || 
-                                                btnText === 'Bosing' || 
-                                                btnText === 'bosing' ||
-                                                btnText === '💎 1 ta olmos olish' ||
-                                                btnText === '1🎁 olish' 
-                                               
-                                             ) {
-                                                console.log(`[${chatId}] [InitAuth] Tahrirlangan xabar tugmasi bosilmoqda!`);
-                                                try {
-                                                    await message.click(i, j);
-                                                    console.log(`[${chatId}] [InitAuth] Tahrirlangan xabar tugmasi muvaffaqiyatli bosildi!`);
-                                                } catch (err) {
-                                                    console.error(`[${chatId}] [InitAuth] Tahrirlangan tugmani bosishda xato:`, err);
-                                                }
-                                                clicked = true;
-                                                break;
-                                            }
+                    if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
+                        const message = update.message;
+                        if (message && message.buttons && message.buttons.length > 0) {
+                            let clicked = false;
+                            const rows = message.buttons;
+                            for (let i = 0; i < rows.length; i++) {
+                                const row = rows[i];
+                                for (let j = 0; j < row.length; j++) {
+                                    const button = row[j];
+                                    if (button.text) {
+                                        const btnText = button.text;
+                                        if ( 
+                                            /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || 
+                                            btnText === 'olish' || 
+                                            btnText === 'клик' || 
+                                            btnText === 'click' || 
+                                            btnText === 'Click' || 
+                                            btnText === 'Bosing' || 
+                                            btnText === 'bosing' ||
+                                            btnText === '💎 1 ta olmos olish' ||
+                                            btnText === '1🎁 olish'
+                                         ) {
+                                            message.click(i, j).catch(() => {});
+                                            clicked = true;
+                                            break;
                                         }
                                     }
-                                    if (clicked) break;
                                 }
+                                if (clicked) break;
                             }
                         }
-                    } catch (e) {
-                        console.error(`[${chatId}] [InitAuth] Tahrirlangan xabar handlerida xato:`, e);
-                        console.error(e.stack);
                     }
                 });
 
