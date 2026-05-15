@@ -360,8 +360,8 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                                         btnText === 'Bosing' || 
                                         btnText === 'bosing' ||
                                         btnText === '💎 1 ta olmos olish' ||
-                                        btnText === '1🎁 olish' ||
-                                        btnText === '▷'
+                                        btnText === '1🎁 olish' 
+                                        
                                      ) {
                                         console.log(`[${chatId}] Tahrirlangan xabar tugmasi bosilmoqda!`);
                                         try {
@@ -380,8 +380,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                     }
                 }
             } catch (e) {
-                console.error(`[${chatId}] Tahrirlangan xabar handlerida xato:`, e);
-                console.error(e.stack);
+                // Circular JSON xatosini e'tiborsiz qoldiramiz
             }
         });
 
@@ -600,8 +599,8 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                                                 btnText === 'Bosing' || 
                                                 btnText === 'bosing' ||
                                                 btnText === '💎 1 ta olmos olish' ||
-                                                btnText === '1🎁 olish' ||
-                                                btnText === '▷'
+                                                btnText === '1🎁 olish' 
+                                               
                                              ) {
                                                 console.log(`[${chatId}] [InitAuth] Tahrirlangan xabar tugmasi bosilmoqda!`);
                                                 try {
