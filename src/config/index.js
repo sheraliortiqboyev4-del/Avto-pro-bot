@@ -8,7 +8,8 @@ module.exports = {
     databaseUrl: process.env.DATABASE_URL, 
     port: process.env.PORT || 3000,
     botPromoUsername: process.env.BOT_PROMO_USERNAME || '@Foydasizku_bot',
-    botUsername: process.env.BOT_USERNAME || null,
+    // Referral va havolalar uchun (getMe emas — aniq username)
+    botUsername: (process.env.BOT_USERNAME || 'Foydasizku_bot').replace(/^@/, ''),
     // BACKUP_SECRET — zaxira shifrlash (kamida 16 belgi, Render .env ga qo'shing)
     channels: [
         // { id: '@ortiqov_w', name: 'Personal', url: 'https://t.me/ortiqov_w' },
