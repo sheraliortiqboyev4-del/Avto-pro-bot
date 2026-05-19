@@ -233,8 +233,19 @@ const verifyDatabaseAfterConnect = async () => {
             return await restoreDB({ force: true });
         }
 
+        const { migrateSchema, isMissingColumnError } = require('../config/migrate');
         const User = require('../models/User');
-        const count = await User.count();
+        let count = 0;
+        try {
+            count = await User.count();
+        } catch (e) {
+            if (isMissingColumnError(e)) {
+                await migrateSchema();
+                count = await User.count();
+            } else {
+                throw e;
+            }
+        }
         if (count > 0) return false;
 
         console.log('⚠️ Bazada foydalanuvchi yo\'q — majburiy restore...');

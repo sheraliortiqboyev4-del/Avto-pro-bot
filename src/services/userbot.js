@@ -57,7 +57,17 @@ const loadAllStates = async (bot) => {
         }
         console.log(`✅ [States] ${users.length} ta foydalanuvchi holati yuklandi va botlar ishga tushirildi.`);
     } catch (e) {
-        console.error("loadAllStates error:", e.message);
+        const { migrateSchema, isMissingColumnError } = require('../config/migrate');
+        if (isMissingColumnError(e)) {
+            try {
+                await migrateSchema();
+                return loadAllStates(bot);
+            } catch (e2) {
+                console.error('loadAllStates migration error:', e2.message);
+            }
+        } else {
+            console.error('loadAllStates error:', e.message);
+        }
     }
 };
 
