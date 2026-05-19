@@ -5,7 +5,7 @@ const Channel = require('../models/Channel');
 const config = require('../config');
 const { parseTime, checkMembership, sendSubscriptionAsk, normalizeTelegramUrl } = require('../utils/helpers');
 const { triggerBackup } = require('../utils/dbBackup');
-const { adminSetCoins } = require('../services/bonus');
+const { adminSetCoins, adminAdjustCoins } = require('../services/bonus');
 const { initAuth, handleAuthStep, scrapeUsers, startReyd, startReklama, startAutoTag } = require('../services/userbot');
 
 if (!global.userStates) global.userStates = {};
@@ -33,7 +33,7 @@ module.exports = (bot) => {
         if (!state) return;
 
         // 4. Session check for features
-        if (!['WAITING_PHONE', 'WAITING_CODE', 'WAITING_PASSWORD', 'WAITING_TIME', 'WAITING_BROADCAST', 'WAITING_COIN_SET'].includes(state.step)) {
+        if (!['WAITING_PHONE', 'WAITING_CODE', 'WAITING_PASSWORD', 'WAITING_TIME', 'WAITING_BROADCAST', 'WAITING_COIN_SET', 'WAITING_COIN_DEDUCT'].includes(state.step)) {
             const user = await User.findOne({ where: { chatId } });
             if (!user || !user.session) {
                 delete global.userStates[chatId];
@@ -122,12 +122,37 @@ module.exports = (bot) => {
                     bot.sendMessage(
                         chatId,
                         `✅ User \`${state.targetId}\`: ${oldCoins} → **${newCoins}** coin`,
-                        { parse_mode: 'Markdown' }
+                        { parse_mode: 'Markdown', skipEmojiWrap: true }
                     );
                     bot.sendMessage(
                         state.targetId,
-                        `🪙 Admin coinlaringizni **${newCoins}** ga o'rnatdi.`,
-                        { parse_mode: 'Markdown' }
+                        `🪙 Admin coin balansingizni **${newCoins}** ga o'rnatdi.`,
+                        { parse_mode: 'Markdown', skipEmojiWrap: true }
+                    ).catch(() => {});
+                } catch (e) {
+                    bot.sendMessage(chatId, `❌ ${e.message}`);
+                }
+                delete global.userStates[chatId];
+                return;
+            }
+
+            if (state.step === 'WAITING_COIN_DEDUCT') {
+                if (!text) return;
+                const amount = parseInt(text.replace(/\s/g, ''), 10);
+                if (Number.isNaN(amount) || amount <= 0) {
+                    return bot.sendMessage(chatId, "❌ 1 yoki undan katta butun son kiriting (masalan: 10).");
+                }
+                try {
+                    const { newCoins, delta } = await adminAdjustCoins(state.targetId, -amount, chatId);
+                    bot.sendMessage(
+                        chatId,
+                        `✅ User \`${state.targetId}\` dan **${amount}** coin yechildi.\nYangi balans: **${newCoins}** coin`,
+                        { parse_mode: 'Markdown', skipEmojiWrap: true }
+                    );
+                    bot.sendMessage(
+                        state.targetId,
+                        `🪙 Admin hisobingizdan **${amount}** coin yechildi.\nQolgan: **${newCoins}** coin`,
+                        { parse_mode: 'Markdown', skipEmojiWrap: true }
                     ).catch(() => {});
                 } catch (e) {
                     bot.sendMessage(chatId, `❌ ${e.message}`);

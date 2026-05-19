@@ -23,7 +23,6 @@ const {
     getAdminBonusStats,
     getTop10Referrers,
     getCoinRedeemers,
-    adminAdjustCoins,
     adminSetCoins,
     COINS_PER_MONTH
 } = require('../services/bonus');
@@ -141,23 +140,16 @@ module.exports = (bot) => {
         }
 
         if (data.startsWith('admin_coins_') && chatId.toString() === config.adminId.toString()) {
-            const addSub = data.match(/^admin_coins_(add|sub)_(\d+)_(\d+)$/);
-            if (addSub) {
-                const targetId = addSub[2];
-                const amount = parseInt(addSub[3], 10);
-                const delta = addSub[1] === 'add' ? amount : -amount;
-                try {
-                    const { newCoins } = await adminAdjustCoins(targetId, delta, chatId);
-                    await safeAnswer({ text: `Coin: ${newCoins}`, show_alert: true });
-                    bot.sendMessage(chatId, `✅ User \`${targetId}\` — yangi balans: **${newCoins}** coin`, { parse_mode: 'Markdown' });
-                    bot.sendMessage(
-                        targetId,
-                        `🪙 Admin sizning coinlaringizni **${delta >= 0 ? '+' : ''}${delta}** ga o'zgartirdi.\nJami: **${newCoins}** coin`,
-                        { parse_mode: 'Markdown' }
-                    ).catch(() => {});
-                } catch (e) {
-                    await safeAnswer({ text: e.message, show_alert: true });
-                }
+            if (data.startsWith('admin_coins_deduct_')) {
+                const targetId = data.replace('admin_coins_deduct_', '');
+                const u = await User.findOne({ where: { chatId: targetId } });
+                global.userStates[chatId] = { step: 'WAITING_COIN_DEDUCT', targetId };
+                await safeAnswer();
+                bot.sendMessage(
+                    chatId,
+                    `➖ User \`${targetId}\` dan nechta **coin** yechib olasiz?\n\nHozirgi balans: **${u?.coins || 0}** coin\n(Masalan: \`5\` yoki \`25\`)`,
+                    { parse_mode: 'Markdown', skipEmojiWrap: true }
+                );
                 return;
             }
             if (data.startsWith('admin_coins_set_')) {
@@ -168,7 +160,7 @@ module.exports = (bot) => {
                 bot.sendMessage(
                     chatId,
                     `✏️ User \`${targetId}\` uchun yangi **coin** miqdorini yuboring.\nHozirgi: **${u?.coins || 0}**`,
-                    { parse_mode: 'Markdown' }
+                    { parse_mode: 'Markdown', skipEmojiWrap: true }
                 );
                 return;
             }
@@ -183,7 +175,7 @@ module.exports = (bot) => {
                 await safeEdit(
                     chatId,
                     messageId,
-                    `✅ **1 oylik obuna tasdiqlandi!**\n\n🪙 Qolgan coin: **${newCoins}**\n📅 Muddat: ${expStr}\n\n${text}`,
+                    `✅ **1 oylik obuna sotib olindi!**\n\n🪙 Qolgan coin: **${newCoins}**\n📅 Muddat: ${expStr}\n\n${text}`,
                     { parse_mode: "Markdown", reply_markup: keyboard }
                 );
                 await bot.sendMessage(
@@ -914,7 +906,7 @@ module.exports = (bot) => {
             if (chatId.toString() !== config.adminId.toString()) return;
             const enabled = await isBonusEnabled();
             const stats = await getAdminBonusStats();
-            const statusText = enabled ? '🟢 Yoqilgan (demo)' : '🔴 O\'chirilgan';
+            const statusText = enabled ? '🟢 Faol (demo)' : '🔴 Nofaol';
             const text =
                 `🎁 **Bonus / Referral tizimi**\n\n` +
                 `Holat: ${statusText}\n\n` +
@@ -926,14 +918,14 @@ module.exports = (bot) => {
                 `📌 Qoida: yangi user → kanal obunasi → referrer +1 coin\n` +
                 `💰 ${COINS_PER_MONTH} coin = 1 oylik obuna`;
 
-            const toggleLabel = enabled ? '🔴 Bonusni o\'chirish' : '🟢 Bonusni yoqish';
+            const toggleLabel = enabled ? '🔴 O\'chirish' : '🟢 Yoqish';
             await safeEdit(chatId, messageId, text, {
                 parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: [
                         [{ text: toggleLabel, callback_data: 'admin_bonus_toggle' }],
-                        [{ text: '🏆 Top 10 referrer', callback_data: 'admin_bonus_top10' }],
-                        [{ text: '✅ Coin bilan olganlar', callback_data: 'admin_bonus_redeemed' }],
+                        [{ text: '🏆 Top 10 ', callback_data: 'admin_bonus_top10' }],
+                        [{ text: '✅ Coin redem', callback_data: 'admin_bonus_redeemed' }],
                         [{ text: '🔙 Admin panel', callback_data: 'admin_panel' }]
                     ]
                 }

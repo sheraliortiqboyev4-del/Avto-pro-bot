@@ -329,7 +329,7 @@ function getMainMenu(chatId) {
                 [{ text: "💎 Avto Almaz", callback_data: "menu_almaz" }, { text: "🏷 Avto UTag", callback_data: "menu_utag" }],
                 [{ text: "👤 AvtoUser", callback_data: "menu_avtouser" }, { text: "⚔️ Avto Reyd", callback_data: "menu_reyd" }],
                 [{ text: "📣 Avto Reklama", callback_data: "menu_reklama" }, { text: "📊 Profil", callback_data: "menu_profile" }],
-                [{ text: "🎁 Bonus", callback_data: "menu_bonus" }, { text: "🪙 Coin", callback_data: "menu_coin" }],
+                [{ text: "🎁 Bonus", callback_data: "menu_bonus" },
                 [{ text: "🔄 Nomer almashtirish", callback_data: "menu_logout" }],
                 lastRow
             ]
@@ -434,8 +434,7 @@ function getBonusCoinRow() {
 function getPendingPaymentKeyboard() {
     return {
         inline_keyboard: [
-            [{ text: "🎁 Bonus (taklif qilish)", callback_data: "menu_bonus" }],
-            [{ text: "🪙 Coinlarim", callback_data: "menu_coin" }],
+            [{ text: "🎁 Bonus Olish", callback_data: "menu_bonus" }],
             [
                 { text: "👨‍💼 Admin", url: "https://t.me/ortiqov_x7" }
             ]
@@ -446,15 +445,7 @@ function getPendingPaymentKeyboard() {
 function getAdminCoinKeyboard(targetId) {
     const id = String(targetId);
     return [
-        [
-            { text: "🪙 +1", callback_data: `admin_coins_add_${id}_1` },
-            { text: "🪙 +5", callback_data: `admin_coins_add_${id}_5` },
-            { text: "🪙 +10", callback_data: `admin_coins_add_${id}_10` }
-        ],
-        [
-            { text: "➖ -5", callback_data: `admin_coins_sub_${id}_5` },
-            { text: "➖ -10", callback_data: `admin_coins_sub_${id}_10` }
-        ],
+        [{ text: "➖ Coin yechib olish", callback_data: `admin_coins_deduct_${id}` }],
         [{ text: "✏️ Coin belgilash", callback_data: `admin_coins_set_${id}` }]
     ];
 }
