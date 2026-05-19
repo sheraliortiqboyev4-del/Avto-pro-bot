@@ -4,6 +4,7 @@ const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const config = require('../config');
 const { sequelize } = require('../config/db');
+const sqlite3 = require('sqlite3');
 const { encryptBuffer, decryptBuffer } = require('./backupCrypto');
 
 const DB_PATH = path.join(__dirname, '../../database.sqlite');
@@ -91,8 +92,34 @@ const needsRestore = () => {
     }
 };
 
+const readStatsFromFile = () => new Promise((resolve, reject) => {
+    const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
+        if (err) return reject(err);
+        db.get(
+            `SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+                SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) AS blocked,
+                SUM(CASE WHEN session IS NOT NULL AND session != '' THEN 1 ELSE 0 END) AS withSession,
+                COALESCE(SUM(clicks), 0) AS totalClicks,
+                COALESCE(SUM(utagCount), 0) AS totalUtag,
+                COALESCE(SUM(reydCount), 0) AS totalReyd,
+                COALESCE(SUM(usersGathered), 0) AS totalGathered,
+                COALESCE(SUM(adsCount), 0) AS totalAds
+            FROM users`,
+            [],
+            (queryErr, row) => {
+                db.close();
+                if (queryErr) return reject(queryErr);
+                resolve(row || {});
+            }
+        );
+    });
+});
+
 const buildBackupCaption = async (reason) => {
-    let lines = [
+    const lines = [
         '🤖 AvtoBot Pro — shifrlangan zaxira',
         `📅 ${new Date().toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent' })}`,
         `📌 Sabab: ${reason}`
@@ -100,34 +127,11 @@ const buildBackupCaption = async (reason) => {
 
     try {
         if (fs.existsSync(DB_PATH)) {
-            const User = require('../models/User');
-            const { Op } = require('sequelize');
-            await sequelize.authenticate();
-
-            const total = await User.count();
-            const approved = await User.count({ where: { status: 'approved' } });
-            const pending = await User.count({ where: { status: 'pending' } });
-            const blocked = await User.count({ where: { status: 'blocked' } });
-            const withSession = await User.count({
-                where: { session: { [Op.ne]: null } }
-            });
-
-            const stats = await User.findAll({
-                attributes: [
-                    [sequelize.fn('SUM', sequelize.col('clicks')), 'totalClicks'],
-                    [sequelize.fn('SUM', sequelize.col('utagCount')), 'totalUtag'],
-                    [sequelize.fn('SUM', sequelize.col('reydCount')), 'totalReyd'],
-                    [sequelize.fn('SUM', sequelize.col('usersGathered')), 'totalGathered'],
-                    [sequelize.fn('SUM', sequelize.col('adsCount')), 'totalAds']
-                ],
-                raw: true
-            });
-            const s = stats[0] || {};
-
+            const s = await readStatsFromFile();
             lines.push(
                 '',
-                `👥 Jami: ${total} | ✅ ${approved} | ⏳ ${pending} | 🚫 ${blocked}`,
-                `🔐 Sessiyali: ${withSession}`,
+                `👥 Jami: ${s.total || 0} | ✅ ${s.approved || 0} | ⏳ ${s.pending || 0} | 🚫 ${s.blocked || 0}`,
+                `🔐 Sessiyali: ${s.withSession || 0}`,
                 `💎 Almaz: ${s.totalClicks || 0} | 🏷 Utag: ${s.totalUtag || 0}`,
                 `⚔️ Reyd: ${s.totalReyd || 0} | 👥 Scrape: ${s.totalGathered || 0} | 📢 Rek: ${s.totalAds || 0}`
             );
