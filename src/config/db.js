@@ -8,16 +8,19 @@ const sequelize = new Sequelize({
 });
 
 const connectDB = async () => {
-    try {
-        await sequelize.authenticate();
-        console.log('✅ SQLite ulanishi muvaffaqiyatli.');
-        
-        await sequelize.sync();
-        console.log('✅ Ma\'lumotlar bazasi sinxronizatsiya qilindi.');
-    } catch (error) {
-        console.error('❌ SQLite ulanishida xato:', error.message);
-        setTimeout(connectDB, 5000);
-    }
+    await sequelize.authenticate();
+    console.log('✅ SQLite ulanishi muvaffaqiyatli.');
+    await sequelize.sync();
+    console.log('✅ Ma\'lumotlar bazasi sinxronizatsiya qilindi.');
 };
 
-module.exports = { sequelize, connectDB };
+const reconnectDB = async () => {
+    try {
+        await sequelize.close();
+    } catch (e) {
+        // allaqachon yopilgan bo'lishi mumkin
+    }
+    await connectDB();
+};
+
+module.exports = { sequelize, connectDB, reconnectDB };

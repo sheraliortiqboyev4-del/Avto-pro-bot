@@ -14,7 +14,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 
 const TelegramBot = require('node-telegram-bot-api'); 
-const { connectDB, sequelize } = require('./config/db'); 
+const { connectDB, reconnectDB, sequelize } = require('./config/db'); 
 const express = require('express');
 const dns = require('dns');
 const os = require('os');
@@ -245,10 +245,9 @@ const initBot = async () => {
         await restoreDB();
         await connectDB();
 
-        const restoredAgain = await verifyDatabaseAfterConnect();
-        if (restoredAgain) {
-            await sequelize.close();
-            await connectDB();
+        const needsReconnect = await verifyDatabaseAfterConnect();
+        if (needsReconnect) {
+            await reconnectDB();
         }
 
         await startPolling();

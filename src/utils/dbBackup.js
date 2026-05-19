@@ -185,11 +185,12 @@ const restoreDB = async (options = {}) => {
     }
 };
 
+/** true faqat fayl qayta yozilib, sequelize qayta ulash kerak bo'lsa */
 const verifyDatabaseAfterConnect = async () => {
     try {
         const User = require('../models/User');
         const count = await User.count();
-        if (count > 0) return true;
+        if (count > 0) return false;
 
         console.log('⚠️ Bazada foydalanuvchi yo\'q — majburiy restore...');
         const restored = await restoreDB({ force: true });
