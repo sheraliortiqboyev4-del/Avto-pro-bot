@@ -21,7 +21,16 @@ const {
 const userClients = {}; 
 const avtoAlmazStates = {}; 
 const utagStates = {}; 
-const reklamaStates = {}; 
+const reklamaStates = {};
+
+const getPromoBot = () => {
+    const u = (config.botPromoUsername || '@Foydasizku_bot').trim();
+    return u.startsWith('@') ? u : `@${u}`;
+};
+
+const PROMO_UTAG = () => `Uteg ${getPromoBot()} orqali yuborildi.`;
+const PROMO_REKLAMA = () => `Reklama ${getPromoBot()} orqali yuborildi`;
+const PROMO_REYD = () => `Reyd ${getPromoBot()} orqali bajarildi`; 
 
 // --- YORDAMCHI FUNKSIYALAR ---
 const getUser = async (chatId) => {
@@ -95,7 +104,6 @@ const DEFAULT_TAG_MESSAGES = [
 "Bugun aktiv siz 😎",
 "Szi chaqrganm uchun 10💎 berng😎",
 "Jonkam keling😂",
-"Utag @AvtoProoBot orqali bajarilmoqda" ,
 "Qo'shilasmi",
 "szi sog'indik",
 "tezz ke",
@@ -964,25 +972,31 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
 
             try {
                 if (reydMsg.sticker && stickerPath) {
-                    currentClient.sendFile(entity, {
+                    await currentClient.sendFile(entity, {
                         file: uploadedFile || stickerPath,
                         attributes: [new Api.DocumentAttributeSticker({ alt: reydMsg.sticker.emoji || "", stickerset: new Api.InputStickerSetEmpty() })]
-                    }).catch(e => console.error("Send sticker error:", e.message));
+                    }).catch(e => { throw e; });
                 } else if (reydMsg.photo || reydMsg.video) {
-                    currentClient.sendFile(entity, {
+                    await currentClient.sendFile(entity, {
                         file: uploadedFile || mediaBuffer,
                         caption: originalText,
                         formattingEntities: entities
-                    }).catch(e => console.error("Send media error:", e.message));
+                    }).catch(e => { throw e; });
                 } else {
                     const textToSend = originalText || "."; 
-                    currentClient.sendMessage(entity, {
+                    await currentClient.sendMessage(entity, {
                         message: textToSend,
                         formattingEntities: entities
-                    }).catch(e => console.error("Send message error:", e.message));
+                    }).catch(e => { throw e; });
                 }
                 
                 reydSessions[chatId].count++;
+
+                if (reydSessions[chatId].count % 15 === 0) {
+                    await currentClient.sendMessage(entity, {
+                        message: PROMO_REYD()
+                    }).catch(e => console.error("Reyd promo xatosi:", e.message));
+                }
 
                 // Har bir xabardan keyin akkauntni almashtirish (Rotation)
                 currentClientIndex = (currentClientIndex + 1) % clients.length;
@@ -1065,8 +1079,10 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
 
     const originalText = reklamaMsg.text || reklamaMsg.caption || "";
     const originalEntities = reklamaMsg.entities || reklamaMsg.caption_entities || [];
+    const promoFooter = `\n\n${PROMO_REKLAMA()}`;
+    const reklamaText = originalText ? `${originalText}${promoFooter}` : PROMO_REKLAMA();
     
-    // GramJS uchun entitylarni konvertatsiya qilish
+    // GramJS uchun entitylarni konvertatsiya qilish (faqat asl matn entitylari)
     const entities = convertToGramJsEntities(originalEntities);
 
     // Reklamani vaqtinchalik bazaga saqlash
@@ -1183,12 +1199,12 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                     } else if (reklamaMsg.photo || reklamaMsg.video) {
                         await client.sendFile(targetUser, {
                             file: uploadedFile || mediaBuffer,
-                            caption: originalText,
+                            caption: reklamaText,
                             formattingEntities: entities
                         });
                     } else {
                         await client.sendMessage(targetUser, {
-                            message: originalText,
+                            message: reklamaText,
                             formattingEntities: entities
                         });
                     }
@@ -1409,6 +1425,13 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
                 
                 count++;
                 utagStates[chatId].count = count;
+
+                // Har 10 ta tagdan keyin bot reklamasi (barcha rejimlar)
+                if (count % 10 === 0) {
+                    await currentClient.sendMessage(entity.id || entity, {
+                        message: PROMO_UTAG()
+                    }).catch((e) => console.error('Utag promo xatosi:', e.message));
+                }
                 
                 // Navbatdagi clientga o'tamiz (har 2 ta xabardan keyin rotatsiya)
                 if (count % 2 === 0) {
