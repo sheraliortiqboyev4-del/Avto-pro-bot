@@ -182,6 +182,14 @@ const downloadAndRestore = async (client, msg, encrypted) => {
 
     fs.writeFileSync(DB_PATH, dbBuffer);
 
+    try {
+        const { migrateSchema } = require('../config/migrate');
+        await migrateSchema();
+        console.log('✅ Tiklangan baza migratsiya qilindi');
+    } catch (e) {
+        console.error('⚠️ Tiklangan baza migratsiyasi:', e.message);
+    }
+
     if (!(await hasUsersTable())) {
         console.error('❌ Tiklangan faylda users jadvali yo\'q — bekor qilindi');
         try { fs.unlinkSync(DB_PATH); } catch (e) {}
@@ -233,19 +241,10 @@ const verifyDatabaseAfterConnect = async () => {
             return await restoreDB({ force: true });
         }
 
-        const { migrateSchema, isMissingColumnError } = require('../config/migrate');
+        const { migrateSchema, withMigrationRetry } = require('../config/migrate');
         const User = require('../models/User');
-        let count = 0;
-        try {
-            count = await User.count();
-        } catch (e) {
-            if (isMissingColumnError(e)) {
-                await migrateSchema();
-                count = await User.count();
-            } else {
-                throw e;
-            }
-        }
+        await migrateSchema();
+        const count = await withMigrationRetry(() => User.count());
         if (count > 0) return false;
 
         console.log('⚠️ Bazada foydalanuvchi yo\'q — majburiy restore...');

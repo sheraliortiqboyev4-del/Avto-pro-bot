@@ -264,10 +264,11 @@ const initBot = async () => {
         const needsReconnect = await verifyDatabaseAfterConnect();
         if (needsReconnect) {
             await reconnectDB();
-        } else {
-            await ensureSchema();
-            setDbReady(true);
         }
+
+        const { migrateSchema } = require('./config/migrate');
+        await migrateSchema();
+        setDbReady(true);
 
         startExpiryChecker();
 

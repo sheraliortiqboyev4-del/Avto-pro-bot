@@ -28,10 +28,9 @@ const connectDB = async () => {
     loadModels();
     await sequelize.authenticate();
     console.log('✅ SQLite ulanishi muvaffaqiyatli.');
-    await sequelize.sync();
     const { migrateSchema } = require('./migrate');
     await migrateSchema();
-    console.log('✅ Ma\'lumotlar bazasi sinxronizatsiya qilindi.');
+    console.log('✅ Ma\'lumotlar bazasi sinxronizatsiya va migratsiya tugadi.');
     const { ensureBonusSettingSeed } = require('../services/bonus');
     await ensureBonusSettingSeed();
     setDbReady(true);
@@ -54,4 +53,4 @@ const ensureSchema = async () => {
     await migrateSchema();
 };
 
-module.exports = { sequelize, connectDB, reconnectDB, ensureSchema, setDbReady, getDbReady };
+module.exports = { sequelize, connectDB, reconnectDB, ensureSchema, setDbReady, getDbReady, loadModels };

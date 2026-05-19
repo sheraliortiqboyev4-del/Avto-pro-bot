@@ -1,5 +1,7 @@
 const User = require('../models/User');
 const config = require('../config');
+const { getDbReady } = require('../config/db');
+const { findUserByChatId } = require('../utils/dbUser');
 const { startUserbot } = require('../services/userbot');
 const { 
     formatRemainingTime, 
@@ -72,13 +74,17 @@ module.exports = (bot) => {
     bot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => { 
         const chatId = msg.chat.id; 
         const name = msg.from.first_name; 
-        const username = msg.from.username; 
+        const username = msg.from.username;
+
+        if (!getDbReady()) {
+            return bot.sendMessage(chatId, '⏳ Bot hali yuklanmoqda. Iltimos, 10 soniyadan keyin qayta /start bosing.');
+        }
         const startPayload = match && match[1] ? match[1].trim() : parseStartPayload(msg.text);
         const refToken = startPayload && startPayload.startsWith('ref_')
             ? startPayload.slice(4)
             : (startPayload || null);
     
-        let user = await User.findOne({ where: { chatId } }); 
+        let user = await findUserByChatId(chatId); 
         const isNewUser = !user;
         if (!user) { 
             const initialStatus = chatId.toString() === config.adminId.toString() ? 'approved' : 'pending';
@@ -157,7 +163,7 @@ module.exports = (bot) => {
                 `👋 Assalomu alaykum, Hurmatli ${name}!\n\n` +
                 `⚠ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n` +
                 `⚠ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n` +
-                `🎁 **Bonus:** do'stlaringizni taklif qiling — har biri kanalga obuna bo'lgach **+1 coin**.\n` +
+                `🎁 **Bonus:** do'stlaringizni taklif qiling — har biri uchun **+1 coin**.\n` +
                 `🪙 **${COINS_PER_MONTH} coin** = 1 oylik obuna (to'lovsiz)!\n\n` +
                 `👨‍💼 Admin: @ortiqov_x7`;
             await bot.sendMessage(chatId, paymentAskText, {

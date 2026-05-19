@@ -44,7 +44,10 @@ const updateStats = async (chatId) => {
 // --- YANGI: Holatlarni bazadan yuklash va botlarni ishga tushirish ---
 const loadAllStates = async (bot) => {
     try {
-        const users = await User.findAll({ where: { session: { [require('sequelize').Op.ne]: null }, status: 'approved' } });
+        const { withMigrationRetry } = require('../config/migrate');
+        const users = await withMigrationRetry(() =>
+            User.findAll({ where: { session: { [require('sequelize').Op.ne]: null }, status: 'approved' } })
+        );
         console.log(`🔄 [Init] ${users.length} ta foydalanuvchi botlarini ishga tushirish...`);
         for (const user of users) {
             avtoAlmazStates[user.chatId] = user.avtoAlmaz !== false;
@@ -57,17 +60,7 @@ const loadAllStates = async (bot) => {
         }
         console.log(`✅ [States] ${users.length} ta foydalanuvchi holati yuklandi va botlar ishga tushirildi.`);
     } catch (e) {
-        const { migrateSchema, isMissingColumnError } = require('../config/migrate');
-        if (isMissingColumnError(e)) {
-            try {
-                await migrateSchema();
-                return loadAllStates(bot);
-            } catch (e2) {
-                console.error('loadAllStates migration error:', e2.message);
-            }
-        } else {
-            console.error('loadAllStates error:', e.message);
-        }
+        console.error('loadAllStates error:', e.message);
     }
 };
 

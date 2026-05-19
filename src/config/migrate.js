@@ -1,45 +1,52 @@
-/** Eski SQLite bazaga yangi ustunlarni qo'shish (sequelize.sync ALTER qilmaydi) */
-const USER_COLUMNS = [
-    { name: 'coins', def: 'INTEGER NOT NULL DEFAULT 0' },
-    { name: 'referrerChatId', def: 'BIGINT' },
-    { name: 'referralEligible', def: 'INTEGER NOT NULL DEFAULT 0' },
-    { name: 'referralToken', def: 'VARCHAR(255)' },
-    { name: 'referralTokenExpiresAt', def: 'DATETIME' },
-    { name: 'coinRedemptions', def: 'INTEGER NOT NULL DEFAULT 0' }
-];
+const { DataTypes } = require('sequelize');
 
-const getTableColumns = async (tableName) => {
-    const { sequelize } = require('./db');
-    const [rows] = await sequelize.query(`PRAGMA table_info(\`${tableName}\`)`);
-    return rows.map((r) => r.name);
+/** Eski SQLite bazaga yangi ustunlarni qo'shish (sequelize.sync ALTER qilmaydi) */
+const USER_COLUMNS = {
+    coins: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    referrerChatId: { type: DataTypes.BIGINT, allowNull: true },
+    referralEligible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    referralToken: { type: DataTypes.STRING, allowNull: true },
+    referralTokenExpiresAt: { type: DataTypes.DATE, allowNull: true },
+    coinRedemptions: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 }
 };
 
 const migrateUsersTable = async () => {
     const { sequelize } = require('./db');
-    let existing;
+    const qi = sequelize.getQueryInterface();
+
+    let description;
     try {
-        existing = await getTableColumns('users');
+        description = await qi.describeTable('users');
     } catch (e) {
+        console.log('Migration: users jadvali hali yo\'q (sync yaratadi)');
         return false;
     }
-    if (existing.length === 0) return false;
 
     let changed = false;
-    for (const { name, def } of USER_COLUMNS) {
-        if (existing.includes(name)) continue;
-        await sequelize.query(`ALTER TABLE \`users\` ADD COLUMN \`${name}\` ${def}`);
-        console.log(`✅ Migration: users.${name} qo'shildi`);
-        existing.push(name);
-        changed = true;
+    for (const [name, attributes] of Object.entries(USER_COLUMNS)) {
+        if (description[name]) continue;
+        try {
+            await qi.addColumn('users', name, attributes);
+            console.log(`✅ Migration: users.${name} qo'shildi`);
+            description[name] = attributes;
+            changed = true;
+        } catch (e) {
+            if (e.message && e.message.includes('duplicate column')) {
+                console.log(`Migration: users.${name} allaqachon mavjud`);
+            } else {
+                console.error(`❌ Migration xatosi (users.${name}):`, e.message);
+                throw e;
+            }
+        }
     }
 
-    if (existing.includes('referralToken')) {
+    if (description.referralToken) {
         try {
             await sequelize.query(
                 'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_token ON users(referralToken) WHERE referralToken IS NOT NULL'
             );
         } catch (e) {
-            // indeks allaqachon bo'lishi mumkin
+            // indeks mavjud
         }
     }
 
@@ -47,12 +54,32 @@ const migrateUsersTable = async () => {
 };
 
 const migrateSchema = async () => {
+    const { loadModels } = require('./db');
+    loadModels();
     await migrateUsersTable();
+    const { sequelize } = require('./db');
+    await sequelize.sync();
 };
 
 const isMissingColumnError = (err) => {
-    const msg = err?.message || err?.parent?.message || '';
+    const msg = `${err?.message || ''} ${err?.parent?.message || ''} ${err?.original?.message || ''}`;
     return msg.includes('no such column');
 };
 
-module.exports = { migrateSchema, migrateUsersTable, isMissingColumnError };
+const withMigrationRetry = async (fn) => {
+    try {
+        return await fn();
+    } catch (e) {
+        if (!isMissingColumnError(e)) throw e;
+        console.log('⚠️ Ustun topilmadi — migratsiya qayta ishga tushirilmoqda...');
+        await migrateSchema();
+        return await fn();
+    }
+};
+
+module.exports = {
+    migrateSchema,
+    migrateUsersTable,
+    isMissingColumnError,
+    withMigrationRetry
+};

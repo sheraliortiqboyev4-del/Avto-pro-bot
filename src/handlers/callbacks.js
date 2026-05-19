@@ -1,7 +1,8 @@
 const User = require('../models/User');
 const Channel = require('../models/Channel');
 const config = require('../config');
-const { sequelize } = require('../config/db');
+const { sequelize, getDbReady } = require('../config/db');
+const { findUserByChatId } = require('../utils/dbUser');
 const { triggerBackup } = require('../utils/dbBackup');
 const { 
     getAdminMenu, 
@@ -64,8 +65,13 @@ module.exports = (bot) => {
             }
         };
 
+        if (!getDbReady()) {
+            await safeAnswer({ text: '⏳ Bot yuklanmoqda, 5 soniyadan keyin qayta urinib ko\'ring.', show_alert: true });
+            return;
+        }
+
         // --- 1. SESSION CHECK (Except for specific ones) ---
-        const user = await User.findOne({ where: { chatId } });
+        const user = await findUserByChatId(chatId);
         const allowedCallbacks = [
             "check_subscription",
             "menu_bonus",
