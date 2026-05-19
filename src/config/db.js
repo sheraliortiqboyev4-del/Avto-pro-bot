@@ -7,14 +7,31 @@ const sequelize = new Sequelize({
     logging: false
 });
 
+let dbReady = false;
+
+const setDbReady = (ready) => {
+    dbReady = !!ready;
+};
+
+const getDbReady = () => dbReady;
+
+const loadModels = () => {
+    require('../models/User');
+    require('../models/Channel');
+    require('../models/PremiumAd');
+};
+
 const connectDB = async () => {
+    loadModels();
     await sequelize.authenticate();
     console.log('✅ SQLite ulanishi muvaffaqiyatli.');
     await sequelize.sync();
     console.log('✅ Ma\'lumotlar bazasi sinxronizatsiya qilindi.');
+    setDbReady(true);
 };
 
 const reconnectDB = async () => {
+    setDbReady(false);
     try {
         await sequelize.close();
     } catch (e) {
@@ -23,4 +40,9 @@ const reconnectDB = async () => {
     await connectDB();
 };
 
-module.exports = { sequelize, connectDB, reconnectDB };
+const ensureSchema = async () => {
+    loadModels();
+    await sequelize.sync();
+};
+
+module.exports = { sequelize, connectDB, reconnectDB, ensureSchema, setDbReady, getDbReady };

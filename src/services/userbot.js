@@ -43,8 +43,8 @@ const loadAllStates = async (bot) => {
             startUserbot(user.chatId, user.session, bot).catch(e => {
                 console.error(`[AutoStart Error] ${user.chatId}:`, e.message);
             });
-            // Akkauntlar ko'p bo'lsa, Telegram blocklamasligi uchun biroz kutamiz
-            await new Promise(r => setTimeout(r, 1000)); 
+            // Render free: parallel ulanishlar TIMEOUT beradi — kutish
+            await new Promise(r => setTimeout(r, 3000)); 
         }
         console.log(`✅ [States] ${users.length} ta foydalanuvchi holati yuklandi va botlar ishga tushirildi.`);
     } catch (e) {

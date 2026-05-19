@@ -55,21 +55,42 @@ const initBackupClient = async () => {
     }
 };
 
-const findBackupMessage = async (client, fileName) => {
+const hasUsersTable = () => new Promise((resolve) => {
+    if (!fs.existsSync(DB_PATH)) return resolve(false);
+    const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
+        if (err) return resolve(false);
+        db.get(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='users'",
+            [],
+            (e, row) => {
+                db.close();
+                resolve(!!row);
+            }
+        );
+    });
+});
+
+const findNewestBackupMessage = async (client, fileName) => {
     try {
-        const messages = await client.getMessages('me', { limit: 80 });
+        const messages = await client.getMessages('me', { limit: 100 });
+        let newest = null;
         for (const msg of messages) {
             if (!msg.document || !msg.document.attributes) continue;
             for (const attr of msg.document.attributes) {
-                if (attr.fileName === fileName) return msg;
+                if (attr.fileName === fileName) {
+                    const msgId = Number(msg.id);
+                    if (!newest || msgId > Number(newest.id)) newest = msg;
+                }
             }
         }
-        return null;
+        return newest;
     } catch (error) {
         console.error(`❌ Zaxira qidirish xatosi (${fileName}):`, error.message);
         return null;
     }
 };
+
+const findBackupMessage = (client, fileName) => findNewestBackupMessage(client, fileName);
 
 const deleteBackupMessage = async (client, fileName) => {
     const oldBackup = await findBackupMessage(client, fileName);
@@ -153,7 +174,20 @@ const buildBackupCaption = async (reason) => {
 const downloadAndRestore = async (client, msg, encrypted) => {
     const buffer = await client.downloadMedia(msg.document);
     const dbBuffer = encrypted ? decryptBuffer(buffer) : buffer;
+
+    if (dbBuffer.length < MIN_DB_BYTES) {
+        console.error('❌ Zaxira fayli juda kichik, tiklanmadi');
+        return false;
+    }
+
     fs.writeFileSync(DB_PATH, dbBuffer);
+
+    if (!(await hasUsersTable())) {
+        console.error('❌ Tiklangan faylda users jadvali yo\'q — bekor qilindi');
+        try { fs.unlinkSync(DB_PATH); } catch (e) {}
+        return false;
+    }
+
     console.log(`✅ Bazadan tiklandi (${encrypted ? 'shifrlangan' : 'legacy'}, ${dbBuffer.length} bayt)`);
     return true;
 };
@@ -171,17 +205,16 @@ const restoreDB = async (options = {}) => {
         const client = await initBackupClient();
         if (!client) return false;
 
-        const encMsg = await findBackupMessage(client, BACKUP_FILENAME_ENC);
+        const encMsg = await findNewestBackupMessage(client, BACKUP_FILENAME_ENC);
         if (encMsg) {
-            await downloadAndRestore(client, encMsg, true);
-            return true;
+            const ok = await downloadAndRestore(client, encMsg, true);
+            if (ok) return true;
         }
 
-        const legacyMsg = await findBackupMessage(client, BACKUP_FILENAME_LEGACY);
+        const legacyMsg = await findNewestBackupMessage(client, BACKUP_FILENAME_LEGACY);
         if (legacyMsg) {
             console.log('📥 Legacy (.sqlite) zaxira topildi, tiklanmoqda...');
-            await downloadAndRestore(client, legacyMsg, false);
-            return true;
+            return await downloadAndRestore(client, legacyMsg, false);
         }
 
         console.log('⚠️ Saved Messages da zaxira topilmadi');
@@ -195,15 +228,22 @@ const restoreDB = async (options = {}) => {
 /** true faqat fayl qayta yozilib, sequelize qayta ulash kerak bo'lsa */
 const verifyDatabaseAfterConnect = async () => {
     try {
+        if (!(await hasUsersTable())) {
+            console.log('⚠️ users jadvali yo\'q — majburiy restore...');
+            return await restoreDB({ force: true });
+        }
+
         const User = require('../models/User');
         const count = await User.count();
         if (count > 0) return false;
 
         console.log('⚠️ Bazada foydalanuvchi yo\'q — majburiy restore...');
-        const restored = await restoreDB({ force: true });
-        return restored;
+        return await restoreDB({ force: true });
     } catch (e) {
         console.error('❌ Bazani tekshirish xatosi:', e.message);
+        if (e.message && e.message.includes('no such table')) {
+            return await restoreDB({ force: true });
+        }
         return false;
     }
 };
@@ -227,6 +267,15 @@ const backupDB = async (reason = 'manual') => {
             console.log('⚠️ Zaxira: DB juda kichik, o\'tkazildi');
             return false;
         }
+
+        if (!(await hasUsersTable())) {
+            console.log('⚠️ Zaxira: users jadvali yo\'q, o\'tkazildi');
+            return false;
+        }
+
+        try {
+            await sequelize.query('PRAGMA wal_checkpoint(FULL)');
+        } catch (e) {}
 
         const plainBuffer = fs.readFileSync(DB_PATH);
         let encryptedBuffer;

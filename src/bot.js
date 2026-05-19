@@ -14,7 +14,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 
 const TelegramBot = require('node-telegram-bot-api'); 
-const { connectDB, reconnectDB, sequelize } = require('./config/db'); 
+const { connectDB, reconnectDB, ensureSchema, setDbReady, getDbReady, sequelize } = require('./config/db'); 
 const express = require('express');
 const dns = require('dns');
 const os = require('os');
@@ -256,6 +256,7 @@ bot.on('message', (msg) => {
 // --- 3. DATABASE CONNECTION & RESTORE ---
 const initBot = async () => {
     try {
+        setDbReady(false);
         console.log('🔄 Initializing bot...');
         await restoreDB();
         await connectDB();
@@ -263,7 +264,12 @@ const initBot = async () => {
         const needsReconnect = await verifyDatabaseAfterConnect();
         if (needsReconnect) {
             await reconnectDB();
+        } else {
+            await ensureSchema();
+            setDbReady(true);
         }
+
+        startExpiryChecker();
 
         await startPolling();
         loadAllStates(bot);
@@ -272,6 +278,7 @@ const initBot = async () => {
         setTimeout(() => triggerBackup('ishga_tushish', true), 15000);
     } catch (err) {
         console.error("Critical error in initBot chain:", err);
+        setDbReady(false);
     }
 };
 
@@ -280,7 +287,11 @@ initBot();
 // --- GRACEFUL SHUTDOWN (Render Deploy uchun) ---
 const shutdown = async (signal) => {
     console.log(`\n Industrial shutdown (${signal})...`);
+    setDbReady(false);
     try {
+        try {
+            await sequelize.query('PRAGMA wal_checkpoint(FULL)');
+        } catch (e) {}
         await backupDB('server_to_xtadi');
         await bot.stopPolling();
         console.log("🛑 Polling to'xtatildi.");
@@ -299,47 +310,64 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 // Global states 
 global.userStates = {}; 
 
-// --- 3. REAL-TIME EXPIRY & WARNING CHECKER --- 
-setInterval(async () => { 
-    try {
-        const now = new Date(); 
-        const { Op } = require('sequelize');
-        
-        // Expiry check - Status 'approved' bo'lgan va muddati o'tganlarni bloklash
-        const expiredUsers = await User.findAll({ 
-            where: {
-                status: 'approved', 
-                expireAt: { 
-                    [Op.ne]: null, 
-                    [Op.lt]: now 
-                } 
-            }
-        }); 
-        for (const user of expiredUsers) { 
-            await blockExpiredUser(user, bot); 
-        }
+// --- REAL-TIME EXPIRY (faqat DB tayyor bo'lgach) ---
+const startExpiryChecker = () => {
+    if (global._expiryCheckerStarted) return;
+    global._expiryCheckerStarted = true;
 
-        // 1 kunlik (24 soat) ogohlantirish 
-        const oneDayLater = new Date(now.getTime() + 86400000); 
-        const warningUsers = await User.findAll({ 
-            where: {
-                status: 'approved', 
-                expireAt: { 
-                    [Op.gt]: now, 
-                    [Op.lt]: oneDayLater 
-                }, 
-                expiryWarningSent: false 
+    setInterval(async () => {
+        if (!getDbReady()) return;
+
+        try {
+            const now = new Date();
+            const { Op } = require('sequelize');
+
+            const expiredUsers = await User.findAll({
+                where: {
+                    status: 'approved',
+                    expireAt: {
+                        [Op.ne]: null,
+                        [Op.lt]: now
+                    }
+                }
+            });
+            for (const user of expiredUsers) {
+                await blockExpiredUser(user, bot);
             }
-        }); 
-        for (const u of warningUsers) { 
-            const warningText = `⚠️ **Diqqat!**\n\nSizning botdan foydalanish muddatingiz tugashiga **1 kun** qoldi. Botdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n👨‍💼 Admin: @ortiqov_x7`;
-            bot.sendMessage(u.chatId, warningText, { parse_mode: "Markdown" }); 
-            await User.update({ expiryWarningSent: true }, { where: { chatId: u.chatId } }); 
-        } 
-    } catch (error) {
-        console.error("Expiry checker error:", error);
-    }
-}, 60000); 
+
+            const oneDayLater = new Date(now.getTime() + 86400000);
+            const warningUsers = await User.findAll({
+                where: {
+                    status: 'approved',
+                    expireAt: {
+                        [Op.gt]: now,
+                        [Op.lt]: oneDayLater
+                    },
+                    expiryWarningSent: false
+                }
+            });
+            for (const u of warningUsers) {
+                const warningText = `⚠️ **Diqqat!**\n\nSizning botdan foydalanish muddatingiz tugashiga **1 kun** qoldi. Botdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n👨‍💼 Admin: @ortiqov_x7`;
+                bot.sendMessage(u.chatId, warningText, { parse_mode: "Markdown", skipEmojiWrap: true });
+                await User.update({ expiryWarningSent: true }, { where: { chatId: u.chatId } });
+            }
+        } catch (error) {
+            const msg = error.message || String(error);
+            if (msg.includes('no such table')) {
+                console.error('Expiry checker: users jadvali yo\'q, schema tiklanmoqda...');
+                setDbReady(false);
+                try {
+                    await ensureSchema();
+                    setDbReady(true);
+                } catch (e) {
+                    console.error('ensureSchema xatosi:', e.message);
+                }
+                return;
+            }
+            console.error('Expiry checker error:', error);
+        }
+    }, 60000);
+};
 
 const hostName = os.hostname();
 const startTime = new Date().toLocaleString('en-US');
