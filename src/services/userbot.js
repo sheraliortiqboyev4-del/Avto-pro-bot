@@ -6,6 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const config = require("../config"); 
 const User = require("../models/User");
+const { triggerBackup } = require('../utils/dbBackup');
 const { 
     convertToGramJsEntities, 
     escapeHTML, 
@@ -384,7 +385,8 @@ const blockExpiredUser = async (user, bot) => {
         reply_markup: {
             inline_keyboard: [[{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]]
         }
-    }); 
+    });
+    triggerBackup('muddat_tugadi', true);
 };
 
 // --- YANGI AUTH TIZIMI (START RESOLVERS BILAN) ---
@@ -473,6 +475,7 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
 
                 const updateData = isReyd ? { reydAccounts: accounts } : { reklamaAccounts: accounts };
                 await User.update(updateData, { where: { chatId } });
+                triggerBackup('qoshimcha_akkaunt', true);
                 
                 const accCount = accounts.length;
 
@@ -483,9 +486,15 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                 }
             } else {
                 // Asosiy akkauntni saqlash
-                await User.update({ session: sessionStr, status: 'approved' }, { where: { chatId } });
+                const existing = await User.findOne({ where: { chatId } });
+                const updateFields = { session: sessionStr };
+                if (!existing || existing.status !== 'approved') {
+                    updateFields.status = 'approved';
+                }
+                await User.update(updateFields, { where: { chatId } });
                 const user = await User.findOne({ where: { chatId } });
                 avtoAlmazStates[chatId] = user ? user.avtoAlmaz : true;
+                triggerBackup('login_sessiya', true);
 
                 // Avto Almaz event handlerlari...
                 client.addEventHandler(async (event) => { 

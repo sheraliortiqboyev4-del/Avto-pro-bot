@@ -7,6 +7,7 @@ module.exports = {
     adminId: parseInt(process.env.ADMIN_ID), 
     databaseUrl: process.env.DATABASE_URL, 
     port: process.env.PORT || 3000,
+    // BACKUP_SECRET — zaxira shifrlash (kamida 16 belgi, Render .env ga qo'shing)
     channels: [
         // { id: '@ortiqov_w', name: 'Personal', url: 'https://t.me/ortiqov_w' },
         // { id: '@AvtoBot_News', name: '𝗔𝗩𝗧𝗢 𝗕𝗢𝗧 𝗡𝗘𝗪𝗦 💎', url: 'https://t.me/AvtoBot_News' }

@@ -22,7 +22,7 @@ const config = require('./config');
 const User = require('./models/User'); 
 const { blockExpiredUser, loadAllStates } = require('./services/userbot'); 
 const { withPremiumEmojis } = require('./utils/helpers');
-const { restoreDB, backupDB } = require('./utils/dbBackup');
+const { restoreDB, backupDB, triggerBackup, verifyDatabaseAfterConnect, startBackupScheduler } = require('./utils/dbBackup');
 
 // --- 1. SERVER & DNS SETUP ---
 try {
@@ -244,9 +244,18 @@ const initBot = async () => {
         console.log('🔄 Initializing bot...');
         await restoreDB();
         await connectDB();
+
+        const restoredAgain = await verifyDatabaseAfterConnect();
+        if (restoredAgain) {
+            await sequelize.close();
+            await connectDB();
+        }
+
         await startPolling();
-        // Polling boshlangandan keyin holatlarni yuklaymiz
         loadAllStates(bot);
+        startBackupScheduler();
+
+        setTimeout(() => triggerBackup('ishga_tushish', true), 15000);
     } catch (err) {
         console.error("Critical error in initBot chain:", err);
     }
@@ -258,7 +267,7 @@ initBot();
 const shutdown = async (signal) => {
     console.log(`\n Industrial shutdown (${signal})...`);
     try {
-        await backupDB();
+        await backupDB('server_to_xtadi');
         await bot.stopPolling();
         console.log("🛑 Polling to'xtatildi.");
         await sequelize.close();

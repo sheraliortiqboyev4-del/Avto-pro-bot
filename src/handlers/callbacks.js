@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Channel = require('../models/Channel');
 const config = require('../config');
 const { sequelize } = require('../config/db');
+const { triggerBackup } = require('../utils/dbBackup');
 const { 
     getAdminMenu, 
     getMainMenu, 
@@ -483,6 +484,7 @@ module.exports = (bot) => {
 
         if (data === "menu_logout") {
             await User.update({ session: null }, { where: { chatId } });
+            triggerBackup('logout', true);
             const { userClients } = require('../services/userbot');
             if (userClients[chatId]) {
                 try { await userClients[chatId].disconnect(); } catch (e) {}
@@ -641,6 +643,7 @@ module.exports = (bot) => {
             const targetId = data.split('_')[3]; 
             const expireAt = new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)); // 30 kun
             await User.update({ status: 'approved', subscriptionType: 'Standard', expireAt, expiryWarningSent: false }, { where: { chatId: targetId } }); 
+            triggerBackup('admin_tasdiq_1oy', true);
             
             bot.sendMessage(chatId, `✅ User ${targetId} 1 oyga Standard qilib tasdiqlandi.`); 
             bot.sendMessage(targetId, "🎉 Siz admin tomonidan tasdiqlandingiz! \n\n 🔰 Tarif: Standard \n Endi /start ni bosib ro'yxatdan o'tishingiz mumkin."); 
@@ -652,6 +655,7 @@ module.exports = (bot) => {
         if (data.startsWith('admin_approve_vip_')) { 
             const targetId = data.split('_')[3]; 
             await User.update({ status: 'approved', subscriptionType: 'VIP', expireAt: null, expiryWarningSent: false }, { where: { chatId: targetId } }); 
+            triggerBackup('admin_tasdiq_vip', true);
             
             bot.sendMessage(chatId, `👑 User ${targetId} **Cheksiz VIP** qilib tasdiqlandi.`); 
             bot.sendMessage(targetId, "🎉 Siz admin tomonidan tasdiqlandingiz! \n\n 🔰 Tarif: 👑 VIP \n Endi /start ni bosib ro'yxatdan o'tishingiz mumkin."); 
@@ -670,6 +674,7 @@ module.exports = (bot) => {
         if (data.startsWith('admin_block_')) {
             const targetId = data.split('_')[2];
             await User.update({ status: 'blocked', session: null }, { where: { chatId: targetId } });
+            triggerBackup('admin_blok', true);
             bot.sendMessage(chatId, `🚫 User ${targetId} bloklandi.`);
             
             const blockedText = `⚠ Sizning foydalanish muddatingiz tugagan. \nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring va botni qayta ishga tushiring. \n\n👨‍💼 Admin: @ortiqov_x7`;

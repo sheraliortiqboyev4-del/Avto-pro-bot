@@ -3,45 +3,38 @@ const path = require('path');
 const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const config = require('../config');
-const User = require('../models/User');
 const { sequelize } = require('../config/db');
+const { encryptBuffer, decryptBuffer } = require('./backupCrypto');
 
 const DB_PATH = path.join(__dirname, '../../database.sqlite');
-const BACKUP_FILENAME = 'avtobot_db_backup.sqlite';
+const BACKUP_FILENAME_ENC = 'avtobot_db_backup.enc';
+const BACKUP_FILENAME_LEGACY = 'avtobot_db_backup.sqlite';
+const MIN_DB_BYTES = 8192;
+const BACKUP_INTERVAL_MS = 10 * 60 * 1000;
+const DEBOUNCE_MS = 8000;
 
 let backupClient = null;
+let backupInProgress = false;
+let lastBackupAt = 0;
+let debounceTimer = null;
 
 const initBackupClient = async () => {
-    if (!config.adminId || !config.apiId || !config.apiHash) {
-        console.log('⚠️ Backup client not initialized (missing admin credentials)');
+    if (!config.apiId || !config.apiHash) {
+        console.log('⚠️ Backup: API_ID / API_HASH topilmadi');
+        return null;
+    }
+
+    const adminSession = process.env.ADMIN_SESSION;
+    if (!adminSession) {
+        console.log('⚠️ Backup: ADMIN_SESSION .env da topilmadi');
         return null;
     }
 
     if (backupClient) return backupClient;
 
     try {
-        let adminSession = process.env.ADMIN_SESSION;
-        
-        // If no session from env, try to get from DB
-        if (!adminSession) {
-            try {
-                await sequelize.authenticate();
-                const adminUser = await User.findOne({ where: { chatId: config.adminId } });
-                if (adminUser && adminUser.session) {
-                    adminSession = adminUser.session;
-                }
-            } catch (e) {
-                console.log('⚠️ Could not get admin session from DB (DB might not exist yet)');
-            }
-        }
-
-        if (!adminSession) {
-            console.log('⚠️ Backup client not initialized (no admin session found in env or DB)');
-            return null;
-        }
-
         backupClient = new TelegramClient(
-            new StringSession(adminSession),
+            new StringSession(adminSession.trim()),
             config.apiId,
             config.apiHash,
             {
@@ -52,109 +45,252 @@ const initBackupClient = async () => {
             }
         );
         await backupClient.connect();
-        console.log('✅ Backup client connected');
+        console.log('✅ Backup client (ADMIN_SESSION) ulandi');
         return backupClient;
     } catch (error) {
-        console.error('❌ Backup client connection error:', error.message);
+        console.error('❌ Backup client ulanish xatosi:', error.message);
+        backupClient = null;
         return null;
     }
 };
 
-const findBackupMessage = async (client) => {
+const findBackupMessage = async (client, fileName) => {
     try {
-        const me = await client.getMe();
-        const messages = await client.getMessages('me', { limit: 50 });
-        
+        const messages = await client.getMessages('me', { limit: 80 });
         for (const msg of messages) {
-            if (msg.document && msg.document.attributes) {
-                for (const attr of msg.document.attributes) {
-                    if (attr.fileName === BACKUP_FILENAME) {
-                        return msg;
-                    }
-                }
+            if (!msg.document || !msg.document.attributes) continue;
+            for (const attr of msg.document.attributes) {
+                if (attr.fileName === fileName) return msg;
             }
         }
         return null;
     } catch (error) {
-        console.error('❌ Find backup message error:', error.message);
+        console.error(`❌ Zaxira qidirish xatosi (${fileName}):`, error.message);
         return null;
     }
 };
 
-const restoreDB = async () => {
+const deleteBackupMessage = async (client, fileName) => {
+    const oldBackup = await findBackupMessage(client, fileName);
+    if (!oldBackup) return;
     try {
-        if (!fs.existsSync(DB_PATH)) {
-            console.log('📥 Database file not found, trying to restore from backup...');
-            
-            const client = await initBackupClient();
-            if (!client) {
-                console.log('⚠️ No backup client available');
-                return false;
-            }
+        await client.deleteMessages('me', [oldBackup.id]);
+        console.log(`🗑 Eski zaxira o'chirildi: ${fileName}`);
+    } catch (e) {
+        console.error(`🗑 Eski zaxirani o'chirishda xato (${fileName}):`, e.message);
+    }
+};
 
-            const backupMsg = await findBackupMessage(client);
-            if (!backupMsg) {
-                console.log('⚠️ No backup found in Saved Messages');
-                return false;
-            }
+const needsRestore = () => {
+    if (!fs.existsSync(DB_PATH)) return true;
+    try {
+        const stats = fs.statSync(DB_PATH);
+        return stats.size < MIN_DB_BYTES;
+    } catch (e) {
+        return true;
+    }
+};
 
-            console.log('📥 Downloading backup from Saved Messages...');
-            const buffer = await client.downloadMedia(backupMsg.document);
-            fs.writeFileSync(DB_PATH, buffer);
-            console.log('✅ Database restored successfully from backup!');
+const buildBackupCaption = async (reason) => {
+    let lines = [
+        '🤖 AvtoBot Pro — shifrlangan zaxira',
+        `📅 ${new Date().toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent' })}`,
+        `📌 Sabab: ${reason}`
+    ];
+
+    try {
+        if (fs.existsSync(DB_PATH)) {
+            const User = require('../models/User');
+            const { Op } = require('sequelize');
+            await sequelize.authenticate();
+
+            const total = await User.count();
+            const approved = await User.count({ where: { status: 'approved' } });
+            const pending = await User.count({ where: { status: 'pending' } });
+            const blocked = await User.count({ where: { status: 'blocked' } });
+            const withSession = await User.count({
+                where: { session: { [Op.ne]: null } }
+            });
+
+            const stats = await User.findAll({
+                attributes: [
+                    [sequelize.fn('SUM', sequelize.col('clicks')), 'totalClicks'],
+                    [sequelize.fn('SUM', sequelize.col('utagCount')), 'totalUtag'],
+                    [sequelize.fn('SUM', sequelize.col('reydCount')), 'totalReyd'],
+                    [sequelize.fn('SUM', sequelize.col('usersGathered')), 'totalGathered'],
+                    [sequelize.fn('SUM', sequelize.col('adsCount')), 'totalAds']
+                ],
+                raw: true
+            });
+            const s = stats[0] || {};
+
+            lines.push(
+                '',
+                `👥 Jami: ${total} | ✅ ${approved} | ⏳ ${pending} | 🚫 ${blocked}`,
+                `🔐 Sessiyali: ${withSession}`,
+                `💎 Almaz: ${s.totalClicks || 0} | 🏷 Utag: ${s.totalUtag || 0}`,
+                `⚔️ Reyd: ${s.totalReyd || 0} | 👥 Scrape: ${s.totalGathered || 0} | 📢 Rek: ${s.totalAds || 0}`
+            );
+        }
+    } catch (e) {
+        lines.push('', `ℹ️ Statistika o'qilmadi: ${e.message}`);
+    }
+
+    return lines.join('\n');
+};
+
+const downloadAndRestore = async (client, msg, encrypted) => {
+    const buffer = await client.downloadMedia(msg.document);
+    const dbBuffer = encrypted ? decryptBuffer(buffer) : buffer;
+    fs.writeFileSync(DB_PATH, dbBuffer);
+    console.log(`✅ Bazadan tiklandi (${encrypted ? 'shifrlangan' : 'legacy'}, ${dbBuffer.length} bayt)`);
+    return true;
+};
+
+const restoreDB = async (options = {}) => {
+    const { force = false } = options;
+
+    try {
+        if (!force && !needsRestore()) {
+            console.log('📂 Mahalliy database.sqlite mavjud — restore o\'tkazilmadi');
+            return false;
+        }
+
+        console.log('📥 Telegram Saved Messages dan zaxira tiklanmoqda...');
+        const client = await initBackupClient();
+        if (!client) return false;
+
+        const encMsg = await findBackupMessage(client, BACKUP_FILENAME_ENC);
+        if (encMsg) {
+            await downloadAndRestore(client, encMsg, true);
             return true;
         }
+
+        const legacyMsg = await findBackupMessage(client, BACKUP_FILENAME_LEGACY);
+        if (legacyMsg) {
+            console.log('📥 Legacy (.sqlite) zaxira topildi, tiklanmoqda...');
+            await downloadAndRestore(client, legacyMsg, false);
+            return true;
+        }
+
+        console.log('⚠️ Saved Messages da zaxira topilmadi');
         return false;
     } catch (error) {
-        console.error('❌ Restore database error:', error.message);
+        console.error('❌ Restore xatosi:', error.message);
         return false;
     }
 };
 
-const backupDB = async () => {
+const verifyDatabaseAfterConnect = async () => {
     try {
-        console.log(`📤 Checking DB for backup: ${DB_PATH}`);
-        if (!fs.existsSync(DB_PATH)) {
-            console.log('⚠️ Database file not found for backup');
+        const User = require('../models/User');
+        const count = await User.count();
+        if (count > 0) return true;
+
+        console.log('⚠️ Bazada foydalanuvchi yo\'q — majburiy restore...');
+        const restored = await restoreDB({ force: true });
+        return restored;
+    } catch (e) {
+        console.error('❌ Bazani tekshirish xatosi:', e.message);
+        return false;
+    }
+};
+
+const backupDB = async (reason = 'manual') => {
+    if (backupInProgress) {
+        console.log('⏳ Zaxira allaqachon ketmoqda, o\'tkazildi');
+        return false;
+    }
+
+    if (!fs.existsSync(DB_PATH)) {
+        console.log('⚠️ Zaxira: database.sqlite topilmadi');
+        return false;
+    }
+
+    backupInProgress = true;
+
+    try {
+        const stats = fs.statSync(DB_PATH);
+        if (stats.size < 512) {
+            console.log('⚠️ Zaxira: DB juda kichik, o\'tkazildi');
             return false;
         }
 
-        const stats = fs.statSync(DB_PATH);
-        console.log(`📤 DB size for backup: ${stats.size} bytes`);
+        const plainBuffer = fs.readFileSync(DB_PATH);
+        let encryptedBuffer;
+        try {
+            encryptedBuffer = encryptBuffer(plainBuffer);
+        } catch (e) {
+            console.error('❌ Zaxirani shifrlash xatosi:', e.message);
+            return false;
+        }
 
         const client = await initBackupClient();
-        if (!client) {
-            console.log('⚠️ No backup client available');
-            return false;
-        }
+        if (!client) return false;
 
-        console.log('📤 Uploading backup to Saved Messages...');
-        
-        const oldBackup = await findBackupMessage(client);
-        if (oldBackup) {
-            try {
-                await client.deleteMessages('me', [oldBackup.id]);
-                console.log('🗑 Old backup deleted');
-            } catch (e) {
-                console.error('🗑 Error deleting old backup:', e.message);
-            }
-        }
+        await deleteBackupMessage(client, BACKUP_FILENAME_ENC);
+        await deleteBackupMessage(client, BACKUP_FILENAME_LEGACY);
+
+        const caption = await buildBackupCaption(reason);
+        const tmpPath = path.join(__dirname, '../../temp_backup_upload.enc');
+        const tempDir = path.dirname(tmpPath);
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+        fs.writeFileSync(tmpPath, encryptedBuffer);
 
         await client.sendFile('me', {
-            file: DB_PATH,
-            caption: `🤖 AvtoBot Pro Database Backup\n📅 ${new Date().toLocaleString()}`,
+            file: tmpPath,
+            caption,
             attributes: [
-                new Api.DocumentAttributeFilename({ fileName: BACKUP_FILENAME })
+                new Api.DocumentAttributeFilename({ fileName: BACKUP_FILENAME_ENC })
             ]
         });
 
-        console.log('✅ Database backed up to Saved Messages!');
+        try { fs.unlinkSync(tmpPath); } catch (e) {}
+
+        lastBackupAt = Date.now();
+        console.log(`✅ Zaxira yangilandi (${reason}) — ${encryptedBuffer.length} bayt shifrlangan`);
         return true;
     } catch (error) {
-        console.error('❌ Backup database error:', error.message);
-        console.error(error.stack);
+        console.error('❌ Backup xatosi:', error.message);
         return false;
+    } finally {
+        backupInProgress = false;
     }
 };
 
-module.exports = { restoreDB, backupDB };
+const triggerBackup = (reason = 'event', force = false) => {
+    const run = () => {
+        if (!force && Date.now() - lastBackupAt < DEBOUNCE_MS) {
+            return;
+        }
+        backupDB(reason).catch((e) => console.error('triggerBackup:', e.message));
+    };
+
+    if (force) {
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+            debounceTimer = null;
+        }
+        run();
+        return;
+    }
+
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(run, 2000);
+};
+
+const startBackupScheduler = () => {
+    setInterval(() => {
+        triggerBackup('har_10_daqiqa', true);
+    }, BACKUP_INTERVAL_MS);
+    console.log(`📤 Avto-zaxira: har ${BACKUP_INTERVAL_MS / 60000} daqiqada yangilanadi`);
+};
+
+module.exports = {
+    restoreDB,
+    backupDB,
+    triggerBackup,
+    verifyDatabaseAfterConnect,
+    startBackupScheduler,
+    needsRestore
+};

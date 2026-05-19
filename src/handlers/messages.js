@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Channel = require('../models/Channel');
 const config = require('../config');
 const { parseTime, checkMembership, sendSubscriptionAsk } = require('../utils/helpers');
+const { triggerBackup } = require('../utils/dbBackup');
 const { initAuth, handleAuthStep, scrapeUsers, startReyd, startReklama, startAutoTag } = require('../services/userbot');
 
 if (!global.userStates) global.userStates = {};
@@ -91,6 +92,7 @@ module.exports = (bot) => {
                 if (duration === 0) return bot.sendMessage(chatId, "❌ Noto'g'ri format! Qayta kiriting."); 
                 const expireAt = new Date(Date.now() + duration); 
                 await User.update({ status: 'approved', expireAt, expiryWarningSent: false }, { where: { chatId: state.targetId } }); 
+                triggerBackup('admin_tasdiq_qolda', true);
                 bot.sendMessage(chatId, `✅ Tasdiqlandi! Muddat: ${text}`); 
                 bot.sendMessage(state.targetId, `🎉 Siz admin tomonidan tasdiqlandingiz! \n\n 🔰 Tarif: ${text} \n Endi /start ni bosib ro'yxatdan o'tishingiz mumkin.`); 
                 delete global.userStates[chatId]; 
