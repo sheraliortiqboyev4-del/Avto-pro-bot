@@ -1,6 +1,5 @@
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const config = require('../config');
 const User = require('../models/User');
 const Referral = require('../models/Referral');
 const BotSetting = require('../models/BotSetting');
@@ -11,16 +10,13 @@ const COINS_PER_MONTH = 50;
 const REFERRAL_LINK_MS = 5 * 24 * 60 * 60 * 1000;
 const SETTING_KEY = 'bonus_system_enabled';
 
-let cachedBotUsername = null;
+/** Referral havolalar uchun — BOT_USERNAME (noto'g'ri) emas */
+const REFERRAL_BOT_USERNAME = 'Foydasizku_bot';
 
-/** Referral havola: doim config dagi username (Foydasizku_bot), getMe emas */
-const getBotUsername = async () => {
-    if (cachedBotUsername) return cachedBotUsername;
-    const name = (config.botUsername || config.botPromoUsername || 'Foydasizku_bot')
-        .replace(/^@/, '')
-        .trim();
-    cachedBotUsername = name;
-    return cachedBotUsername;
+const getReferralBotUsername = () => {
+    const fromEnv = process.env.REFERRAL_BOT_USERNAME;
+    if (fromEnv) return fromEnv.replace(/^@/, '').trim();
+    return REFERRAL_BOT_USERNAME;
 };
 
 const isBonusEnabled = async () => {
@@ -71,8 +67,7 @@ const ensureReferralToken = async (chatId) => {
 };
 
 const buildReferralLink = async (bot, chatId) => {
-    const username = await getBotUsername();
-    if (!username) return null;
+    const username = getReferralBotUsername();
     const { token } = await ensureReferralToken(chatId);
     return `https://t.me/${username}?start=ref_${token}`;
 };
