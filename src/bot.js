@@ -82,15 +82,19 @@ const bot = new TelegramBot(config.botToken, {
 // --- WRAPPER FOR TELEGRAM BOT METHODS (ANTI-FLOOD, PREMIUM EMOJIS & ERROR PROTECTION) ---
 const baseSendMessage = bot.sendMessage.bind(bot);
 bot.sendMessage = async (chatId, text, options = {}, retryCount = 0) => {
+    const { skipEmojiWrap, ...sendOptions } = options;
+
     try {
-        const { cleanText, entities } = withPremiumEmojis(text);
-        let finalOptions = { ...options };
+        let finalOptions = { ...sendOptions };
         let finalText = text;
 
-        if (entities && entities.length > 0) {
-            finalOptions.entities = entities;
-            delete finalOptions.parse_mode; 
-            finalText = cleanText;
+        if (!skipEmojiWrap) {
+            const { cleanText, entities } = withPremiumEmojis(text);
+            if (entities && entities.length > 0) {
+                finalOptions.entities = entities;
+                delete finalOptions.parse_mode;
+                finalText = cleanText;
+            }
         }
 
         return await baseSendMessage(chatId, finalText, finalOptions);
@@ -105,12 +109,23 @@ bot.sendMessage = async (chatId, text, options = {}, retryCount = 0) => {
             }
         }
 
-        // Agar Premium emoji taqiqlangan bo'lsa (Bot Premium emas), ularsiz qayta urinish
-        if (error.message.includes('ENTITY_CUSTOM_EMOJI_FORBIDDEN') && retryCount < 2) {
-            console.log(`⚠️ [Premium Emoji Forbidden] Custom emojilarsiz yuborilmoqda...`);
-            const { cleanText, entities } = withPremiumEmojis(text);
-            const standardEntities = entities.filter(e => e.type !== 'custom_emoji');
-            return await baseSendMessage(chatId, cleanText, { ...options, entities: standardEntities, parse_mode: undefined });
+        // Entity offset (UTF-16) — premium emoji + markdown aralashganda
+        if (
+            retryCount < 2 &&
+            (error.message.includes('UTF-16') ||
+                error.message.includes('entity beginning') ||
+                error.message.includes('ENTITY_CUSTOM_EMOJI_FORBIDDEN'))
+        ) {
+            if (error.message.includes('ENTITY_CUSTOM_EMOJI_FORBIDDEN')) {
+                console.log(`⚠️ [Premium Emoji Forbidden] Custom emojilarsiz yuborilmoqda...`);
+            } else {
+                console.log(`⚠️ [Entity offset] Oddiy matn bilan qayta yuborilmoqda...`);
+            }
+            const plainText = text ? text.toString().replace(/\*\*/g, '').replace(/`/g, '') : 'Xatolik yuz berdi';
+            const fallbackOptions = { ...sendOptions };
+            delete fallbackOptions.parse_mode;
+            delete fallbackOptions.entities;
+            return await baseSendMessage(chatId, plainText, fallbackOptions);
         }
         
         console.error(`❌ [bot.sendMessage Error] to ${chatId}:`, error.message);

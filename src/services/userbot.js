@@ -217,10 +217,11 @@ const startUserbot = async (chatId, sessionStr, bot) => {
 
         // GramJS xatolarini ushlash
         client.on('error', (err) => {
-            if (err.message.includes('Not connected') || err.message.includes('TIMEOUT')) {
-                console.log(`[GramJS Reconnect] User ${chatId} ulanish uzildi, qayta ulanishga harakat qilinmoqda...`);
-            } else {
-                console.error(`[GramJS Error] User ${chatId}:`, err.message);
+            const msg = err.message || '';
+            if (msg.includes('Not connected') || msg.includes('TIMEOUT') || msg.includes('TIMEOUT')) {
+                console.log(`[GramJS] User ${chatId}: ${msg} (qayta ulanish kutilmoqda)`);
+            } else if (!msg.includes('FLOOD')) {
+                console.error(`[GramJS Error] User ${chatId}:`, msg);
             }
         });
 

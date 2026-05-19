@@ -199,6 +199,7 @@ module.exports = (bot) => {
 
         bot.sendMessage(config.adminId, text, { 
             parse_mode: "Markdown",
+            skipEmojiWrap: true,
             reply_markup: { 
                 inline_keyboard: [
                     [{ text: "✅ 1 Oy (Standard)", callback_data: `admin_approve_1month_${targetId}` }],

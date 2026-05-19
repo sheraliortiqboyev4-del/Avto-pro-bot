@@ -75,10 +75,17 @@ const deleteBackupMessage = async (client, fileName) => {
     const oldBackup = await findBackupMessage(client, fileName);
     if (!oldBackup) return;
     try {
-        await client.deleteMessages('me', [oldBackup.id]);
+        const msgId = Number(oldBackup.id);
+        await client.invoke(
+            new Api.messages.DeleteMessages({
+                id: [msgId],
+                revoke: false
+            })
+        );
         console.log(`🗑 Eski zaxira o'chirildi: ${fileName}`);
     } catch (e) {
-        console.error(`🗑 Eski zaxirani o'chirishda xato (${fileName}):`, e.message);
+        // O'chirilmasa ham yangi zaxira yuboriladi; restore eng yangisini topadi
+        console.log(`🗑 Eski zaxira o'chirilmadi (${fileName}, e'tiborsiz): ${e.message}`);
     }
 };
 
