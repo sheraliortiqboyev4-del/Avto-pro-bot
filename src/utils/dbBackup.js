@@ -183,11 +183,12 @@ const downloadAndRestore = async (client, msg, encrypted) => {
     fs.writeFileSync(DB_PATH, dbBuffer);
 
     try {
+        await sequelize.authenticate();
         const { migrateSchema } = require('../config/migrate');
         await migrateSchema();
         console.log('✅ Tiklangan baza migratsiya qilindi');
     } catch (e) {
-        console.error('⚠️ Tiklangan baza migratsiyasi:', e.message);
+        console.error('⚠️ Tiklangan baza migratsiyasi (connectDB da qayta uriniladi):', e.message);
     }
 
     if (!(await hasUsersTable())) {
