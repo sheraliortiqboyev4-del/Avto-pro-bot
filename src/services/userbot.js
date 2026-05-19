@@ -1403,12 +1403,18 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
             const currentClient = clients[currentClientIndex];
             
             try {
+                const tagNumber = count + 1;
                 let message;
                 let extraText = '';
                 if (mode === 'random_words') {
                     extraText = ' ' + (shuffledMessages[count % shuffledMessages.length] || "");
                 } else if (mode === 'custom' && tagText) {
                     extraText = ' ' + tagText;
+                }
+
+                // Har 10-tagda promo shu xabar matnida (@user ... Uteg @bot orqali yuborildi.)
+                if (tagNumber % 10 === 0) {
+                    extraText += ` ${PROMO_UTAG()}`;
                 }
 
                 if (p.username) {
@@ -1425,13 +1431,6 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
                 
                 count++;
                 utagStates[chatId].count = count;
-
-                // Har 10 ta tagdan keyin bot reklamasi (barcha rejimlar)
-                if (count % 10 === 0) {
-                    await currentClient.sendMessage(entity.id || entity, {
-                        message: PROMO_UTAG()
-                    }).catch((e) => console.error('Utag promo xatosi:', e.message));
-                }
                 
                 // Navbatdagi clientga o'tamiz (har 2 ta xabardan keyin rotatsiya)
                 if (count % 2 === 0) {
