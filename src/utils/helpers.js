@@ -227,6 +227,27 @@ const formatRemainingTime = (expireAt) => {
     return `${d} kun ${h} soat qoldi`; 
 }; 
 
+/** Telegram inline tugma uchun to'g'ri https://t.me/... link */
+function normalizeTelegramUrl(raw) {
+    if (!raw) return null;
+    let url = String(raw).trim();
+    if (!url) return null;
+
+    if (/^https?:\/\//i.test(url)) {
+        return url.replace(/^http:\/\//i, 'https://');
+    }
+    if (/^(t\.me|telegram\.me)\//i.test(url)) {
+        return `https://${url}`;
+    }
+    if (url.startsWith('@')) {
+        return `https://t.me/${url.slice(1)}`;
+    }
+    if (/^[a-zA-Z0-9_]{4,}$/.test(url)) {
+        return `https://t.me/${url}`;
+    }
+    return null;
+}
+
 // Helper: Obuna tekshirish
 async function checkMembership(bot, userId) {
     if (config.adminId && userId.toString() === config.adminId.toString()) return true; 
@@ -262,18 +283,37 @@ async function checkMembership(bot, userId) {
 // Helper: Obuna xabari
 async function sendSubscriptionAsk(bot, chatId) {
     const channels = await Channel.findAll();
-    const buttons = channels.map((channel) => {
-        return [{ text: `📢 ${channel.name} ga a'zo bo'lish`, url: channel.url }];
-    });
-    
+    const buttons = [];
+
+    for (const channel of channels) {
+        const url = normalizeTelegramUrl(channel.url);
+        if (!url) {
+            console.error(`Kanal URL noto'g'ri (${channel.name}): ${channel.url}`);
+            continue;
+        }
+        buttons.push([{ text: `📢 ${channel.name} ga a'zo bo'lish`, url }]);
+    }
+
     buttons.push([{ text: "✅ Tekshirish", callback_data: "check_subscription" }]);
 
-    await bot.sendMessage(chatId, "⚠️ **Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:**\n\nA'zo bo'lgandan so'ng \"✅ Tekshirish\" tugmasini bosing.", {
-        parse_mode: "Markdown",
-        reply_markup: {
-            inline_keyboard: buttons
-        }
-    });
+    const text = buttons.length > 1
+        ? "⚠️ **Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:**\n\nA'zo bo'lgandan so'ng \"✅ Tekshirish\" tugmasini bosing."
+        : "⚠️ **Majburiy obuna kanallari sozlanmagan yoki linklar noto'g'ri.**\n\nAdmin bilan bog'laning.";
+
+    try {
+        await bot.sendMessage(chatId, text, {
+            parse_mode: "Markdown",
+            reply_markup: { inline_keyboard: buttons }
+        });
+    } catch (e) {
+        console.error('sendSubscriptionAsk xatosi:', e.message);
+        await bot.sendMessage(chatId, text, {
+            parse_mode: "Markdown",
+            reply_markup: {
+                inline_keyboard: [[{ text: "✅ Tekshirish", callback_data: "check_subscription" }]]
+            }
+        }).catch(() => {});
+    }
 }
 
 // Helper: Asosiy menyu (Inline)
@@ -428,6 +468,7 @@ module.exports = {
     withPremiumEmojis, 
     convertToGramJsEntities,
     getUtf16Length,
+    normalizeTelegramUrl,
     checkMembership, 
     sendSubscriptionAsk, 
     getMainMenu, 

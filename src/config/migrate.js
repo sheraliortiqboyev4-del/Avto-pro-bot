@@ -53,12 +53,26 @@ const migrateUsersTable = async () => {
     return changed;
 };
 
+const migrateChannelUrls = async () => {
+    const { normalizeTelegramUrl } = require('../utils/helpers');
+    const Channel = require('../models/Channel');
+    const channels = await Channel.findAll();
+    for (const ch of channels) {
+        const fixed = normalizeTelegramUrl(ch.url);
+        if (fixed && fixed !== ch.url) {
+            await Channel.update({ url: fixed }, { where: { id: ch.id } });
+            console.log(`✅ Migration: kanal URL yangilandi — ${ch.name}`);
+        }
+    }
+};
+
 const migrateSchema = async () => {
     const { loadModels } = require('./db');
     loadModels();
     await migrateUsersTable();
     const { sequelize } = require('./db');
     await sequelize.sync();
+    await migrateChannelUrls();
 };
 
 const isMissingColumnError = (err) => {

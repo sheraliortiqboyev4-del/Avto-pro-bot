@@ -3,7 +3,7 @@ const path = require('path');
 const User = require('../models/User');
 const Channel = require('../models/Channel');
 const config = require('../config');
-const { parseTime, checkMembership, sendSubscriptionAsk } = require('../utils/helpers');
+const { parseTime, checkMembership, sendSubscriptionAsk, normalizeTelegramUrl } = require('../utils/helpers');
 const { triggerBackup } = require('../utils/dbBackup');
 const { adminSetCoins } = require('../services/bonus');
 const { initAuth, handleAuthStep, scrapeUsers, startReyd, startReklama, startAutoTag } = require('../services/userbot');
@@ -146,19 +146,27 @@ module.exports = (bot) => {
             if (state.step === 'WAITING_CHANNEL_NAME') {
                 if (!text) return;
                 global.userStates[chatId] = { ...state, step: 'WAITING_CHANNEL_URL', name: text };
-                bot.sendMessage(chatId, "🔗 Kanal **linkini** yuboring (Masalan: `https://t.me/avtobot_news`):");
+                bot.sendMessage(chatId, "🔗 Kanal **linkini** yuboring:\n`https://t.me/kanal` yoki `@kanal` yoki `kanal`");
                 return;
             }
 
             if (state.step === 'WAITING_CHANNEL_URL') {
                 if (!text) return;
+                const normalizedUrl = normalizeTelegramUrl(text);
+                if (!normalizedUrl) {
+                    return bot.sendMessage(
+                        chatId,
+                        "❌ Noto'g'ri link. Quyidagilardan birini yuboring:\n`https://t.me/kanal_nomi`\n`@kanal_nomi`\n`kanal_nomi`",
+                        { parse_mode: 'Markdown' }
+                    );
+                }
                 try {
                     await Channel.create({
                         channelId: state.channelId,
                         name: state.name,
-                        url: text
+                        url: normalizedUrl
                     });
-                    bot.sendMessage(chatId, "✅ Kanal muvaffaqiyatli qo'shildi!");
+                    bot.sendMessage(chatId, `✅ Kanal qo'shildi!\nLink: ${normalizedUrl}`);
                     delete global.userStates[chatId];
                 } catch (e) {
                     bot.sendMessage(chatId, "❌ Xatolik: " + e.message);
