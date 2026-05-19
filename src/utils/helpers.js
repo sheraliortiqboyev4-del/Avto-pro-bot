@@ -289,6 +289,7 @@ function getMainMenu(chatId) {
                 [{ text: "💎 Avto Almaz", callback_data: "menu_almaz" }, { text: "🏷 Avto UTag", callback_data: "menu_utag" }],
                 [{ text: "👤 AvtoUser", callback_data: "menu_avtouser" }, { text: "⚔️ Avto Reyd", callback_data: "menu_reyd" }],
                 [{ text: "📣 Avto Reklama", callback_data: "menu_reklama" }, { text: "📊 Profil", callback_data: "menu_profile" }],
+                [{ text: "🎁 Bonus", callback_data: "menu_bonus" }, { text: "🪙 Coin", callback_data: "menu_coin" }],
                 [{ text: "🔄 Nomer almashtirish", callback_data: "menu_logout" }],
                 lastRow
             ]
@@ -363,8 +364,9 @@ function getAdminMenu() {
                 [{ text: "📊 Statistika", callback_data: "admin_stats" }, { text: "👥 Barcha A'zolar", callback_data: "admin_all_users" }],
                 [{ text: "⏳ Kutilayotganlar", callback_data: "admin_pending" }, { text: "✅ Tasdiqlanganlar", callback_data: "admin_approved" }],
                 [{ text: "🚫 Bloklanganlar", callback_data: "admin_blocked" }, { text: "📣 Barchaga Xabar", callback_data: "admin_broadcast" }],
-                [{ text: "� Kanallar sozlamasi", callback_data: "admin_channels" }],
-                [{ text: "�� Orqaga", callback_data: "menu_back_main" }]
+                [{ text: "📢 Kanallar sozlamasi", callback_data: "admin_channels" }],
+                [{ text: "🎁 Bonus tizimi", callback_data: "admin_bonus" }],
+                [{ text: "🔙 Orqaga", callback_data: "menu_back_main" }]
             ]
         }
     };
@@ -381,6 +383,41 @@ const isUserAdmin = async (bot, chatId, userId) => {
         return false;
     }
 };
+
+function getBonusCoinRow() {
+    return [
+        { text: "🎁 Bonus", callback_data: "menu_bonus" },
+        { text: "🪙 Coin", callback_data: "menu_coin" }
+    ];
+}
+
+function getPendingPaymentKeyboard() {
+    return {
+        inline_keyboard: [
+            [{ text: "🎁 Bonus (taklif qilish)", callback_data: "menu_bonus" }],
+            [{ text: "🪙 Coinlarim", callback_data: "menu_coin" }],
+            [
+                { text: "👨‍💼 Admin", url: "https://t.me/ortiqov_x7" }
+            ]
+        ]
+    };
+}
+
+function getAdminCoinKeyboard(targetId) {
+    const id = String(targetId);
+    return [
+        [
+            { text: "🪙 +1", callback_data: `admin_coins_add_${id}_1` },
+            { text: "🪙 +5", callback_data: `admin_coins_add_${id}_5` },
+            { text: "🪙 +10", callback_data: `admin_coins_add_${id}_10` }
+        ],
+        [
+            { text: "➖ -5", callback_data: `admin_coins_sub_${id}_5` },
+            { text: "➖ -10", callback_data: `admin_coins_sub_${id}_10` }
+        ],
+        [{ text: "✏️ Coin belgilash", callback_data: `admin_coins_set_${id}` }]
+    ];
+}
 
 module.exports = { 
     escapeMarkdown, 
@@ -399,6 +436,9 @@ module.exports = {
     getReklamaMenu,
     getReydMenu,
     getAdminMenu,
+    getBonusCoinRow,
+    getPendingPaymentKeyboard,
+    getAdminCoinKeyboard,
     isUserAdmin,
     EMOJI_MAP
 };

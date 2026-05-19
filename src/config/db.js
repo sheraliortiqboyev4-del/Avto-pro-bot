@@ -19,6 +19,9 @@ const loadModels = () => {
     require('../models/User');
     require('../models/Channel');
     require('../models/PremiumAd');
+    require('../models/BotSetting');
+    require('../models/Referral');
+    require('../models/CoinTransaction');
 };
 
 const connectDB = async () => {
@@ -27,6 +30,8 @@ const connectDB = async () => {
     console.log('✅ SQLite ulanishi muvaffaqiyatli.');
     await sequelize.sync();
     console.log('✅ Ma\'lumotlar bazasi sinxronizatsiya qilindi.');
+    const { ensureBonusSettingSeed } = require('../services/bonus');
+    await ensureBonusSettingSeed();
     setDbReady(true);
 };
 

@@ -7,9 +7,25 @@ const {
     getAdminMenu, 
     getMainMenu, 
     getAlmazMenu,
-    checkMembership, 
-    escapeMarkdown 
+    checkMembership,
+    getBonusCoinRow,
+    getPendingPaymentKeyboard
 } = require('../utils/helpers');
+const {
+    isBonusEnabled,
+    setBonusEnabled,
+    buildBonusMessage,
+    buildCoinMessage,
+    redeemCoinsForMonth,
+    refreshReferralToken,
+    processSubscriptionReferralReward,
+    getAdminBonusStats,
+    getTop10Referrers,
+    getCoinRedeemers,
+    adminAdjustCoins,
+    adminSetCoins,
+    COINS_PER_MONTH
+} = require('../services/bonus');
 
 if (!global.userStates) global.userStates = {};
 
@@ -50,10 +66,18 @@ module.exports = (bot) => {
 
         // --- 1. SESSION CHECK (Except for specific ones) ---
         const user = await User.findOne({ where: { chatId } });
-        const allowedCallbacks = ["check_subscription"];
+        const allowedCallbacks = [
+            "check_subscription",
+            "menu_bonus",
+            "menu_coin",
+            "bonus_new_link",
+            "coin_redeem_month",
+            "menu_back_main"
+        ];
         const isAdminAction = data.startsWith("admin_");
+        const isBonusCallback = data.startsWith("bonus_") || data.startsWith("coin_") || data === "menu_bonus" || data === "menu_coin";
         
-        if (!isAdminAction && !allowedCallbacks.includes(data)) {
+        if (!isAdminAction && !allowedCallbacks.includes(data) && !isBonusCallback) {
             if (!user || !user.session) {
                 await safeAnswer({ 
                     text: "⚠️ Botdan foydalanish uchun avval Telegram akkauntingiz bilan tizimga kiring. /start ni bosing.", 
@@ -63,18 +87,128 @@ module.exports = (bot) => {
             }
         }
 
+        // --- BONUS / COIN (session va obuna shartsiz) ---
+        if (data === "menu_bonus") {
+            if (!user) {
+                await User.create({
+                    chatId,
+                    name: query.from.first_name,
+                    username: query.from.username,
+                    status: chatId.toString() === config.adminId.toString() ? 'approved' : 'pending'
+                });
+            }
+            const { text, keyboard } = await buildBonusMessage(bot, chatId);
+            try {
+                await safeEdit(chatId, messageId, text, { parse_mode: "Markdown", reply_markup: keyboard });
+            } catch (e) {
+                await bot.sendMessage(chatId, text, { parse_mode: "Markdown", reply_markup: keyboard });
+            }
+            return await safeAnswer();
+        }
+
+        if (data === "menu_coin") {
+            if (!user) {
+                await User.create({
+                    chatId,
+                    name: query.from.first_name,
+                    username: query.from.username,
+                    status: chatId.toString() === config.adminId.toString() ? 'approved' : 'pending'
+                });
+            }
+            const { text, keyboard } = await buildCoinMessage(chatId);
+            try {
+                await safeEdit(chatId, messageId, text, { parse_mode: "Markdown", reply_markup: keyboard });
+            } catch (e) {
+                await bot.sendMessage(chatId, text, { parse_mode: "Markdown", reply_markup: keyboard });
+            }
+            return await safeAnswer();
+        }
+
+        if (data === "bonus_new_link") {
+            if (!(await isBonusEnabled())) {
+                return await safeAnswer({ text: "Bonus tizimi o'chirilgan", show_alert: true });
+            }
+            await refreshReferralToken(chatId);
+            const { text, keyboard } = await buildBonusMessage(bot, chatId);
+            await safeEdit(chatId, messageId, text, { parse_mode: "Markdown", reply_markup: keyboard });
+            return await safeAnswer({ text: "Yangi havola yaratildi (5 kun)", show_alert: false });
+        }
+
+        if (data.startsWith('admin_coins_') && chatId.toString() === config.adminId.toString()) {
+            const addSub = data.match(/^admin_coins_(add|sub)_(\d+)_(\d+)$/);
+            if (addSub) {
+                const targetId = addSub[2];
+                const amount = parseInt(addSub[3], 10);
+                const delta = addSub[1] === 'add' ? amount : -amount;
+                try {
+                    const { newCoins } = await adminAdjustCoins(targetId, delta, chatId);
+                    await safeAnswer({ text: `Coin: ${newCoins}`, show_alert: true });
+                    bot.sendMessage(chatId, `✅ User \`${targetId}\` — yangi balans: **${newCoins}** coin`, { parse_mode: 'Markdown' });
+                    bot.sendMessage(
+                        targetId,
+                        `🪙 Admin sizning coinlaringizni **${delta >= 0 ? '+' : ''}${delta}** ga o'zgartirdi.\nJami: **${newCoins}** coin`,
+                        { parse_mode: 'Markdown' }
+                    ).catch(() => {});
+                } catch (e) {
+                    await safeAnswer({ text: e.message, show_alert: true });
+                }
+                return;
+            }
+            if (data.startsWith('admin_coins_set_')) {
+                const targetId = data.replace('admin_coins_set_', '');
+                global.userStates[chatId] = { step: 'WAITING_COIN_SET', targetId };
+                const u = await User.findOne({ where: { chatId: targetId } });
+                await safeAnswer();
+                bot.sendMessage(
+                    chatId,
+                    `✏️ User \`${targetId}\` uchun yangi **coin** miqdorini yuboring.\nHozirgi: **${u?.coins || 0}**`,
+                    { parse_mode: 'Markdown' }
+                );
+                return;
+            }
+        }
+
+        if (data === "coin_redeem_month") {
+            try {
+                const { newCoins, expireAt } = await redeemCoinsForMonth(bot, chatId);
+                const expStr = expireAt.toLocaleDateString('uz-UZ');
+                await safeAnswer({ text: "1 oylik obuna faollashtirildi!", show_alert: true });
+                const { text, keyboard } = await buildCoinMessage(chatId);
+                await safeEdit(
+                    chatId,
+                    messageId,
+                    `✅ **1 oylik obuna tasdiqlandi!**\n\n🪙 Qolgan coin: **${newCoins}**\n📅 Muddat: ${expStr}\n\n${text}`,
+                    { parse_mode: "Markdown", reply_markup: keyboard }
+                );
+                await bot.sendMessage(
+                    chatId,
+                    '🎉 Endi /start ni bosing — bot funksiyalaridan foydalanishingiz mumkin.',
+                    getMainMenu(chatId)
+                );
+            } catch (e) {
+                await safeAnswer({ text: e.message, show_alert: true });
+            }
+            return;
+        }
+
         // --- 2. SUBSCRIPTION CHECK ---
         const isMember = await checkMembership(bot, chatId);
-        if (!isMember && data !== "check_subscription") {
+        const skipSubCheck = isBonusCallback || data === "check_subscription";
+        if (!isMember && !skipSubCheck) {
             await safeAnswer({ text: "⚠️ Botdan foydalanish uchun avval kanallarga a'zo bo'ling!", show_alert: true });
             return sendSubscriptionAsk(bot, chatId);
         }
 
         if (data === "check_subscription") {
-            const isMember = await checkMembership(bot, chatId);
-            if (isMember) {
+            const isMemberNow = await checkMembership(bot, chatId);
+            if (isMemberNow) {
                 try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
-                await bot.sendMessage(chatId, "✅ **Rahmat!** Siz barcha kanallarga a'zo bo'ldingiz.\n\n/start ni bosing.");
+                await processSubscriptionReferralReward(bot, chatId);
+                await bot.sendMessage(
+                    chatId,
+                    "✅ **Rahmat!** Siz barcha kanallarga a'zo bo'ldingiz.\n\n/start ni bosing.",
+                    { parse_mode: "Markdown", reply_markup: { inline_keyboard: [getBonusCoinRow()] } }
+                );
             } else {
                 await safeAnswer({ text: "❌ Siz hali barcha kanallarga a'zo bo'lmadingiz!", show_alert: true });
             }
@@ -83,7 +217,15 @@ module.exports = (bot) => {
 
         // --- 2. MENU NAVIGATION ---
         if (data === "menu_back_main") {
-            await safeEdit(chatId, messageId, "📋 **Asosiy menyu:**", { parse_mode: "Markdown", ...getMainMenu(chatId) });
+            const u = await User.findOne({ where: { chatId } });
+            if (!u || !u.session) {
+                await safeEdit(chatId, messageId, "📋 **Menyu:**\n\nBonus va Coin bo'limlari:", {
+                    parse_mode: "Markdown",
+                    reply_markup: { inline_keyboard: [getBonusCoinRow()] }
+                });
+            } else {
+                await safeEdit(chatId, messageId, "📋 **Asosiy menyu:**", { parse_mode: "Markdown", ...getMainMenu(chatId) });
+            }
             return await safeAnswer();
         }
 
@@ -759,6 +901,109 @@ module.exports = (bot) => {
                 reply_markup: { inline_keyboard: buttons }
             });
             return;
+        }
+
+        // --- ADMIN: BONUS TIZIMI ---
+        if (data === "admin_bonus") {
+            if (chatId.toString() !== config.adminId.toString()) return;
+            const enabled = await isBonusEnabled();
+            const stats = await getAdminBonusStats();
+            const statusText = enabled ? '🟢 Yoqilgan (demo)' : '🔴 O\'chirilgan';
+            const text =
+                `🎁 **Bonus / Referral tizimi**\n\n` +
+                `Holat: ${statusText}\n\n` +
+                `🪙 Jami coinlar (barcha userlar): ${stats.totalCoins}\n` +
+                `👥 Referrallar: ${stats.totalReferrals} (coin berilgan: ${stats.rewardedReferrals})\n` +
+                `⏳ Kutilmoqda: ${stats.pendingReferrals}\n` +
+                `✅ Coin bilan 1 oy olganlar: ${stats.totalRedemptions} marta\n` +
+                `👤 Coini bor userlar: ${stats.usersWithCoins}\n\n` +
+                `📌 Qoida: yangi user → kanal obunasi → referrer +1 coin\n` +
+                `💰 ${COINS_PER_MONTH} coin = 1 oylik obuna`;
+
+            const toggleLabel = enabled ? '🔴 Bonusni o\'chirish' : '🟢 Bonusni yoqish';
+            await safeEdit(chatId, messageId, text, {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: toggleLabel, callback_data: 'admin_bonus_toggle' }],
+                        [{ text: '🏆 Top 10 referrer', callback_data: 'admin_bonus_top10' }],
+                        [{ text: '✅ Coin bilan olganlar', callback_data: 'admin_bonus_redeemed' }],
+                        [{ text: '🔙 Admin panel', callback_data: 'admin_panel' }]
+                    ]
+                }
+            });
+            return await safeAnswer();
+        }
+
+        if (data === "admin_bonus_toggle") {
+            if (chatId.toString() !== config.adminId.toString()) return;
+            const enabled = await isBonusEnabled();
+            await setBonusEnabled(!enabled);
+            await safeAnswer({ text: !enabled ? 'Bonus yoqildi' : 'Bonus o\'chirildi', show_alert: true });
+            const stats = await getAdminBonusStats();
+            const statusText = !enabled ? '🟢 Yoqilgan (demo)' : '🔴 O\'chirilgan';
+            const text =
+                `🎁 **Bonus / Referral tizimi**\n\nHolat: ${statusText}\n\n` +
+                `🪙 Jami coinlar: ${stats.totalCoins}\n` +
+                `👥 Referrallar: ${stats.totalReferrals}\n` +
+                `✅ Coin bilan 1 oy: ${stats.totalRedemptions} marta`;
+            const toggleLabel = !enabled ? '🔴 Bonusni o\'chirish' : '🟢 Bonusni yoqish';
+            await safeEdit(chatId, messageId, text, {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: toggleLabel, callback_data: 'admin_bonus_toggle' }],
+                        [{ text: '🏆 Top 10 referrer', callback_data: 'admin_bonus_top10' }],
+                        [{ text: '✅ Coin bilan olganlar', callback_data: 'admin_bonus_redeemed' }],
+                        [{ text: '🔙 Admin panel', callback_data: 'admin_panel' }]
+                    ]
+                }
+            });
+            return;
+        }
+
+        if (data === "admin_bonus_top10") {
+            if (chatId.toString() !== config.adminId.toString()) return;
+            const top = await getTop10Referrers();
+            let text = '🏆 **Top 10 referrerlar:**\n\n';
+            if (top.length === 0) {
+                text += 'Hali ma\'lumot yo\'q.';
+            } else {
+                top.forEach((r, i) => {
+                    const un = r.username ? `@${r.username}` : '';
+                    text += `${i + 1}. ${r.name} ${un}\n`;
+                    text += `   🆔 \`${r.chatId}\` | 🪙 ${r.coins} | ✅ ${r.rewarded}/${r.total}\n\n`;
+                });
+            }
+            await safeEdit(chatId, messageId, text, {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [[{ text: '🔙 Bonus', callback_data: 'admin_bonus' }]]
+                }
+            });
+            return await safeAnswer();
+        }
+
+        if (data === "admin_bonus_redeemed") {
+            if (chatId.toString() !== config.adminId.toString()) return;
+            const list = await getCoinRedeemers(25);
+            let text = '✅ **Coin bilan 1 oylik obuna olganlar:**\n\n';
+            if (list.length === 0) {
+                text += 'Hali hech kim sotib olmagan.';
+            } else {
+                list.forEach((u) => {
+                    const un = u.username ? `@${u.username}` : '';
+                    text += `👤 ${u.name || '—'} ${un}\n🆔 \`${u.chatId}\` | 🪙 ${u.coins} | 🔄 ${u.coinRedemptions}x\n\n`;
+                });
+            }
+            text += '\n_Ushbu foydalanuvchilar `approved` (Coin Bonus) holatida._';
+            await safeEdit(chatId, messageId, text, {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [[{ text: '🔙 Bonus', callback_data: 'admin_bonus' }]]
+                }
+            });
+            return await safeAnswer();
         }
 
         await safeAnswer(); 
