@@ -5,6 +5,7 @@ const Referral = require('../models/Referral');
 const BotSetting = require('../models/BotSetting');
 const CoinTransaction = require('../models/CoinTransaction');
 const { triggerBackup } = require('../utils/dbBackup');
+const { escapeHTML } = require('../utils/helpers');
 
 const COINS_PER_MONTH = 50;
 const REFERRAL_LINK_MS = 5 * 24 * 60 * 60 * 1000;
@@ -203,11 +204,13 @@ const getUserReferralStats = async (chatId) => {
 };
 
 const buildBonusMessage = async (bot, chatId) => {
+    const parseMode = 'HTML';
     const enabled = await isBonusEnabled();
     if (!enabled) {
         return {
-            text: '⏸ **Bonus tizimi vaqtincha o\'chirilgan.**\n\nKeyinroq qayta urinib ko\'ring.',
-            keyboard: { inline_keyboard: [[{ text: '🔙 Orqaga', callback_data: 'menu_back_main' }]] }
+            text: '⏸ <b>Bonus tizimi vaqtincha o\'chirilgan.</b>\n\nKeyinroq qayta urinib ko\'ring.',
+            keyboard: { inline_keyboard: [[{ text: '🔙 Orqaga', callback_data: 'menu_back_main' }]] },
+            parseMode
         };
     }
 
@@ -218,15 +221,16 @@ const buildBonusMessage = async (bot, chatId) => {
         ? new Date(user.referralTokenExpiresAt).toLocaleDateString('uz-UZ')
         : '—';
 
+    // HTML: Markdown da Foydasizku_bot ichidagi _ kursiv bo'lib ko'rinardi (Foydasizkubot)
     const text =
-        `🎁 **Bonus / Referral**\n\n` +
-        `🪙 **Coinlar:** ${stats.coins} ta\n` +
-        `👥 **Taklif qilganlar:** ${stats.invited} ta\n` +
-        `⏳ **Kutilmoqda (obuna):** ${stats.pending} ta\n\n` +
-        `🔗 **Havola** (5 kun amal qiladi, muddati: ${expires}):\n` +
-        `\`${link || 'Havola yaratilmadi'}\`\n\n` +
-        `** Faqat **yangi** foydalanuvchi havolangiz bilan kirsa va kanallarga obuna bo'lsa — **+1 coin**.\n` +
-        `💰 1 oylik obuna **${COINS_PER_MONTH} coin**`;
+        `🎁 <b>Bonus / Referral</b>\n\n` +
+        `🪙 <b>Coinlar:</b> ${stats.coins} ta\n` +
+        `👥 <b>Taklif qilganlar:</b> ${stats.invited} ta\n` +
+        `⏳ <b>Kutilmoqda (obuna):</b> ${stats.pending} ta\n\n` +
+        `🔗 <b>Havola</b> (5 kun amal qiladi, muddati: ${escapeHTML(expires)}):\n` +
+        `<code>${escapeHTML(link || 'Havola yaratilmadi')}</code>\n\n` +
+        `<b>Faqat</b> <b>yangi</b> foydalanuvchi havolangiz bilan kirsa va kanallarga obuna bo'lsa — <b>+1 coin</b>.\n` +
+        `💰 1 oylik obuna <b>${COINS_PER_MONTH} coin</b>`;
 
     const keyboard = {
         inline_keyboard: [
@@ -236,7 +240,7 @@ const buildBonusMessage = async (bot, chatId) => {
         ]
     };
 
-    return { text, keyboard, link };
+    return { text, keyboard, link, parseMode };
 };
 
 const buildCoinMessage = async (chatId) => {

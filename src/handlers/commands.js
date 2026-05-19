@@ -298,8 +298,12 @@ module.exports = (bot) => {
                 status: chatId.toString() === config.adminId.toString() ? 'approved' : 'pending'
             });
         }
-        const { text, keyboard } = await buildBonusMessage(bot, chatId);
-        await bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: keyboard });
+        const { text, keyboard, parseMode } = await buildBonusMessage(bot, chatId);
+        await bot.sendMessage(chatId, text, {
+            parse_mode: parseMode || 'HTML',
+            reply_markup: keyboard,
+            skipEmojiWrap: true
+        });
     });
 
     bot.onText(/\/coin/, async (msg) => {

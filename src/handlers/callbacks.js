@@ -102,11 +102,12 @@ module.exports = (bot) => {
                     status: chatId.toString() === config.adminId.toString() ? 'approved' : 'pending'
                 });
             }
-            const { text, keyboard } = await buildBonusMessage(bot, chatId);
+            const { text, keyboard, parseMode } = await buildBonusMessage(bot, chatId);
+            const bonusOpts = { parse_mode: parseMode || 'HTML', reply_markup: keyboard, skipEmojiWrap: true };
             try {
-                await safeEdit(chatId, messageId, text, { parse_mode: "Markdown", reply_markup: keyboard });
+                await safeEdit(chatId, messageId, text, bonusOpts);
             } catch (e) {
-                await bot.sendMessage(chatId, text, { parse_mode: "Markdown", reply_markup: keyboard });
+                await bot.sendMessage(chatId, text, bonusOpts);
             }
             return await safeAnswer();
         }
@@ -134,8 +135,12 @@ module.exports = (bot) => {
                 return await safeAnswer({ text: "Bonus tizimi o'chirilgan", show_alert: true });
             }
             await refreshReferralToken(chatId);
-            const { text, keyboard } = await buildBonusMessage(bot, chatId);
-            await safeEdit(chatId, messageId, text, { parse_mode: "Markdown", reply_markup: keyboard });
+            const { text, keyboard, parseMode } = await buildBonusMessage(bot, chatId);
+            await safeEdit(chatId, messageId, text, {
+                parse_mode: parseMode || 'HTML',
+                reply_markup: keyboard,
+                skipEmojiWrap: true
+            });
             return await safeAnswer({ text: "Yangi havola yaratildi (5 kun)", show_alert: false });
         }
 
