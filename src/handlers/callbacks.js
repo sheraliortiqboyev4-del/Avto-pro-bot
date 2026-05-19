@@ -168,19 +168,27 @@ module.exports = (bot) => {
 
         if (data === "coin_redeem_month") {
             try {
-                const { newCoins, expireAt } = await redeemCoinsForMonth(bot, chatId);
+                const { newCoins, expireAt, wasBlocked } = await redeemCoinsForMonth(bot, chatId);
                 const expStr = expireAt.toLocaleDateString('uz-UZ');
-                await safeAnswer({ text: "1 oylik obuna faollashtirildi!", show_alert: true });
+                await safeAnswer({
+                    text: wasBlocked ? 'Blokdan ochildingiz! 1 oy obuna.' : '1 oylik obuna faollashtirildi!',
+                    show_alert: true
+                });
                 const { text, keyboard } = await buildCoinMessage(chatId);
+                const unblockNote = wasBlocked
+                    ? '\n\n🔓 **Hisobingiz blokdan ochildi** — ma\'lumotlar zaxiraga saqlandi.'
+                    : '';
                 await safeEdit(
                     chatId,
                     messageId,
-                    `✅ **1 oylik obuna sotib olindi!**\n\n🪙 Qolgan coin: **${newCoins}**\n📅 Muddat: ${expStr}\n\n${text}`,
-                    { parse_mode: "Markdown", reply_markup: keyboard }
+                    `✅ **1 oylik obuna sotib olindi!**${unblockNote}\n\n🪙 Qolgan coin: **${newCoins}**\n📅 Muddat: ${expStr}\n\n${text}`,
+                    { parse_mode: "Markdown", reply_markup: keyboard, skipEmojiWrap: true }
                 );
                 await bot.sendMessage(
                     chatId,
-                    '🎉 Endi /start ni bosing — bot funksiyalaridan foydalanishingiz mumkin.',
+                    wasBlocked
+                        ? '🎉 Blokdan ochildingiz! /start ni bosing va akkauntga qayta kiring.'
+                        : '🎉 Endi /start ni bosing — bot funksiyalaridan foydalanishingiz mumkin.',
                     getMainMenu(chatId)
                 );
             } catch (e) {

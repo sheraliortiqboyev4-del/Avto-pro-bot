@@ -20,7 +20,8 @@ const dns = require('dns');
 const os = require('os');
 const config = require('./config'); 
 const User = require('./models/User'); 
-const { blockExpiredUser, loadAllStates } = require('./services/userbot'); 
+const { blockExpiredUser, loadAllStates } = require('./services/userbot');
+const { runExpirySweep } = require('./services/expiry'); 
 const { withPremiumEmojis } = require('./utils/helpers');
 const { restoreDB, backupDB, triggerBackup, verifyDatabaseAfterConnect, startBackupScheduler } = require('./utils/dbBackup');
 
@@ -270,6 +271,8 @@ const initBot = async () => {
         await migrateSchema();
         setDbReady(true);
 
+        await runExpirySweep(bot, { reason: 'zaxira_tiklash', backupOnChange: true });
+
         startExpiryChecker();
 
         await startPolling();
@@ -323,18 +326,7 @@ const startExpiryChecker = () => {
             const now = new Date();
             const { Op } = require('sequelize');
 
-            const expiredUsers = await User.findAll({
-                where: {
-                    status: 'approved',
-                    expireAt: {
-                        [Op.ne]: null,
-                        [Op.lt]: now
-                    }
-                }
-            });
-            for (const user of expiredUsers) {
-                await blockExpiredUser(user, bot);
-            }
+            await runExpirySweep(bot, { reason: 'periodic', backupOnChange: true });
 
             const oneDayLater = new Date(now.getTime() + 86400000);
             const warningUsers = await User.findAll({

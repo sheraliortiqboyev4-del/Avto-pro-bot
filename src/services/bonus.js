@@ -132,10 +132,10 @@ const handleStartWithReferral = async (bot, chatId, name, username, payloadToken
 
     const referredName = name || username || chatId;
     const referrerText =
-        `🆕 **Yangi taklif!**\n\n` +
+        `🆕 **Yangi Referral!**\n\n` +
         `👤 **${referredName}** sizning referral havolangiz orqali ro'yxatdan o'tdi.\n\n` +
-        `📢 U majburiy kanallarga obuna bo'lgandan keyin sizga **+1 coin** qo'shiladi.\n\n` +
-        `🪙 Jami coinlaringiz: **${referrer.coins || 0}**`;
+        `📢 U kanallarga obuna bo'lgandan keyin sizga **+1 coin** qo'shiladi.\n\n` +
+        `🪙 Jami coinlar: **${referrer.coins || 0}**`;
 
     try {
         await bot.sendMessage(referrer.chatId, referrerText, { parse_mode: 'Markdown', skipEmojiWrap: true });
@@ -178,20 +178,19 @@ const processSubscriptionReferralReward = async (bot, referredChatId) => {
     try {
         await bot.sendMessage(
             referrerChatId,
-            `✅ **+1 coin berildi!**\n\n` +
-            `👤 ${referredLabel} kanallarga obuna bo'ldi.\n` +
-            `🪙 Jami: **${newCoins}** / ${COINS_PER_MONTH} (1 oy uchun)`,
+            `✅ **+1 coin hisobingizga qo'shildi!**\n\n` +
+            `🪙 Jami coinlar: **${newCoins}**`,
             { parse_mode: 'Markdown', skipEmojiWrap: true }
         );
     } catch (e) {}
 
-    try {
-        await bot.sendMessage(
-            referredChatId,
-            `✅ Kanallarga obuna bo'ldingiz!\n\nReferreringizga **+1 coin** berildi. Rahmat!`,
-            { skipEmojiWrap: true }
-        );
-    } catch (e) {}
+    // try {
+    //     await bot.sendMessage(
+    //         referredChatId,
+    //         `✅ Kanallarga obuna bo'ldingiz!\n\nReferreringizga **+1 coin** berildi. Rahmat!`,
+    //         { skipEmojiWrap: true }
+    //     );
+    // } catch (e) {}
 
     return true;
 };
@@ -232,16 +231,15 @@ const buildBonusMessage = async (bot, chatId) => {
         `🎁 **Bonus / Referral**\n\n` +
         `🪙 **Coinlar:** ${stats.coins} ta\n` +
         `👥 **Taklif qilganlar:** ${stats.invited} ta\n` +
-        `✅ **Coin olganlar:** ${stats.rewarded} ta\n` +
         `⏳ **Kutilmoqda (obuna):** ${stats.pending} ta\n\n` +
         `🔗 **Havola** (5 kun amal qiladi, muddati: ${expires}):\n` +
         `\`${link || 'Havola yaratilmadi'}\`\n\n` +
-        `📌 **Qoida:** Faqat **yangi** foydalanuvchi havolangiz bilan kirsa va kanallarga obuna bo'lsa — **+1 coin**.\n` +
-        `💰 **${COINS_PER_MONTH} coin** = 1 oylik obuna (/coin)`;
+        `** Faqat **yangi** foydalanuvchi havolangiz bilan kirsa va kanallarga obuna bo'lsa — **+1 coin**.\n` +
+        `💰 1 oylik obuna **${COINS_PER_MONTH} coin**`;
 
     const keyboard = {
         inline_keyboard: [
-            [{ text: '🔄 Yangi havola (5 kun)', callback_data: 'bonus_new_link' }],
+            [{ text: '🔄 Yangi havola yaratish', callback_data: 'bonus_new_link' }],
             [{ text: '🪙 Coinlarim', callback_data: 'menu_coin' }],
             [{ text: '🔙 Orqaga', callback_data: 'menu_back_main' }]
         ]
@@ -263,18 +261,28 @@ const buildCoinMessage = async (chatId) => {
         };
     }
 
-    const text =
+    const isBlocked = user?.status === 'blocked';
+
+    let text =
         `🪙 **Coinlar**\n\n` +
         `💰 Jami: **${coins}** coin\n` +
         `🎯 1 oylik obuna: **${COINS_PER_MONTH}** coin\n` +
         `📉 Yana kerak: **${need}** coin\n\n` +
         `Do'stlaringizni taklif qiling (/bonus) — har biri kanalga obuna bo'lgach **+1 coin**.`;
 
+    if (isBlocked) {
+        text +=
+            `\n\n🚫 **Hisobingiz bloklangan.**\n` +
+            `**${COINS_PER_MONTH} coin** to'lab 1 oylik obuna olsangiz, avtomatik **ochiladi** va zaxiraga saqlanadi.`;
+    }
+
     const buttons = [];
     if (coins >= COINS_PER_MONTH) {
-        buttons.push([{ text: '✅ 1 oylik obunani sotib olish (50 coin)', callback_data: 'coin_redeem_month' }]);
+        const btnLabel = isBlocked
+            ? `🔓 Blokdan chiqish (${COINS_PER_MONTH} coin)`
+            : `✅ 1 oylik obunani sotib olish (${COINS_PER_MONTH} coin)`;
+        buttons.push([{ text: btnLabel, callback_data: 'coin_redeem_month' }]);
     }
-    buttons.push([{ text: '🎁 Bonus', callback_data: 'menu_bonus' }]);
     buttons.push([{ text: '🔙 Orqaga', callback_data: 'menu_back_main' }]);
 
     return { text, keyboard: { inline_keyboard: buttons } };
@@ -291,6 +299,7 @@ const redeemCoinsForMonth = async (bot, chatId) => {
         throw new Error(`Kamida ${COINS_PER_MONTH} coin kerak`);
     }
 
+    const wasBlocked = user.status === 'blocked';
     const now = new Date();
     let expireAt = now;
     if (user.expireAt && new Date(user.expireAt) > now) {
@@ -311,10 +320,14 @@ const redeemCoinsForMonth = async (bot, chatId) => {
         { where: { chatId } }
     );
 
-    await recordCoinTx(chatId, -COINS_PER_MONTH, 'redeem_month', { expireAt });
-    triggerBackup('coin_redeem', true);
+    await recordCoinTx(chatId, -COINS_PER_MONTH, 'redeem_month', {
+        expireAt,
+        wasBlocked,
+        unblocked: wasBlocked
+    });
+    triggerBackup(wasBlocked ? 'coin_redeem_blokdan_ochish' : 'coin_redeem', true);
 
-    return { newCoins, expireAt };
+    return { newCoins, expireAt, wasBlocked };
 };
 
 const getAdminBonusStats = async () => {

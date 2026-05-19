@@ -97,7 +97,7 @@ module.exports = (bot) => {
         if (refToken && isNewUser) {
             const refResult = await handleStartWithReferral(bot, chatId, name, username, refToken, true);
             if (refResult && refResult.invalidLink) {
-                await bot.sendMessage(chatId, '⚠️ Referral havola eskirgan yoki noto\'g\'ri. Do\'stingizdan yangi havola so\'rang.');
+                await bot.sendMessage(chatId, '⚠️ Referral havola eskirgan. Do\'stingizdan yangi havola so\'rang.');
             }
         }
 
@@ -107,7 +107,7 @@ module.exports = (bot) => {
             if (refToken && isNewUser) {
                 await bot.sendMessage(
                     chatId,
-                    '📢 Kanallarga obuna bo\'ling va **Tekshirish** ni bosing.\nReferreringiz shunda **+1 coin** oladi.',
+                    '📢 Kanallarga obuna bo\'ling va **Tekshirish** ni bosing.',
                     { parse_mode: 'Markdown' }
                 ).catch(() => {});
             }
@@ -120,9 +120,17 @@ module.exports = (bot) => {
         }
     
         if (user.status === 'blocked') {
-            const blockedText = `⚠ Sizning foydalanish muddatingiz tugagan. \nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring va botni qayta ishga tushiring. \n\n👨‍💼 Admin: @ortiqov_x7`;
+            const blockedText =
+                `⚠ Sizning foydalanish muddatingiz tugagan.\n\n` +
+                `🪙 **50 coin** to'lab 1 oylik obuna olsangiz (/coin) — avtomatik ochiladi.\n` +
+                `Yoki admin orqali to'lov qiling.\n\n👨‍💼 Admin: @ortiqov_x7`;
             bot.sendMessage(chatId, blockedText, {
-                reply_markup: getPendingPaymentKeyboard()
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "🪙 Coin orqali ochish", callback_data: "menu_coin" }],
+                        ...getPendingPaymentKeyboard().inline_keyboard
+                    ]
+                }
             });
 
             // Adminga xabar yuborish
@@ -134,8 +142,7 @@ module.exports = (bot) => {
                     inline_keyboard: [
                         [{ text: "✅ 1 Oy (Standard)", callback_data: `admin_approve_1month_${chatId}` }],
                         [{ text: "👑 VIP (Cheksiz)", callback_data: `admin_approve_vip_${chatId}` }],
-                        [{ text: "✍️ Qo'lda tasdiqlash", callback_data: `admin_approve_${chatId}` }],
-                        ...getAdminCoinKeyboard(chatId)
+                        [{ text: "✍️ Qo'lda tasdiqlash", callback_data: `admin_approve_${chatId}` }]
                     ]
                 }
             });
@@ -153,8 +160,7 @@ module.exports = (bot) => {
                         [{ text: "✅ 1 Oy (Standard)", callback_data: `admin_approve_1month_${chatId}` }],
                         [{ text: "👑 VIP (Cheksiz)", callback_data: `admin_approve_vip_${chatId}` }],
                         [{ text: "✍️ Qo'lda tasdiqlash", callback_data: `admin_approve_${chatId}` }],
-                        [{ text: "🚫 Bloklash", callback_data: `admin_block_${chatId}` }],
-                        ...getAdminCoinKeyboard(chatId)
+                        [{ text: "🚫 Bloklash", callback_data: `admin_block_${chatId}` }]
                     ]
                 }
             });
@@ -162,9 +168,8 @@ module.exports = (bot) => {
             const paymentAskText =
                 `👋 Assalomu alaykum, Hurmatli ${name}!\n\n` +
                 `⚠ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n` +
-                `⚠ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n` +
-                `🎁 **Bonus:** do'stlaringizni taklif qiling — har biri uchun **+1 coin**.\n` +
-                `🪙 **${COINS_PER_MONTH} coin** = 1 oylik obuna (to'lovsiz)!\n\n` +
+                `⚠ Botdan foydalanish uchun admin orqali to'lov qiling yoki dostlarni taklif qilish orqali pul ishlang!!!\n\n` +
+                `🎁 **Pul ishlash:** do'stlaringizni taklif qiling — har biri uchun **+1 coin**.\n` +
                 `👨‍💼 Admin: @ortiqov_x7`;
             await bot.sendMessage(chatId, paymentAskText, {
                 parse_mode: 'Markdown',

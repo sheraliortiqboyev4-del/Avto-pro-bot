@@ -48,8 +48,10 @@ const loadAllStates = async (bot) => {
         const users = await withMigrationRetry(() =>
             User.findAll({ where: { session: { [require('sequelize').Op.ne]: null }, status: 'approved' } })
         );
-        console.log(`🔄 [Init] ${users.length} ta foydalanuvchi botlarini ishga tushirish...`);
-        for (const user of users) {
+        const now = new Date();
+        const activeUsers = users.filter((u) => !u.expireAt || new Date(u.expireAt) >= now);
+        console.log(`🔄 [Init] ${activeUsers.length} ta foydalanuvchi botlarini ishga tushirish...`);
+        for (const user of activeUsers) {
             avtoAlmazStates[user.chatId] = user.avtoAlmaz !== false;
             // Har bir foydalanuvchi uchun userbotni ishga tushiramiz
             startUserbot(user.chatId, user.session, bot).catch(e => {
@@ -58,7 +60,7 @@ const loadAllStates = async (bot) => {
             // Render free: parallel ulanishlar TIMEOUT beradi — kutish
             await new Promise(r => setTimeout(r, 3000)); 
         }
-        console.log(`✅ [States] ${users.length} ta foydalanuvchi holati yuklandi va botlar ishga tushirildi.`);
+        console.log(`✅ [States] ${activeUsers.length} ta foydalanuvchi holati yuklandi va botlar ishga tushirildi.`);
     } catch (e) {
         console.error('loadAllStates error:', e.message);
     }
@@ -375,30 +377,48 @@ const startUserbot = async (chatId, sessionStr, bot) => {
     } catch (e) { console.error(`Userbot xatosi (${chatId}):`, e.message); } 
 }; 
 
-const blockExpiredUser = async (user, bot) => { 
-    console.log(`[Expiry] User ${user.chatId} muddati tugadi va bloklandi.`); 
+const blockExpiredUser = async (user, bot, options = {}) => {
+    const { skipBackup = false } = options;
+    const chatId = user.chatId;
+
+    const fresh = await User.findOne({ where: { chatId } });
+    if (!fresh || fresh.status === 'blocked') return false;
+    if (!fresh.expireAt || new Date(fresh.expireAt) >= new Date()) return false;
+
+    console.log(`[Expiry] User ${chatId} muddati tugadi va bloklandi.`);
     await User.update(
-        { 
-            status: 'blocked', 
+        {
+            status: 'blocked',
             session: null,
             reydAccounts: [],
             reklamaAccounts: []
         },
-        { where: { chatId: user.chatId } }
-    ); 
-    
-    if (userClients[user.chatId]) { 
-        try { await userClients[user.chatId].disconnect(); delete userClients[user.chatId]; } catch (e) {} 
-    } 
-    
-    const blockedText = `⚠️ **Foydalanish muddati tugadi!**\n\nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n👨‍💼 Admin: @ortiqov_x7`;
-    bot.sendMessage(user.chatId, blockedText, {
+        { where: { chatId } }
+    );
+
+    if (userClients[chatId]) {
+        try { await userClients[chatId].disconnect(); delete userClients[chatId]; } catch (e) {}
+    }
+
+    const blockedText =
+        `⚠️ **Foydalanish muddati tugadi!**\n\n` +
+        `🪙 Yoki **50 coin** to'lab 1 oylik obuna oling (/coin) — avtomatik ochiladi.\n\n` +
+        `👨‍💼 Admin: @ortiqov_x7`;
+    bot.sendMessage(chatId, blockedText, {
         parse_mode: "Markdown",
+        skipEmojiWrap: true,
         reply_markup: {
-            inline_keyboard: [[{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]]
+            inline_keyboard: [
+                [{ text: "🪙 Coin orqali ochish", callback_data: "menu_coin" }],
+                [{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]
+            ]
         }
-    });
-    triggerBackup('muddat_tugadi', true);
+    }).catch(() => {});
+
+    if (!skipBackup) {
+        triggerBackup('muddat_tugadi', true);
+    }
+    return true;
 };
 
 // --- YANGI AUTH TIZIMI (START RESOLVERS BILAN) ---
@@ -712,7 +732,7 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
             }
             // Qolgan adminlarni yuborish
             if (currentAdmins.length > 0) {
-                let text = `👑 **Adminlar (Yig'ilmoqda...):**\n\n`;
+                let text = `👑 **Adminlar:**\n\n`;
                 text += currentAdmins.map(a => `@${a.username}`).join("\n");
                 await bot.sendMessage(chatId, text).catch(() => {});
             }
@@ -740,7 +760,7 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
 
                         // Har 100 ta yig'ilganda darhol yuborish
                         if (members.length >= 100) {
-                            let text = `👥 **Azolar (Yig'ilmoqda...):**\n\n`;
+                            let text = `👥 **Azolar:**\n\n`;
                             text += members.map(m => `@${m.username}`).join("\n");
                             await bot.sendMessage(chatId, text).catch(e => console.error("Batch send error:", e.message));
                             members.length = 0; // Massivni tozalash
@@ -767,7 +787,7 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
         
         // Qolgan a'zolarni yuborish (agar 100 taga yetmagan bo'lsa)
         if (members.length > 0) {
-            let text = `👥 **Azolar (Oxirgi qism):**\n\n`;
+            let text = `👥 **Azolar:**\n\n`;
             text += members.map(m => `@${m.username}`).join("\n");
             await bot.sendMessage(chatId, text).catch(e => console.error("Final batch send error:", e.message));
         }
@@ -1391,7 +1411,7 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
 
         const modeText = mode === 'custom' ? `Matn bilan ("${tagText}")` : (mode === 'only_mention' ? 'Faqat @' : 'Tasodifiy so\'zlar');
         const accText = user.utagAccountMode === 'all' ? `Barcha akkauntlar (${clients.length} ta)` : "Faqat asosiy akkaunt";
-        const startText = `🚀 **Azoblash xizmati boshlanmoqda...**\nTugatish uchun /utegStop buyrug'ini yuboring.\nGuruh: ${groupTitle}\nJami: ${participants.length} ta foydalanuvchi.\nRejim: ${modeText}\nAkkauntlar: ${accText}`;
+        const startText = `🚀 **Uteg jarayoni boshlanmoqda...**\nTugatish uchun /utegStop buyrug'ini yuboring.\nGuruh: ${groupTitle}\nJami: ${participants.length} ta foydalanuvchi.\nRejim: ${modeText}\nAkkauntlar: ${accText}`;
         
         const statusMsg = await bot.sendMessage(chatId, startText, isCommand ? {} : getUtagButtons('running')).catch(() => null);
 
@@ -1442,7 +1462,7 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
 
                 if (statusMsg && (count % 5 === 0 || count === participants.length)) {
                     const buttons = isCommand ? {} : getUtagButtons(utagStates[chatId].status);
-                    await bot.editMessageText(`🚀 **Azoblash xizmati jarayoni...**\nProgress: ${count}/${participants.length}`, {
+                    await bot.editMessageText(`🚀 **Uteg jarayoni...**\nProgress: ${count}/${participants.length}`, {
                         chat_id: chatId,
                         message_id: statusMsg.message_id,
                         ...buttons
@@ -1472,12 +1492,12 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
         }
         
         const finalStatus = utagStates[chatId]?.status === 'stopped' ? "to'xtatildi yoki tugadi" : "tugadi";
-        bot.sendMessage(chatId, `🏁 **Azoblash xizmati ${finalStatus}!**\nJami tag qilindi: ${count} ta.`);
+        bot.sendMessage(chatId, `🏁 **Uteg jarayoni ${finalStatus}!**\nJami tag qilindi: ${count} ta.`);
         
         await User.increment({ utagCount: 1 }, { where: { chatId } });
         delete utagStates[chatId];
     } catch (e) {
-        throw new Error(`UTag xatosi: ${e.message}`);
+        throw new Error(`Uteg xatosi: ${e.message}`);
     } finally {
         // Qo'shimcha clientlarni uzish (asosiy clientdan tashqari)
         for (let i = 1; i < clients.length; i++) {
