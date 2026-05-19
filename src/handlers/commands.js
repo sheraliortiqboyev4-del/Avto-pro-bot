@@ -121,16 +121,9 @@ module.exports = (bot) => {
     
         if (user.status === 'blocked') {
             const blockedText =
-                `⚠ Sizning foydalanish muddatingiz tugagan.\n\n` +
-                `🪙 **50 coin** to'lab 1 oylik obuna olsangiz (/coin) — avtomatik ochiladi.\n` +
-                `Yoki admin orqali to'lov qiling.\n\n👨‍💼 Admin: @ortiqov_x7`;
+                `⚠ Sizning foydalanish muddatingiz tugagan.\nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring va botni qayta ishga tushiring.\n\n👨‍💼 Admin: @ortiqov_x7`;
             bot.sendMessage(chatId, blockedText, {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "🪙 Coin orqali ochish", callback_data: "menu_coin" }],
-                        ...getPendingPaymentKeyboard().inline_keyboard
-                    ]
-                }
+                reply_markup: getPendingPaymentKeyboard()
             });
 
             // Adminga xabar yuborish

@@ -261,27 +261,16 @@ const buildCoinMessage = async (chatId) => {
         };
     }
 
-    const isBlocked = user?.status === 'blocked';
-
-    let text =
+    const text =
         `🪙 **Coinlar**\n\n` +
         `💰 Jami: **${coins}** coin\n` +
         `🎯 1 oylik obuna: **${COINS_PER_MONTH}** coin\n` +
         `📉 Yana kerak: **${need}** coin\n\n` +
         `Do'stlaringizni taklif qiling (/bonus) — har biri kanalga obuna bo'lgach **+1 coin**.`;
 
-    if (isBlocked) {
-        text +=
-            `\n\n🚫 **Hisobingiz bloklangan.**\n` +
-            `**${COINS_PER_MONTH} coin** to'lab 1 oylik obuna olsangiz, avtomatik **ochiladi** va zaxiraga saqlanadi.`;
-    }
-
     const buttons = [];
     if (coins >= COINS_PER_MONTH) {
-        const btnLabel = isBlocked
-            ? `🔓 Blokdan chiqish (${COINS_PER_MONTH} coin)`
-            : `✅ 1 oylik obunani sotib olish (${COINS_PER_MONTH} coin)`;
-        buttons.push([{ text: btnLabel, callback_data: 'coin_redeem_month' }]);
+        buttons.push([{ text: `✅ 1 oylik obunani sotib olish (${COINS_PER_MONTH} coin)`, callback_data: 'coin_redeem_month' }]);
     }
     buttons.push([{ text: '🔙 Orqaga', callback_data: 'menu_back_main' }]);
 
@@ -299,7 +288,6 @@ const redeemCoinsForMonth = async (bot, chatId) => {
         throw new Error(`Kamida ${COINS_PER_MONTH} coin kerak`);
     }
 
-    const wasBlocked = user.status === 'blocked';
     const now = new Date();
     let expireAt = now;
     if (user.expireAt && new Date(user.expireAt) > now) {
@@ -320,14 +308,10 @@ const redeemCoinsForMonth = async (bot, chatId) => {
         { where: { chatId } }
     );
 
-    await recordCoinTx(chatId, -COINS_PER_MONTH, 'redeem_month', {
-        expireAt,
-        wasBlocked,
-        unblocked: wasBlocked
-    });
-    triggerBackup(wasBlocked ? 'coin_redeem_blokdan_ochish' : 'coin_redeem', true);
+    await recordCoinTx(chatId, -COINS_PER_MONTH, 'redeem_month', { expireAt });
+    triggerBackup('coin_redeem', true);
 
-    return { newCoins, expireAt, wasBlocked };
+    return { newCoins, expireAt };
 };
 
 const getAdminBonusStats = async () => {

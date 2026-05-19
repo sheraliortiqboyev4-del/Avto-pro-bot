@@ -401,17 +401,12 @@ const blockExpiredUser = async (user, bot, options = {}) => {
     }
 
     const blockedText =
-        `⚠️ **Foydalanish muddati tugadi!**\n\n` +
-        `🪙 Yoki **50 coin** to'lab 1 oylik obuna oling (/coin) — avtomatik ochiladi.\n\n` +
-        `👨‍💼 Admin: @ortiqov_x7`;
+        `⚠️ **Foydalanish muddati tugadi!**\n\nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n👨‍💼 Admin: @ortiqov_x7`;
     bot.sendMessage(chatId, blockedText, {
         parse_mode: "Markdown",
         skipEmojiWrap: true,
         reply_markup: {
-            inline_keyboard: [
-                [{ text: "🪙 Coin orqali ochish", callback_data: "menu_coin" }],
-                [{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]
-            ]
+            inline_keyboard: [[{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]]
         }
     }).catch(() => {});
 
