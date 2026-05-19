@@ -218,7 +218,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
         // GramJS xatolarini ushlash
         client.on('error', (err) => {
             const msg = err.message || '';
-            if (msg.includes('Not connected') || msg.includes('TIMEOUT') || msg.includes('TIMEOUT')) {
+            if (msg.includes('Not connected') || msg.includes('TIMEOUT')) {
                 console.log(`[GramJS] User ${chatId}: ${msg} (qayta ulanish kutilmoqda)`);
             } else if (!msg.includes('FLOOD')) {
                 console.error(`[GramJS Error] User ${chatId}:`, msg);
