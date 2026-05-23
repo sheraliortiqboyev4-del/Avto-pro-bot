@@ -804,19 +804,6 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
 
 const reydSessions = {}; // { chatId: { status: 'running'|'stopped' } }
 
-/** Reyd: akkauntlar ko‘p bo‘lsa kechikish kam — sekundiga ko‘proq xabar */
-const getReydSendDelay = (clientCount, hasMedia) => {
-    if (hasMedia) {
-        if (clientCount >= 4) return 20;
-        if (clientCount >= 2) return 45;
-        return 90;
-    }
-    if (clientCount >= 5) return 0;
-    if (clientCount >= 3) return 8;
-    if (clientCount >= 2) return 18;
-    return 45;
-};
-
 const ensureClient = async (chatId, bot) => {
     if (userClients[chatId] && userClients[chatId].connected) return userClients[chatId];
     
@@ -982,9 +969,6 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
         }
     } catch (err) { console.error("Media yuklash xatosi:", err.message); }
 
-    const hasMedia = !!(reydMsg.sticker || reydMsg.photo || reydMsg.video);
-    const sendDelay = getReydSendDelay(clients.length, hasMedia);
-
     try {
         let currentClientIndex = 0;
 
@@ -1028,17 +1012,18 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
                 // Har bir xabardan keyin akkauntni almashtirish (Rotation)
                 currentClientIndex = (currentClientIndex + 1) % clients.length;
 
-                if (reydSessions[chatId].count % 25 === 0 || reydSessions[chatId].count === limit) {
-                    bot.editMessageText(`🚀 **Avto Reyd jarayoni...**\nNishon: ${target}\nProgress: ${reydSessions[chatId].count}/${limit}`, {
+                if (reydSessions[chatId].count % 10 === 0 || reydSessions[chatId].count === limit) {
+                    await bot.editMessageText(`🚀 **Avto Reyd jarayoni...**\nNishon: ${target}\nProgress: ${reydSessions[chatId].count}/${limit}`, {
                         chat_id: chatId,
                         message_id: statusMsg.message_id,
                         ...getReydButtons(reydSessions[chatId].status)
                     }).catch(() => {});
                 }
 
-                if (sendDelay > 0) {
-                    await new Promise(r => setTimeout(r, sendDelay));
-                }
+                // Super tezlik uchun kechikishni 50ms ga tushiramiz (1 sekunda 20 ta xabar nazariy)
+                // Lekin bitta akkaunt uchun FloodWait tushmaslik uchun akkauntlar soniga qarab sozlanadi
+                const delay = clients.length > 1 ? 50 : 150;
+                await new Promise(r => setTimeout(r, delay)); 
 
             } catch (e) {
                 if (e.message.includes("FLOOD_WAIT_")) {
