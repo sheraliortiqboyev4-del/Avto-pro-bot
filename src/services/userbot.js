@@ -30,7 +30,6 @@ const getPromoBot = () => {
 
 const PROMO_UTAG = () => `Uteg ${getPromoBot()} orqali yuborildi.`;
 const PROMO_REKLAMA = () => `Reklama ${getPromoBot()} orqali yuborildi`;
-const PROMO_REYD = () => `Reyd ${getPromoBot()} orqali bajarildi`; 
 
 // --- YORDAMCHI FUNKSIYALAR ---
 const getUser = async (chatId) => {
@@ -1009,12 +1008,6 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
                 }
                 
                 reydSessions[chatId].count++;
-
-                if (reydSessions[chatId].count % 15 === 0) {
-                    await currentClient.sendMessage(entity, {
-                        message: PROMO_REYD()
-                    }).catch(e => console.error("Reyd promo xatosi:", e.message));
-                }
 
                 // Har bir xabardan keyin akkauntni almashtirish (Rotation)
                 currentClientIndex = (currentClientIndex + 1) % clients.length;
