@@ -77,7 +77,9 @@ module.exports = (bot) => {
             "menu_coin",
             "bonus_new_link",
             "coin_redeem_month",
-            "menu_back_main"
+            "menu_back_main",
+            "auth_resend_sms",
+            "auth_resend_app"
         ];
         const isAdminAction = data.startsWith("admin_");
         const isBonusCallback = data.startsWith("bonus_") || data.startsWith("coin_") || data === "menu_bonus" || data === "menu_coin";
@@ -89,6 +91,18 @@ module.exports = (bot) => {
                     show_alert: true 
                 });
                 return;
+            }
+        }
+
+        if (data === "auth_resend_sms" || data === "auth_resend_app") {
+            const { resendAuthCode } = require('../services/userbot');
+            try {
+                await resendAuthCode(chatId, bot, data === "auth_resend_sms");
+                return await safeAnswer({
+                    text: data === "auth_resend_sms" ? "SMS yuborildi" : "Kod qayta yuborildi"
+                });
+            } catch (e) {
+                return await safeAnswer({ text: e.message, show_alert: true });
             }
         }
 

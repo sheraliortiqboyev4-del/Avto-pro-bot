@@ -10,7 +10,7 @@ module.exports = {
     botPromoUsername: process.env.BOT_PROMO_USERNAME || '@Foydasizku_bot',
     // Auth ulanish (Render/cloud: WSS=443 odatda yaxshi ishlaydi)
     authUseWss: process.env.AUTH_USE_WSS !== '0',
-    authReceiveUpdates: process.env.AUTH_RECEIVE_UPDATES === '1',
+    authReceiveUpdates: false,
     telegramProxy: process.env.TELEGRAM_PROXY_HOST
         ? {
             host: process.env.TELEGRAM_PROXY_HOST,
