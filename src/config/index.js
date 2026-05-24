@@ -8,6 +8,16 @@ module.exports = {
     databaseUrl: process.env.DATABASE_URL, 
     port: process.env.PORT || 3000,
     botPromoUsername: process.env.BOT_PROMO_USERNAME || '@Foydasizku_bot',
+    // Auth ulanish (Render/cloud: WSS=443 odatda yaxshi ishlaydi)
+    authUseWss: process.env.AUTH_USE_WSS !== '0',
+    authReceiveUpdates: process.env.AUTH_RECEIVE_UPDATES === '1',
+    telegramProxy: process.env.TELEGRAM_PROXY_HOST
+        ? {
+            host: process.env.TELEGRAM_PROXY_HOST,
+            port: parseInt(process.env.TELEGRAM_PROXY_PORT || '443', 10),
+            secret: process.env.TELEGRAM_PROXY_SECRET || ''
+        }
+        : null,
     // Eski BOT_USERNAME referralga ta'sir qilmaydi — bonus.js da REFERRAL_BOT_USERNAME
     // BACKUP_SECRET — zaxira shifrlash (kamida 16 belgi, Render .env ga qo'shing)
     channels: [
