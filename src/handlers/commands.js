@@ -66,7 +66,7 @@ module.exports = (bot) => {
         const prefix = extraText ? `${extraText}\n\n` : '';
         await bot.sendMessage(
             chatId,
-            `${prefix}🎁 **Bonus:** do'stlarni taklif qiling — /bonus\n🪙 **Coin:** yig'ing va 50 coinda 1 oy oling — /coin`,
+            `${prefix}🎁 **Bonus:** do'stlarni taklif qiling — /bonus`,
             { parse_mode: 'Markdown', ...bonusExtrasKeyboard() }
         ).catch(() => {});
     };

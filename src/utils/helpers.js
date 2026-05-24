@@ -329,7 +329,7 @@ function getMainMenu(chatId) {
                 [{ text: "💎 Avto Almaz", callback_data: "menu_almaz" }, { text: "🏷 Avto UTag", callback_data: "menu_utag" }],
                 [{ text: "👤 AvtoUser", callback_data: "menu_avtouser" }, { text: "⚔️ Avto Reyd", callback_data: "menu_reyd" }],
                 [{ text: "📣 Avto Reklama", callback_data: "menu_reklama" }, { text: "📊 Profil", callback_data: "menu_profile" }],
-                [{ text: "🎁 Bonus", callback_data: "menu_bonus" }, { text: "🪙 Coin", callback_data: "menu_coin" }],
+                [{ text: "🎁 Bonus", callback_data: "menu_bonus" }],
                 [{ text: "🔄 Nomer almashtirish", callback_data: "menu_logout" }],
                 lastRow
             ]
@@ -425,10 +425,7 @@ const isUserAdmin = async (bot, chatId, userId) => {
 };
 
 function getBonusCoinRow() {
-    return [
-        { text: "🎁 Bonus", callback_data: "menu_bonus" },
-        { text: "🪙 Coin", callback_data: "menu_coin" }
-    ];
+    return [{ text: "🎁 Bonus", callback_data: "menu_bonus" }];
 }
 
 function getPendingPaymentKeyboard() {

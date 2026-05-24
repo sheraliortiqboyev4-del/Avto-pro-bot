@@ -222,7 +222,7 @@ module.exports = (bot) => {
         if (data === "menu_back_main") {
             const u = await User.findOne({ where: { chatId } });
             if (!u || !u.session) {
-                await safeEdit(chatId, messageId, "📋 **Menyu:**\n\nBonus va Coin bo'limlari:", {
+                await safeEdit(chatId, messageId, "📋 **Menyu:**\n\nBonus bo'limi:", {
                     parse_mode: "Markdown",
                     reply_markup: { inline_keyboard: [getBonusCoinRow()] }
                 });
@@ -650,6 +650,29 @@ module.exports = (bot) => {
         }
 
         if (data === "menu_logout") {
+            await safeAnswer();
+            return bot.sendMessage(
+                chatId,
+                "⚠️ **Nomer almashtirish**\n\nJoriy akkauntdan chiqasiz. Tasdiqlaysizmi?",
+                {
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "✅ Ha, chiqish", callback_data: "logout_confirm" }],
+                            [{ text: "❌ Bekor", callback_data: "logout_cancel" }]
+                        ]
+                    }
+                }
+            );
+        }
+
+        if (data === "logout_cancel") {
+            await safeAnswer({ text: "Bekor qilindi" });
+            try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
+            return bot.sendMessage(chatId, "📋 **Asosiy menyu:**", { parse_mode: "Markdown", ...getMainMenu(chatId) });
+        }
+
+        if (data === "logout_confirm") {
             await User.update({ session: null }, { where: { chatId } });
             triggerBackup('logout', true);
             const { userClients } = require('../services/userbot');
@@ -657,8 +680,9 @@ module.exports = (bot) => {
                 try { await userClients[chatId].disconnect(); } catch (e) {}
                 delete userClients[chatId];
             }
-            bot.sendMessage(chatId, "🔄 Hisobdan chiqildi. Qayta kirish uchun /start bosing.");
-            return await safeAnswer();
+            try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
+            await safeAnswer({ text: "Hisobdan chiqildi" });
+            return bot.sendMessage(chatId, "🔄 Hisobdan chiqildi. Qayta kirish uchun /start bosing.");
         }
 
         if (data === "menu_profile") {
