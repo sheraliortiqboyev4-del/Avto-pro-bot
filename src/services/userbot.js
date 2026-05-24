@@ -132,9 +132,9 @@ const startUserbot = async (chatId, sessionStr, bot) => {
             timeout: 60000, // Timeoutni 1 daqiqaga kamaytiramiz (render uchun qulayroq)
             autoReconnect: true,
             floodSleepThreshold: 300, // Flood wait uchun 5 daqiqagacha avtomatik kutishga ruxsat beramiz
-            deviceModel: "AvtoBotPro_v2",
-            systemVersion: "Windows 11",
-            appVersion: "1.0.0",
+            deviceModel: "Iphone 17 Pro Max",
+            systemVersion: "IOS 26.1",
+            appVersion: "18.7.9",
             useWSS: false,
             proxy: undefined
         }); 
