@@ -450,16 +450,18 @@ function getAdminCoinKeyboard(targetId) {
     ];
 }
 
-/** AvtoUser: Telegram ichki guruh tanlash (request_chat, rasmdagidek) */
+/** Guruh tanlash (request_chat) — har bir funksiya uchun alohida request_id */
 const SCRAPE_CHAT_REQUEST_ID = 1;
+const REYD_CHAT_REQUEST_ID = 2;
+const UTAG_CHAT_REQUEST_ID = 3;
 
-function getAvtoUserGroupPickerKeyboard() {
+function getGroupPickerKeyboard(requestId) {
     return {
         keyboard: [
             [{
                 text: '👥 Guruh',
                 request_chat: {
-                    request_id: SCRAPE_CHAT_REQUEST_ID,
+                    request_id: requestId,
                     chat_is_channel: false,
                     chat_is_forum: false,
                     bot_is_member: false
@@ -470,6 +472,38 @@ function getAvtoUserGroupPickerKeyboard() {
         one_time_keyboard: true,
         is_persistent: false
     };
+}
+
+function getAvtoUserGroupPickerKeyboard() {
+    return getGroupPickerKeyboard(SCRAPE_CHAT_REQUEST_ID);
+}
+
+function getPhoneShareKeyboard() {
+    return {
+        keyboard: [[{ text: '📱 Telefon raqamni ulashish', request_contact: true }]],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+        is_persistent: false
+    };
+}
+
+function parseSharedGroup(chatShared) {
+    return {
+        id: String(chatShared.chat_id),
+        title: chatShared.title || chatShared.username || 'Guruh'
+    };
+}
+
+function normalizePhoneInput(input) {
+    let phoneNumber = String(input).replace(/\s+/g, '').replace(/[^\d+]/g, '');
+    if (!phoneNumber.startsWith('+')) {
+        if (phoneNumber.length === 9) {
+            phoneNumber = '+998' + phoneNumber;
+        } else if (phoneNumber.length === 12) {
+            phoneNumber = '+' + phoneNumber;
+        }
+    }
+    return phoneNumber;
 }
 
 function removeKeyboardMarkup() {
@@ -498,8 +532,14 @@ module.exports = {
     getPendingPaymentKeyboard,
     getAdminCoinKeyboard,
     getAvtoUserGroupPickerKeyboard,
+    getGroupPickerKeyboard,
+    getPhoneShareKeyboard,
+    parseSharedGroup,
+    normalizePhoneInput,
     removeKeyboardMarkup,
     SCRAPE_CHAT_REQUEST_ID,
+    REYD_CHAT_REQUEST_ID,
+    UTAG_CHAT_REQUEST_ID,
     isUserAdmin,
     EMOJI_MAP
 };

@@ -9,7 +9,12 @@ const {
     sendSubscriptionAsk,
     normalizeTelegramUrl,
     SCRAPE_CHAT_REQUEST_ID,
-    removeKeyboardMarkup
+    REYD_CHAT_REQUEST_ID,
+    UTAG_CHAT_REQUEST_ID,
+    parseSharedGroup,
+    normalizePhoneInput,
+    removeKeyboardMarkup,
+    getPhoneShareKeyboard
 } = require('../utils/helpers');
 const { triggerBackup } = require('../utils/dbBackup');
 const { adminSetCoins, adminAdjustCoins } = require('../services/bonus');
@@ -50,29 +55,29 @@ module.exports = (bot) => {
 
         // Auth logic
         if (state.step === 'WAITING_PHONE') {
-            if (!text) return;
+            let phoneRaw = null;
+            if (msg.contact && msg.contact.phone_number) {
+                phoneRaw = msg.contact.phone_number;
+            } else if (text) {
+                phoneRaw = text;
+            }
+            if (!phoneRaw) return;
             try {
-                // Telefon raqamini tozalash: barcha bo'sh joylar va raqam bo'lmagan belgilarni olib tashlash (faqat + saqlanadi)
-                let phoneNumber = text.replace(/\s+/g, '').replace(/[^\d+]/g, '');
-                
-                // Agar raqam + bilan boshlanmasa va uzunligi 9 bo'lsa (masalan 990001122), +998 qo'shish
-                if (!phoneNumber.startsWith('+')) {
-                    if (phoneNumber.length === 9) {
-                        phoneNumber = '+998' + phoneNumber;
-                    } else if (phoneNumber.length === 12) {
-                        phoneNumber = '+' + phoneNumber;
-                    }
-                }
-
+                const phoneNumber = normalizePhoneInput(phoneRaw);
                 if (phoneNumber.length < 7) throw new Error("Noto'g'ri telefon raqami. Iltimos, xalqaro formatda kiriting (Masalan: +998991234567)");
 
                 const isAdditional = state.isAdditional || false;
                 const isReyd = state.isReyd || false;
                 await initAuth(chatId, phoneNumber, bot, isAdditional, isReyd);
                 global.userStates[chatId] = { step: 'WAITING_CODE', phoneNumber, isAdditional, isReyd };
-                bot.sendMessage(chatId, "📩 Telegramdan kelgan kodni orasiga nuqta qo'yib yuboring (Masalan: 12.345):", { parse_mode: "Markdown" });
+                bot.sendMessage(chatId, "📩 Telegramdan kelgan kodni orasiga nuqta qo'yib yuboring (Masalan: 12.345):", {
+                    parse_mode: "Markdown",
+                    ...removeKeyboardMarkup()
+                });
             } catch (e) {
-                bot.sendMessage(chatId, `❌ Xatolik: ${e.message}\n\nQayta urinib ko'ring (Telefon raqam yuboring):`);
+                bot.sendMessage(chatId, `❌ Xatolik: ${e.message}\n\nQayta urinib ko'ring (Telefon raqam yuboring):`, {
+                    reply_markup: getPhoneShareKeyboard()
+                });
             }
             return;
         }
@@ -210,9 +215,7 @@ module.exports = (bot) => {
         // Features logic
         if (state.step === 'WAITING_SCRAPE_LINK') {
             if (msg.chat_shared && msg.chat_shared.request_id === SCRAPE_CHAT_REQUEST_ID) {
-                const shared = msg.chat_shared;
-                const groupId = String(shared.chat_id);
-                const title = shared.title || shared.username || groupId;
+                const { id: groupId, title } = parseSharedGroup(msg.chat_shared);
                 global.userStates[chatId] = { step: 'WAITING_SCRAPE_LIMIT', groupLink: groupId };
                 await bot.sendMessage(
                     chatId,
@@ -248,9 +251,16 @@ module.exports = (bot) => {
         }
 
         if (state.step === 'WAITING_REYD_TARGET') {
+            if (msg.chat_shared && msg.chat_shared.request_id === REYD_CHAT_REQUEST_ID) {
+                const { id, title } = parseSharedGroup(msg.chat_shared);
+                global.userStates[chatId] = { ...state, step: 'WAITING_REYD_TEXT', target: id, groupTitle: title };
+                await bot.sendMessage(chatId, "📩 Reyd xabarini (matn yoki stiker) yuboring:", removeKeyboardMarkup());
+                return;
+            }
             if (!text) return;
-            global.userStates[chatId] = { step: 'WAITING_REYD_TEXT', target: text };
-            bot.sendMessage(chatId, "📩 Reyd xabarini (matn yoki stiker) yuboring:");
+            global.userStates[chatId] = { ...state, step: 'WAITING_REYD_TEXT', target: text.trim() };
+            await bot.sendMessage(chatId, "📩 Reyd xabarini (matn yoki stiker) yuboring:", removeKeyboardMarkup());
+            return;
         } else if (state.step === 'WAITING_REYD_TEXT') {
             let stickerPath = null;
             if (msg.sticker) {
@@ -272,7 +282,7 @@ module.exports = (bot) => {
             global.userStates[chatId] = { ...reydData, step: 'CONFIRM_REYD' };
             
             const reydInfo = `🛡 **Reyd Ma'lumotlari:**\n\n` +
-                `📍 Nishon: ${reydData.target}\n` +
+                `📍 Nishon: ${reydData.groupTitle || reydData.target}\n` +
                 `🔢 Soni: ${reydData.limit} ta\n` +
                 `📩 Xabar turi: ${reydData.reydMsg.sticker ? "Stiker" : "Matn"}\n\n` +
                 `Tayyormisiz? "Boshlash" tugmasini bosing.`;
@@ -312,8 +322,15 @@ module.exports = (bot) => {
         }
 
         if (state.step === 'WAITING_UTAG_LINK') {
-            global.userStates[chatId] = { ...state, step: 'WAITING_UTAG_LIMIT', groupLink: text };
-            bot.sendMessage(chatId, "🔢 Nechta odamni Utag qilmoqchisiz? :");
+            if (msg.chat_shared && msg.chat_shared.request_id === UTAG_CHAT_REQUEST_ID) {
+                const { id, title } = parseSharedGroup(msg.chat_shared);
+                global.userStates[chatId] = { ...state, step: 'WAITING_UTAG_LIMIT', groupLink: id, groupTitle: title };
+                await bot.sendMessage(chatId, "🔢 Nechta odamni Utag qilmoqchisiz? :", removeKeyboardMarkup());
+                return;
+            }
+            if (!text) return;
+            global.userStates[chatId] = { ...state, step: 'WAITING_UTAG_LIMIT', groupLink: text.trim() };
+            await bot.sendMessage(chatId, "🔢 Nechta odamni Utag qilmoqchisiz? :", removeKeyboardMarkup());
             return;
         } 
         

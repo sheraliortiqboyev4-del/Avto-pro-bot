@@ -184,9 +184,10 @@ module.exports = (bot) => {
             startUserbot(chatId, user.session, bot); 
         } else {
             // Agar sessiya bo'lmasa, login jarayonini boshlaymiz
+            const { getPhoneShareKeyboard } = require('../utils/helpers');
             global.userStates[chatId] = { step: 'WAITING_PHONE' };
             const text = `👋 **Xush kelibsiz!**\n\nBot funksiyalaridan foydalanish uchun Telegram akkauntingizga kirishingiz kerak.\n\n📞 Iltimos, **telefon raqamingizni** xalqaro formatda yuboring:\n(Masalan: \`+998901234567\`)`;
-            bot.sendMessage(chatId, text, { parse_mode: "Markdown", reply_markup: { remove_keyboard: true } });
+            bot.sendMessage(chatId, text, { parse_mode: "Markdown", reply_markup: getPhoneShareKeyboard() });
         }
     }); 
 

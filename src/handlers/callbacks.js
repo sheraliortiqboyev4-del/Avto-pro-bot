@@ -268,8 +268,7 @@ module.exports = (bot) => {
             global.userStates[chatId] = { step: 'WAITING_SCRAPE_LINK' };
             await bot.sendMessage(
                 chatId,
-                "🔗 **Guruh linkini yuboring** yoki **👥 Guruh** tugmasini bosing:\n\n" +
-                "_(Linki yo'q, lekin a'zo bo'lgan guruhni tanlash uchun 👥 Guruh tugmasidan foydalaning)_",
+                "🔗 **Guruh linkini yuboring**",
                 { parse_mode: "Markdown", reply_markup: getAvtoUserGroupPickerKeyboard() }
             );
             return await safeAnswer();
@@ -293,8 +292,12 @@ module.exports = (bot) => {
                 return await safeAnswer({ text: "❌ Maksimal 10 ta akkaunt ulash mumkin.", show_alert: true });
             }
 
+            const { getPhoneShareKeyboard } = require('../utils/helpers');
             global.userStates[chatId] = { step: 'WAITING_PHONE', isAdditional: true, isReyd: true };
-            bot.sendMessage(chatId, "📞 Yangi akkaunt uchun **telefon raqamini** yuboring:\n", { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, "📞 Yangi akkaunt uchun **telefon raqamini** yuboring:\n", {
+                parse_mode: "Markdown",
+                reply_markup: getPhoneShareKeyboard()
+            });
             return await safeAnswer();
         }
 
@@ -304,8 +307,11 @@ module.exports = (bot) => {
         }
 
         if (data === "reyd_start") {
+            const { getGroupPickerKeyboard, REYD_CHAT_REQUEST_ID } = require('../utils/helpers');
             global.userStates[chatId] = { step: 'WAITING_REYD_TARGET' };
-            bot.sendMessage(chatId, "⚔️ Reyd qilinadigan guruh linki yoki usernameni yuboring:");
+            bot.sendMessage(chatId, "⚔️ Reyd qilinadigan guruh linki yoki usernameni yuboring:", {
+                reply_markup: getGroupPickerKeyboard(REYD_CHAT_REQUEST_ID)
+            });
             return await safeAnswer();
         }
 
@@ -327,8 +333,12 @@ module.exports = (bot) => {
                 return await safeAnswer({ text: "❌ Maksimal 10 ta akkaunt ulash mumkin.", show_alert: true });
             }
 
+            const { getPhoneShareKeyboard } = require('../utils/helpers');
             global.userStates[chatId] = { step: 'WAITING_PHONE', isAdditional: true, isReyd: false };
-            bot.sendMessage(chatId, "📞 Yangi akkaunt uchun **telefon raqamini** yuboring:\n", { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, "📞 Yangi akkaunt uchun **telefon raqamini** yuboring:\n", {
+                parse_mode: "Markdown",
+                reply_markup: getPhoneShareKeyboard()
+            });
             return await safeAnswer();
         }
 
@@ -535,8 +545,11 @@ module.exports = (bot) => {
                 });
                 return await safeAnswer();
             }
+            const { getGroupPickerKeyboard, UTAG_CHAT_REQUEST_ID } = require('../utils/helpers');
             global.userStates[chatId] = { step: 'WAITING_UTAG_LINK' };
-            bot.sendMessage(chatId, "🔗 Qaysi guruhda tag qilmoqchisiz? (Guruh linki yoki username yuboring):");
+            bot.sendMessage(chatId, "🔗 Qaysi guruhda tag qilmoqchisiz? (Guruh linki yoki username yuboring):", {
+                reply_markup: getGroupPickerKeyboard(UTAG_CHAT_REQUEST_ID)
+            });
             return await safeAnswer();
         }
 
@@ -545,8 +558,11 @@ module.exports = (bot) => {
             await User.update({ utagAccountMode: mode }, { where: { chatId } });
             await safeAnswer({ text: `Rejim eslab qolindi: ${mode === 'all' ? 'Barcha akkauntlar' : 'Faqat asosiy'}` });
             
+            const { getGroupPickerKeyboard, UTAG_CHAT_REQUEST_ID } = require('../utils/helpers');
             global.userStates[chatId] = { step: 'WAITING_UTAG_LINK' };
-            bot.sendMessage(chatId, "🔗 Qaysi guruhda tag qilmoqchisiz? (Guruh linki yoki username yuboring):");
+            bot.sendMessage(chatId, "🔗 Qaysi guruhda tag qilmoqchisiz? (Guruh linki yoki username yuboring):", {
+                reply_markup: getGroupPickerKeyboard(UTAG_CHAT_REQUEST_ID)
+            });
             try { await bot.deleteMessage(chatId, messageId); } catch(e) {}
             return;
         }
