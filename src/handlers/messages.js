@@ -3,7 +3,14 @@ const path = require('path');
 const User = require('../models/User');
 const Channel = require('../models/Channel');
 const config = require('../config');
-const { parseTime, checkMembership, sendSubscriptionAsk, normalizeTelegramUrl } = require('../utils/helpers');
+const {
+    parseTime,
+    checkMembership,
+    sendSubscriptionAsk,
+    normalizeTelegramUrl,
+    SCRAPE_CHAT_REQUEST_ID,
+    removeKeyboardMarkup
+} = require('../utils/helpers');
 const { triggerBackup } = require('../utils/dbBackup');
 const { adminSetCoins, adminAdjustCoins } = require('../services/bonus');
 const { initAuth, handleAuthStep, scrapeUsers, startReyd, startReklama, startAutoTag } = require('../services/userbot');
@@ -202,9 +209,60 @@ module.exports = (bot) => {
 
         // Features logic
         if (state.step === 'WAITING_SCRAPE_LINK') {
+            if (msg.chat_shared && msg.chat_shared.request_id === SCRAPE_CHAT_REQUEST_ID) {
+                const shared = msg.chat_shared;
+                const groupId = String(shared.chat_id);
+                const title = shared.title || shared.username || groupId;
+                global.userStates[chatId] = { step: 'WAITING_SCRAPE_LIMIT', groupLink: groupId, groupTitle: title };
+                await bot.sendMessage(
+                    chatId,
+                    `✅ **${title}** tanlandi.\n🆔 ID: \`${groupId}\`\n\n🔢 Nechta user yig'moqchisiz? (maksimum 2000):`,
+                    { parse_mode: "Markdown", ...removeKeyboardMarkup() }
+                );
+                return;
+            }
+
+            if (text === '❌ Bekor qilish') {
+                delete global.userStates[chatId];
+                const { getMainMenu } = require('../utils/helpers');
+                await bot.sendMessage(chatId, "❌ Bekor qilindi.", { ...removeKeyboardMarkup(), ...getMainMenu(chatId) });
+                return;
+            }
+
+            if (text === '📋 Akkaunt guruhlari') {
+                const { listUserbotGroups } = require('../services/userbot');
+                try {
+                    const groups = await listUserbotGroups(chatId, bot);
+                    if (!groups.length) {
+                        return bot.sendMessage(chatId, "⚠️ Ulangan akkauntda guruh topilmadi.");
+                    }
+                    const PAGE_SIZE = 8;
+                    const slice = groups.slice(0, PAGE_SIZE);
+                    const buttons = slice.map((g) => [{
+                        text: g.title,
+                        callback_data: `scrape_group_${g.id}`
+                    }]);
+                    if (groups.length > PAGE_SIZE) {
+                        buttons.push([{ text: "▶️ Keyingi", callback_data: "avtouser_groups_1" }]);
+                    }
+                    buttons.push([{ text: "🔙 Orqaga", callback_data: "menu_avtouser" }]);
+                    return bot.sendMessage(
+                        chatId,
+                        `📋 **Ulangan akkaunt guruhlari** (${groups.length} ta)\nTanlang:`,
+                        { parse_mode: "Markdown", reply_markup: { inline_keyboard: buttons } }
+                    );
+                } catch (e) {
+                    return bot.sendMessage(chatId, "❌ Guruhlar ro'yxatini olishda xatolik: " + e.message);
+                }
+            }
+
             if (!text) return;
-            global.userStates[chatId] = { step: 'WAITING_SCRAPE_LIMIT', groupLink: text };
-            bot.sendMessage(chatId, "🔢 Nechta User yig'moqchisiz? (Maximum 2000):", { parse_mode: "Markdown" });
+            global.userStates[chatId] = { step: 'WAITING_SCRAPE_LIMIT', groupLink: text.trim() };
+            await bot.sendMessage(
+                chatId,
+                "🔢 Nechta user yig'moqchisiz? (maksimum 2000):",
+                { parse_mode: "Markdown", ...removeKeyboardMarkup() }
+            );
             return;
         }
 

@@ -663,37 +663,63 @@ const handleAuthStep = async (chatId, input) => {
 };
 
 // --- FEATURE FUNCTIONS ---
+const resolveScrapeEntity = async (client, groupLink) => {
+    const raw = String(groupLink).trim();
+    if (/^-?\d+$/.test(raw)) {
+        return await client.getEntity(BigInt(raw));
+    }
+    if (raw.includes("t.me/+") || raw.includes("joinchat/")) {
+        const hash = raw.split('/').pop().replace('+', '');
+        try {
+            const result = await client.invoke(new Api.messages.ImportChatInvite({ hash }));
+            return result.chats ? result.chats[0] : result.chat;
+        } catch (err) {
+            if (err.message.includes("USER_ALREADY_PARTICIPANT")) {
+                const check = await client.invoke(new Api.messages.CheckChatInvite({ hash }));
+                return check.chat;
+            }
+            throw err;
+        }
+    }
+    try {
+        const entity = await client.getEntity(raw);
+        await client.invoke(new Api.channels.JoinChannel({ channel: entity }));
+        return entity;
+    } catch (err) {
+        if (!err.message.includes("USER_ALREADY_PARTICIPANT")) {
+            return await client.getEntity(raw);
+        }
+        return await client.getEntity(raw);
+    }
+};
+
+const listUserbotGroups = async (chatId, bot) => {
+    const client = await ensureClient(chatId, bot);
+    const dialogs = await client.getDialogs({ limit: 300 });
+    const groups = [];
+    const seen = new Set();
+    for (const d of dialogs) {
+        const isGroup = d.isGroup || (d.isChannel && d.entity?.megagroup);
+        if (!isGroup || !d.id) continue;
+        const id = d.id.toString();
+        if (seen.has(id)) continue;
+        seen.add(id);
+        groups.push({
+            id,
+            title: (d.title || d.name || 'Guruh').slice(0, 40)
+        });
+    }
+    groups.sort((a, b) => a.title.localeCompare(b.title, 'uz'));
+    return groups;
+};
+
 const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
     const client = await ensureClient(chatId, bot);
     const me = await client.getMe();
     const myId = me.id;
     
     try {
-        let entity;
-        // 1. Guruhga ulanish
-        if (groupLink.includes("t.me/+") || groupLink.includes("joinchat/")) {
-            const hash = groupLink.split('/').pop().replace('+', '');
-            try {
-                const result = await client.invoke(new Api.messages.ImportChatInvite({ hash }));
-                entity = result.chats ? result.chats[0] : result.chat;
-            } catch (err) {
-                if (err.message.includes("USER_ALREADY_PARTICIPANT")) {
-                    const check = await client.invoke(new Api.messages.CheckChatInvite({ hash }));
-                    entity = check.chat;
-                } else { throw err; }
-            }
-        } else {
-            try {
-                entity = await client.getEntity(groupLink);
-                await client.invoke(new Api.channels.JoinChannel({ channel: entity }));
-            } catch (err) {
-                if (!err.message.includes("USER_ALREADY_PARTICIPANT")) {
-                    // Agar getEntity ishlamasa yoki boshqa xato bo'lsa
-                    entity = await client.getEntity(groupLink);
-                }
-            }
-        }
-
+        const entity = await resolveScrapeEntity(client, groupLink);
         if (!entity) throw new Error("Guruh topilmadi.");
 
         const statusMsg = await bot.sendMessage(chatId, "⏳ **Userlarni yig'ish boshlandi...**\nIltimos, jarayon tugashini kuting.", { parse_mode: "Markdown" });
@@ -1496,5 +1522,5 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
 
 module.exports = { 
     userClients, avtoAlmazStates, utagStates, reklamaStates, reydSessions, startUserbot, blockExpiredUser,
-    initAuth, handleAuthStep, scrapeUsers, startReyd, startReklama, startAutoTag, loadAllStates
+    initAuth, handleAuthStep, scrapeUsers, listUserbotGroups, startReyd, startReklama, startAutoTag, loadAllStates
 };

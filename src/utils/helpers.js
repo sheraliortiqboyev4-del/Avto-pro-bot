@@ -450,6 +450,45 @@ function getAdminCoinKeyboard(targetId) {
     ];
 }
 
+/** AvtoUser: Telegram ichki guruh tanlash oynasi (request_chat) */
+const SCRAPE_CHAT_REQUEST_ID = 1;
+
+function getAvtoUserGroupPickerKeyboard() {
+    return {
+        keyboard: [
+            [{
+                text: '👥 Guruh tanlash',
+                request_chat: {
+                    request_id: SCRAPE_CHAT_REQUEST_ID,
+                    chat_is_channel: false,
+                    chat_is_forum: false,
+                    bot_is_member: false
+                }
+            }],
+            [{ text: '📋 Akkaunt guruhlari' }],
+            [{ text: '❌ Bekor qilish' }]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+        is_persistent: false
+    };
+}
+
+function getAvtoUserPickExtrasKeyboard() {
+    return {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '📋 Ulangan akkaunt guruhlari', callback_data: 'avtouser_groups_0' }],
+                [{ text: '🔙 Orqaga', callback_data: 'menu_back_main' }]
+            ]
+        }
+    };
+}
+
+function removeKeyboardMarkup() {
+    return { reply_markup: { remove_keyboard: true } };
+}
+
 module.exports = { 
     escapeMarkdown, 
     escapeHTML,
@@ -471,6 +510,10 @@ module.exports = {
     getBonusCoinRow,
     getPendingPaymentKeyboard,
     getAdminCoinKeyboard,
+    getAvtoUserGroupPickerKeyboard,
+    getAvtoUserPickExtrasKeyboard,
+    removeKeyboardMarkup,
+    SCRAPE_CHAT_REQUEST_ID,
     isUserAdmin,
     EMOJI_MAP
 };
