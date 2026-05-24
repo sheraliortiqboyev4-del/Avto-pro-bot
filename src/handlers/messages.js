@@ -70,10 +70,6 @@ module.exports = (bot) => {
                 const isReyd = state.isReyd || false;
                 await initAuth(chatId, phoneNumber, bot, isAdditional, isReyd);
                 global.userStates[chatId] = { step: 'WAITING_CODE', phoneNumber, isAdditional, isReyd };
-                bot.sendMessage(chatId, "📩 Telegramdan kelgan kodni orasiga nuqta qo'yib yuboring (Masalan: 12.345):", {
-                    parse_mode: "Markdown",
-                    ...removeKeyboardMarkup()
-                });
             } catch (e) {
                 bot.sendMessage(chatId, `❌ Xatolik: ${e.message}\n\nQayta urinib ko'ring (Telefon raqam yuboring):`, {
                     reply_markup: getPhoneShareKeyboard()
@@ -85,7 +81,7 @@ module.exports = (bot) => {
         if (state.step === 'WAITING_CODE' || state.step === 'WAITING_PASSWORD') {
             if (!text) return;
             try {
-                await handleAuthStep(chatId, text);
+                await handleAuthStep(chatId, text, bot);
             } catch (e) {
                 if (e.message === "AUTH_NOT_FOUND") {
                     bot.sendMessage(chatId, "❌ Sessiya topilmadi. Iltimos, /start bosing.");
