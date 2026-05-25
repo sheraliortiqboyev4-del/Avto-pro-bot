@@ -14,7 +14,9 @@ const {
     parseSharedGroup,
     normalizePhoneInput,
     removeKeyboardMarkup,
-    getPhoneShareKeyboard
+    getPhoneShareKeyboard,
+    getUtagSetupKeyboard,
+    getUtagModeKeyboard
 } = require('../utils/helpers');
 const { triggerBackup } = require('../utils/dbBackup');
 const { adminSetCoins, adminAdjustCoins } = require('../services/bonus');
@@ -321,41 +323,50 @@ module.exports = (bot) => {
         if (state.step === 'WAITING_UTAG_LINK') {
             if (msg.chat_shared && msg.chat_shared.request_id === UTAG_CHAT_REQUEST_ID) {
                 const { id, title } = parseSharedGroup(msg.chat_shared);
-                global.userStates[chatId] = { ...state, step: 'WAITING_UTAG_LIMIT', groupLink: id, groupTitle: title };
-                await bot.sendMessage(chatId, "🔢 Nechta odamni Utag qilmoqchisiz? :", removeKeyboardMarkup());
+                global.userStates[chatId] = { ...state, step: 'WAITING_UTAG_SETUP', groupLink: id, groupTitle: title };
+                await bot.sendMessage(chatId, "⏳", removeKeyboardMarkup()).catch(() => {});
+                await bot.sendMessage(chatId,
+                    `📍 **${title}**\n\nKimlarni tag qilamiz?\n• 🟢 Faqat online\n• 👥 Hammani\n• Yoki **faqat raqam** yuboring (masalan: 50)`,
+                    { parse_mode: 'Markdown', ...getUtagSetupKeyboard() }
+                );
                 return;
             }
             if (!text) return;
-            global.userStates[chatId] = { ...state, step: 'WAITING_UTAG_LIMIT', groupLink: text.trim() };
-            await bot.sendMessage(chatId, "🔢 Nechta odamni Utag qilmoqchisiz? :", removeKeyboardMarkup());
+            global.userStates[chatId] = { ...state, step: 'WAITING_UTAG_SETUP', groupLink: text.trim() };
+            await bot.sendMessage(chatId, "⏳", removeKeyboardMarkup()).catch(() => {});
+            await bot.sendMessage(chatId,
+                "Kimlarni tag qilamiz?\n• 🟢 Faqat online\n• 👥 Hammani\n• Yoki **faqat raqam** yuboring (masalan: 50)",
+                { parse_mode: 'Markdown', ...getUtagSetupKeyboard() }
+            );
             return;
-        } 
-        
-        if (state.step === 'WAITING_UTAG_LIMIT') {
-            const limit = parseInt(text) || 100;
-            global.userStates[chatId] = { ...state, step: 'WAITING_UTAG_MODE', limit };
-            
-            bot.sendMessage(chatId, "🛠 **UTag rejimini tanlang:**", {
+        }
+
+        if (state.step === 'WAITING_UTAG_SETUP') {
+            if (!text) return;
+            if (!/^\d+$/.test(text.trim())) {
+                return bot.sendMessage(chatId, "❌ Faqat raqam kiriting (masalan: 50) yoki tugmalardan tanlang.");
+            }
+            const limit = parseInt(text.trim(), 10);
+            global.userStates[chatId] = { ...state, step: 'WAITING_UTAG_MODE', limit, memberFilter: 'all' };
+            return bot.sendMessage(chatId, "🛠 **Tag rejimini tanlang:**", {
                 parse_mode: 'Markdown',
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "👤 @ Foydalanuvchi o'zi", callback_data: "utag_mode_only_mention" }],
-                        [{ text: "💬 Tasodifiy so'zlar bilan", callback_data: "utag_mode_random_words" }],
-                        [{ text: "✍️ O'z matnim bilan", callback_data: "utag_mode_custom" }]
-                    ]
-                }
+                ...getUtagModeKeyboard()
             });
-            return;
         }
 
         if (state.step === 'WAITING_UTAG_CUSTOM_TEXT') {
             if (!text) return;
-            const utagData = state;
+            const utagData = { ...state };
             delete global.userStates[chatId];
-            
+
             bot.sendMessage(chatId, "🚀 Avto Utag jarayoni boshlanmoqda...");
-            startAutoTag(chatId, utagData.groupLink, utagData.limit, text, bot, 'custom')
-                .catch(err => bot.sendMessage(chatId, `❌ Xatolik: ${err.message}`));
+            startAutoTag(chatId, utagData.groupLink, bot, {
+                limit: utagData.limit ?? 0,
+                mode: 'custom',
+                tagText: text,
+                memberFilter: utagData.memberFilter || 'all',
+                groupTitle: utagData.groupTitle
+            }).catch((err) => bot.sendMessage(chatId, `❌ Xatolik: ${err.message}`));
             return;
         }
     });

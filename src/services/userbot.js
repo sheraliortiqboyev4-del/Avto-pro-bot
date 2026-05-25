@@ -17,7 +17,9 @@ const {
     getReydMenu,
     withPremiumEmojis,
     getUtf16Length,
-    removeKeyboardMarkup
+    removeKeyboardMarkup,
+    upsertUtagHistory,
+    normalizeUtagGroupId
 } = require('../utils/helpers');
 
 const userClients = {}; 
@@ -172,13 +174,18 @@ const startUserbot = async (chatId, sessionStr, bot) => {
 
             // Faqat akkaunt egasi yuborgan buyruqlarni tekshiramiz (/uteg yoki .uteg)
             const isOwner = fromId === chatId.toString();
-            const isCommand = text.startsWith('/uteg') || text.startsWith('.uteg') || text.startsWith('!uteg');
+            const isCommand = /^[./!]?(uteg|utegtext|utegstop|t|b|s)(@|$)/i.test(text);
 
             if (isOwner && isCommand) {
-                const parts = text.split(' ');
+                const parts = text.split(/\s+/);
                 const rawCommand = parts[0].toLowerCase();
-                // Komandani tozalash (/uteg@bot -> /uteg, .uteg -> uteg)
-                const command = rawCommand.replace(/^[./!]/, '').split('@')[0];
+                const base = rawCommand.replace(/^[./!]/, '').split('@')[0];
+                const aliasMap = {
+                    uteg: 'uteg', t: 'uteg',
+                    utegtext: 'utegtext', b: 'utegtext',
+                    utegstop: 'utegstop', s: 'utegstop'
+                };
+                const command = aliasMap[base] || base;
 
                 try {
                     // 1. Foydalanuvchi obunasini tekshirish
@@ -200,25 +207,31 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                     if (command === 'utegstop') {
                         if (utagStates[chatId]) {
                             utagStates[chatId].status = 'stopped';
-                            await client.sendMessage(message.peerId, { message: "⏹ **Utag jarayoni to'xtatildi.**" });
+                            await client.sendMessage(message.peerId, { message: "⏹ **Utag to'xtatildi.** (/s yoki /utegStop)" });
                         }
                         return;
                     }
 
                     if (command === 'utegtext') {
-                        await client.sendMessage(message.peerId, { message: "🚀 **Azoblash xizmati boshlanmoqda...**" });
-                        startAutoTag(chatId, peerStr, 0, null, bot, 'random_words', true);
+                        await client.sendMessage(message.peerId, { message: "🚀 **Utag (bot so'zlari) boshlanmoqda...**" });
+                        startAutoTag(chatId, peerStr, bot, {
+                            limit: 0, mode: 'random_words', memberFilter: 'all', isCommand: true
+                        }).catch((e) => client.sendMessage(message.peerId, { message: `❌ ${e.message}` }));
                         return;
                     }
 
                     if (command === 'uteg') {
                         const args = parts.slice(1).join(' ').trim();
                         if (args) {
-                            await client.sendMessage(message.peerId, { message: `🚀 **Azoblash xizmati ("${args}" bilan) boshlanmoqda...**` });
-                            startAutoTag(chatId, peerStr, 0, args, bot, 'custom', true);
+                            await client.sendMessage(message.peerId, { message: `🚀 **Utag ("${args}" bilan) boshlanmoqda...**` });
+                            startAutoTag(chatId, peerStr, bot, {
+                                limit: 0, mode: 'custom', tagText: args, memberFilter: 'all', isCommand: true
+                            }).catch((e) => client.sendMessage(message.peerId, { message: `❌ ${e.message}` }));
                         } else {
-                            await client.sendMessage(message.peerId, { message: "🚀 **Azoblash xizmati (faqat @) boshlanmoqda...**" });
-                            startAutoTag(chatId, peerStr, 0, null, bot, 'only_mention', true);
+                            await client.sendMessage(message.peerId, { message: "🚀 **Utag (faqat @) boshlanmoqda...**" });
+                            startAutoTag(chatId, peerStr, bot, {
+                                limit: 0, mode: 'only_mention', memberFilter: 'all', isCommand: true
+                            }).catch((e) => client.sendMessage(message.peerId, { message: `❌ ${e.message}` }));
                         }
                     }
                 } catch (e) {
@@ -1407,7 +1420,44 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     return count;
 };
 
-const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'random', isCommand = false) => {
+const fetchUtagParticipants = async (client, entity, memberFilter, limit) => {
+    const cap = limit > 0 ? limit : undefined;
+    let participants = [];
+
+    if (memberFilter === 'online') {
+        try {
+            participants = await client.getParticipants(entity, {
+                filter: new Api.ChannelParticipantsOnline({}),
+                limit: cap
+            });
+        } catch (e) {
+            console.error('[UTag] Online filter xato, fallback:', e.message);
+            const all = await client.getParticipants(entity, { limit: cap ? cap * 3 : 500 });
+            participants = all.filter((p) => {
+                const st = p.status;
+                return st && (
+                    st instanceof Api.UserStatusOnline ||
+                    st instanceof Api.UserStatusRecently ||
+                    st instanceof Api.UserStatusLastMonth
+                );
+            });
+            if (cap) participants = participants.slice(0, cap);
+        }
+    } else {
+        participants = await client.getParticipants(entity, { limit: cap });
+    }
+    return participants;
+};
+
+const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
+    const {
+        limit = 0,
+        tagText = null,
+        mode = 'only_mention',
+        memberFilter = 'all',
+        isCommand = false,
+        groupTitle: presetTitle = null
+    } = opts;
     const user = await User.findOne({ where: { chatId } });
     if (!user) throw new Error("Foydalanuvchi topilmadi.");
 
@@ -1474,17 +1524,23 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
             try { await clients[i].getEntity(peer).catch(() => {}); } catch (e) {}
         }
 
-        const fetchLimit = (limit === 0 || limit === "0") ? undefined : parseInt(limit);
-        const participants = await mainClient.getParticipants(entity, { limit: fetchLimit });
-        
-        const groupTitle = entity.title || entity.username || "Guruh";
-        const historyLink = (typeof peer === 'string' && peer.startsWith('@')) ? peer : (entity.username ? `@${entity.username}` : groupLink);
-        
-        let history = user.utagHistory || [];
-        history = history.filter(h => h.link !== historyLink);
-        history.push({ title: groupTitle, link: historyLink, addedAt: new Date() });
-        if (history.length > 5) history = history.slice(-5);
+        const participants = await fetchUtagParticipants(mainClient, entity, memberFilter, parseInt(limit, 10) || 0);
 
+        const groupId = normalizeUtagGroupId(entity.id?.toString() || groupLink);
+        const groupTitle = presetTitle || entity.title || entity.username || "Guruh";
+        const historyLink = /^-?\d+$/.test(String(groupLink).trim())
+            ? groupId
+            : (entity.username ? `@${entity.username}` : String(groupLink).trim());
+
+        const history = upsertUtagHistory(user.utagHistory, {
+            id: groupId,
+            title: groupTitle,
+            link: historyLink,
+            mode,
+            limit: parseInt(limit, 10) || 0,
+            tagText: mode === 'custom' ? tagText : null,
+            memberFilter
+        });
         await User.update({ utagHistory: history }, { where: { chatId } });
 
         let count = 0;
@@ -1500,9 +1556,10 @@ const startAutoTag = async (chatId, groupLink, limit, tagText, bot, mode = 'rand
             return { reply_markup: { inline_keyboard: [buttons] } };
         };
 
-        const modeText = mode === 'custom' ? `Matn bilan ("${tagText}")` : (mode === 'only_mention' ? 'Faqat @' : 'Tasodifiy so\'zlar');
+        const modeText = mode === 'custom' ? `Matn: "${tagText}"` : (mode === 'only_mention' ? "Faqat @" : "Bot so'zlari");
+        const filterText = memberFilter === 'online' ? 'Faqat online' : (limit > 0 ? `${limit} ta odam` : 'Hammani');
         const accText = user.utagAccountMode === 'all' ? `Barcha akkauntlar (${clients.length} ta)` : "Faqat asosiy akkaunt";
-        const startText = `🚀 **Uteg jarayoni boshlanmoqda...**\nTugatish uchun /utegStop buyrug'ini yuboring.\nGuruh: ${groupTitle}\nJami: ${participants.length} ta foydalanuvchi.\nRejim: ${modeText}\nAkkauntlar: ${accText}`;
+        const startText = `🚀 **Utag boshlandi**\nTo'xtatish: /s yoki /utegStop\n\nGuruh: ${groupTitle}\nTag: ${filterText}\nRejim: ${modeText}\nJami: ${participants.length} ta\nAkkaunt: ${accText}`;
         
         const statusMsg = await bot.sendMessage(chatId, startText, isCommand ? {} : getUtagButtons('running')).catch(() => null);
 

@@ -352,6 +352,55 @@ const getAlmazMenu = (isEnabled) => {
     };
 };
 
+/** Guruh ID bo'yicha tarixda bitta yozuv */
+function normalizeUtagGroupId(idOrLink) {
+    const s = String(idOrLink).trim();
+    if (/^-?\d+$/.test(s)) return s;
+    return s;
+}
+
+function upsertUtagHistory(history, entry) {
+    const id = normalizeUtagGroupId(entry.id);
+    const list = (history || []).filter((h) => normalizeUtagGroupId(h.id) !== id);
+    list.push({
+        id,
+        title: entry.title || 'Guruh',
+        link: entry.link || id,
+        mode: entry.mode || 'only_mention',
+        limit: entry.limit ?? 0,
+        tagText: entry.tagText || null,
+        memberFilter: entry.memberFilter || 'all',
+        updatedAt: new Date().toISOString()
+    });
+    return list.slice(-15);
+}
+
+function getUtagSetupKeyboard() {
+    return {
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    { text: '🟢 Faqat online', callback_data: 'utag_filter_online' },
+                    { text: '👥 Hammani', callback_data: 'utag_filter_all' }
+                ],
+                [{ text: '❌ Bekor', callback_data: 'menu_utag' }]
+            ]
+        }
+    };
+}
+
+function getUtagModeKeyboard() {
+    return {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "👤 @ Foydalanuvchi o'zi", callback_data: 'utag_mode_only_mention' }],
+                [{ text: "💬 Tasodifiy so'zlar (bot)", callback_data: 'utag_mode_random_words' }],
+                [{ text: "✍️ O'z matnim bilan", callback_data: 'utag_mode_custom' }]
+            ]
+        }
+    };
+}
+
 function getUtagMenu(accountMode = 'main', rekCount = 0) {
     const modeText = accountMode === 'all' ? "🌐 Barcha akkauntlar" : "👤 Faqat asosiy";
     return {
@@ -364,6 +413,7 @@ function getUtagMenu(accountMode = 'main', rekCount = 0) {
                     { text: "🗑 Tozalash", callback_data: "reklama_clear_accs" }
                 ],
                 [{ text: "📂 Tarix", callback_data: "utag_history" }],
+                [{ text: "🗑 Tarixni tozalash", callback_data: "utag_clear_history" }],
                 [{ text: "🔙 Orqaga", callback_data: "menu_back_main" }]
             ]
         }
@@ -522,6 +572,10 @@ module.exports = {
     getMainMenu, 
     getAlmazMenu,
     getUtagMenu,
+    normalizeUtagGroupId,
+    upsertUtagHistory,
+    getUtagSetupKeyboard,
+    getUtagModeKeyboard,
     getReklamaMenu,
     getReydMenu,
     getAdminMenu,

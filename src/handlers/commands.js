@@ -34,8 +34,9 @@ const HELP_TEXT = `🧾 **YORDAM BO'LIMI**
 ➤ Siz botni yoqib qo'ysangiz kifoya, qolganini o'zi bajaradi.
 
 🏷 **Avto Utag**
-➤ Guruh a'zolarini bittalab "tag" qilib chiqadi. 
-➤ Guruhni jonlantirish yoki muhim xabarni yetkazish uchun qulay.
+➤ Guruh a'zolarini bittalab "tag" qilib chiqadi.
+➤ Guruhda: /uteg yoki /t (o'z so'z), /utegText yoki /b (bot so'zlari), /utegStop yoki /s (to'xtatish).
+➤ Bot orqali: online/hamma/raqam + tarixda saqlangan sozlamalar bilan qayta boshlash.
 
 👤 **AvtoUser (Scraper)**
 ➤ Istalgan guruhdan foydalanuvchilar ro'yxatini (username) yig'ib beradi. 

@@ -581,25 +581,63 @@ module.exports = (bot) => {
             return;
         }
 
-        if (data.startsWith("utag_mode_")) {
-            const mode = data.replace('utag_mode_', ''); // only_mention, random_words, custom
+        if (data === 'utag_filter_online' || data === 'utag_filter_all') {
             const state = global.userStates[chatId];
-            if (!state || state.step !== 'WAITING_UTAG_MODE') return await safeAnswer({ text: "Sessiya muddati tugagan.", show_alert: true });
+            if (!state || state.step !== 'WAITING_UTAG_SETUP') {
+                return await safeAnswer({ text: "Sessiya muddati tugagan.", show_alert: true });
+            }
+            state.memberFilter = data === 'utag_filter_online' ? 'online' : 'all';
+            state.limit = 0;
+            state.step = 'WAITING_UTAG_MODE';
+            global.userStates[chatId] = state;
+            await safeAnswer();
+            try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
+            const { getUtagModeKeyboard } = require('../utils/helpers');
+            return bot.sendMessage(chatId, "🛠 **Tag rejimini tanlang:**", {
+                parse_mode: 'Markdown',
+                ...getUtagModeKeyboard()
+            });
+        }
+
+        if (data.startsWith("utag_mode_")) {
+            const mode = data.replace('utag_mode_', '');
+            const state = global.userStates[chatId];
+            if (!state || state.step !== 'WAITING_UTAG_MODE') {
+                return await safeAnswer({ text: "Sessiya muddati tugagan.", show_alert: true });
+            }
+            state.mode = mode;
 
             if (mode === 'only_mention' || mode === 'random_words') {
                 delete global.userStates[chatId];
                 await safeAnswer({ text: "🚀 UTag boshlanmoqda..." });
-                try { await bot.deleteMessage(chatId, messageId); } catch(e) {}
+                try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
                 const { startAutoTag } = require('../services/userbot');
-                startAutoTag(chatId, state.groupLink, state.limit, null, bot, mode)
-                    .catch(err => bot.sendMessage(chatId, `❌ Xatolik: ${err.message}`));
+                startAutoTag(chatId, state.groupLink, bot, {
+                    limit: state.limit ?? 0,
+                    mode,
+                    memberFilter: state.memberFilter || 'all',
+                    groupTitle: state.groupTitle,
+                    tagText: null
+                }).catch((err) => bot.sendMessage(chatId, `❌ Xatolik: ${err.message}`));
             } else {
                 state.step = 'WAITING_UTAG_CUSTOM_TEXT';
+                global.userStates[chatId] = state;
                 await safeAnswer();
-                try { await bot.deleteMessage(chatId, messageId); } catch(e) {}
-                bot.sendMessage(chatId, "✍️ Tag qilinganda foydalanuvchi ismi yonidan chiqadigan **matnni** yuboring:");
+                try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
+                bot.sendMessage(chatId, "✍️ Tag qilinganda foydalanuvchi ismi yonidan chiqadigan **matnni** yuboring:", { parse_mode: 'Markdown' });
             }
             return;
+        }
+
+        if (data === 'utag_clear_history') {
+            await User.update({ utagHistory: [] }, { where: { chatId } });
+            await safeAnswer({ text: "📂 Tarix tozalandi." });
+            const { getUtagMenu } = require('../utils/helpers');
+            const mode = user.utagAccountMode || 'main';
+            const rekCount = (user.reklamaAccounts || []).length;
+            const modeText = mode === 'all' ? "Barcha akkauntlar" : "Faqat asosiy akkaunt";
+            const text = `🏷 **Avto Utag Sozlamalari :**\n\n⚙️ Hozirgi rejim: **${modeText}**\n👥 Akkauntlar: **${rekCount + 1} ta**\n\n🚀 **Yangi boshlash**\n➤ Yangi guruh tanlab, avtomatik tag jarayonini boshlang.\n\n📂 **Tarix**\n➤ Oldin ishlatilgan guruhlardan birini tanlab davom eting.`;
+            return safeEdit(chatId, messageId, text, { parse_mode: 'Markdown', ...getUtagMenu(mode, rekCount) });
         }
 
         if (data === "utag_history") {
@@ -622,13 +660,37 @@ module.exports = (bot) => {
         }
 
         if (data.startsWith("utag_re_")) {
-            const index = parseInt(data.split('_')[2]);
+            const index = parseInt(data.split('_')[2], 10);
             const group = user.utagHistory[index];
             if (!group) return await safeAnswer({ text: "❌ Ma'lumot topilmadi.", show_alert: true });
 
-            global.userStates[chatId] = { step: 'WAITING_UTAG_LIMIT', groupLink: group.link };
-            bot.sendMessage(chatId, `📍 Tanlangan: **${group.title}**\n\n🔢 Nechta odamni tag qilmoqchisiz? (Masalan: 50):`, { parse_mode: "Markdown" });
-            return await safeAnswer();
+            const groupLink = group.link || group.id;
+            const saved = {
+                groupLink,
+                groupTitle: group.title,
+                limit: group.limit ?? 0,
+                memberFilter: group.memberFilter || 'all',
+                mode: group.mode || 'only_mention',
+                tagText: group.tagText || null
+            };
+
+            if (saved.mode === 'custom' && !saved.tagText) {
+                global.userStates[chatId] = { step: 'WAITING_UTAG_CUSTOM_TEXT', ...saved };
+                await safeAnswer();
+                return bot.sendMessage(chatId, `📍 **${group.title}**\n\n✍️ Tag matnini yuboring:`, { parse_mode: 'Markdown' });
+            }
+
+            await safeAnswer({ text: "🚀 Saqlangan sozlamalar bilan boshlanmoqda..." });
+            try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
+            const { startAutoTag } = require('../services/userbot');
+            startAutoTag(chatId, groupLink, bot, {
+                limit: saved.limit,
+                mode: saved.mode,
+                tagText: saved.tagText,
+                memberFilter: saved.memberFilter,
+                groupTitle: saved.groupTitle
+            }).catch((err) => bot.sendMessage(chatId, `❌ Xatolik: ${err.message}`));
+            return;
         }
 
         if (["utag_pause", "utag_resume", "utag_stop"].includes(data)) {
