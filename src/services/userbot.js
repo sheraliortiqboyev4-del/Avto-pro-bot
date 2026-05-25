@@ -1460,30 +1460,37 @@ const cacheUtagParticipant = async (client, participant) => {
     }
 };
 
-const sendUtagToParticipant = async (client, groupEntity, participant, extraText) => {
+const sendUtagToParticipant = async (client, groupEntity, participant, extraText, fallbackClient = null) => {
     if (participant.bot || participant.deleted) return false;
 
-    if (participant.username) {
-        await client.sendMessage(groupEntity, { message: `@${participant.username}${extraText}` });
+    const send = async (activeClient) => {
+        if (participant.username) {
+            await activeClient.sendMessage(groupEntity, { message: `@${participant.username}${extraText}` });
+            return;
+        }
+        await cacheUtagParticipant(activeClient, participant).catch(() => {});
+        const name = participant.firstName || 'Foydalanuvchi';
+        const userId = participant.id?.toString?.() || String(participant.id);
+        await activeClient.sendMessage(groupEntity, {
+            message: `<a href="tg://user?id=${userId}">${escapeHTML(name)}</a>${extraText}`,
+            parseMode: 'html'
+        });
+    };
+
+    try {
+        await send(client);
         return true;
+    } catch (e) {
+        if (fallbackClient && fallbackClient !== client) {
+            try {
+                await send(fallbackClient);
+                return true;
+            } catch (e2) {
+                console.error(`[UTag] Fallback ham xato (User: ${participant.id}):`, e2.message);
+            }
+        }
+        throw e;
     }
-
-    const canCache = await cacheUtagParticipant(client, participant);
-    if (!canCache) return false;
-
-    const name = participant.firstName || 'User';
-    const nameLen = getUtf16Length(name);
-    await client.sendMessage(groupEntity, {
-        message: `${name}${extraText}`,
-        formattingEntities: [
-            new Api.MessageEntityMentionName({
-                offset: 0,
-                length: nameLen,
-                userId: BigInt(participant.id)
-            })
-        ]
-    });
-    return true;
 };
 
 const fetchUtagParticipants = async (client, entity, memberFilter, limit) => {
@@ -1654,11 +1661,7 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                     extraText += ` ${PROMO_UTAG()}`;
                 }
 
-                const sent = await sendUtagToParticipant(currentClient, entity, p, extraText);
-                if (!sent) {
-                    currentClientIndex = (currentClientIndex + 1) % clients.length;
-                    continue;
-                }
+                await sendUtagToParticipant(currentClient, entity, p, extraText, mainClient);
 
                 count++;
                 utagStates[chatId].count = count;
