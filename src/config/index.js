@@ -18,6 +18,9 @@ module.exports = {
             secret: process.env.TELEGRAM_PROXY_SECRET || ''
         }
         : null,
+    tgDeviceModel: process.env.TG_DEVICE_MODEL || 'AvtoBotPro_v2',
+    tgSystemVersion: process.env.TG_SYSTEM_VERSION || 'Windows 10',
+    tgAppVersion: process.env.TG_APP_VERSION || 'Telegram Desktop 1.0.0',
     // Eski BOT_USERNAME referralga ta'sir qilmaydi — bonus.js da REFERRAL_BOT_USERNAME
     // BACKUP_SECRET — zaxira shifrlash (kamida 16 belgi, Render .env ga qo'shing)
     channels: [

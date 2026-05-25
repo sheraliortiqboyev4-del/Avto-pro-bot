@@ -126,18 +126,16 @@ const startUserbot = async (chatId, sessionStr, bot) => {
             try { await userClients[chatId].disconnect(); } catch (e) {}
         }
 
-        const client = new TelegramClient(new StringSession(sessionStr), config.apiId, config.apiHash, { 
-            connectionRetries: 50, 
-            requestRetries: 15,
-            timeout: 60000, // Timeoutni 1 daqiqaga kamaytiramiz (render uchun qulayroq)
-            autoReconnect: true,
-            floodSleepThreshold: 300, // Flood wait uchun 5 daqiqagacha avtomatik kutishga ruxsat beramiz
-            deviceModel: "Iphone 17 Pro Max",
-            systemVersion: "IOS 26.1",
-            appVersion: "18.7.9",
-            useWSS: false,
-            proxy: undefined
-        }); 
+        const clientOpts = getGramJsClientParams(config.authUseWss !== false, { forAuth: false });
+        if (config.telegramProxy?.host) {
+            clientOpts.proxy = {
+                ip: config.telegramProxy.host,
+                port: config.telegramProxy.port,
+                secret: config.telegramProxy.secret,
+                MTProxy: true
+            };
+        }
+        const client = new TelegramClient(new StringSession(sessionStr), config.apiId, config.apiHash, clientOpts);
         await client.connect(); 
         userClients[chatId] = client; 
 
@@ -417,24 +415,28 @@ const blockExpiredUser = async (user, bot, options = {}) => {
     return true;
 };
 
-// --- AUTH (SendCode + SignIn, server uchun barqaror) ---
+// --- AUTH (GramJS 2.26+ sendCode + SignIn) ---
 
 const authErrMsg = (err) => err?.message || err?.errorMessage || String(err);
 
+const getGramJsClientParams = (useWSS, { forAuth = false } = {}) => ({
+    connectionRetries: 50,
+    requestRetries: 15,
+    timeout: 120000,
+    autoReconnect: !forAuth,
+    floodSleepThreshold: forAuth ? 120 : 300,
+    receiveUpdates: false,
+    deviceModel: config.tgDeviceModel,
+    systemVersion: config.tgSystemVersion,
+    appVersion: config.tgAppVersion,
+    langCode: 'en',
+    systemLangCode: 'en-US',
+    useWSS,
+    useIPV6: false
+});
+
 const buildAuthClientOptions = (useWSS) => {
-    const opts = {
-        connectionRetries: 50,
-        requestRetries: 15,
-        timeout: 120000,
-        autoReconnect: false,
-        floodSleepThreshold: 120,
-        receiveUpdates: false,
-        deviceModel: "Telegram Desktop",
-        systemVersion: "Windows 10",
-        appVersion: "4.16.4",
-        useWSS,
-        useIPV6: false
-    };
+    const opts = { ...getGramJsClientParams(useWSS, { forAuth: true }) };
     if (config.telegramProxy?.host) {
         opts.proxy = {
             ip: config.telegramProxy.host,
@@ -483,17 +485,17 @@ const cleanupAuthClient = async (chatId) => {
     delete global.authClients[chatId];
 };
 
-const getCodeDeliveryHint = (sentCode) => {
+const getCodeDeliveryHint = (isCodeViaApp, sentCode) => {
+    if (isCodeViaApp === false) {
+        return "📱 Kod **SMS** orqali keladi.";
+    }
+    if (isCodeViaApp === true) {
+        return "📲 Kod **Telegram ilovangizda** keladi (Chatlar → «Telegram» tizim xabari). Boshqa qurilmada ham ochiq bo'lsa, u yerga ham kelishi mumkin.";
+    }
     const t = sentCode?.type;
-    if (t instanceof Api.auth.SentCodeTypeSms) {
-        return "📱 Kod **SMS** orqali keladi (Telegram tizim chat emas).";
-    }
-    if (t instanceof Api.auth.SentCodeTypeApp) {
-        return "📲 Kod **boshqa qurilmadagi** Telegram ilovasiga keladi (telefoningizdagi Telegram → «Telegram» xabari).";
-    }
-    if (t instanceof Api.auth.SentCodeTypeCall) {
-        return "📞 Kod **qo'ng'iroq** orqali aytiladi.";
-    }
+    if (t instanceof Api.auth.SentCodeTypeSms) return "📱 Kod **SMS** orqali keladi.";
+    if (t instanceof Api.auth.SentCodeTypeApp) return "📲 Kod **Telegram** tizim chatiga keladi.";
+    if (t instanceof Api.auth.SentCodeTypeCall) return "📞 Kod **qo'ng'iroq** orqali aytiladi.";
     return "📲 Kodni Telegram ilovangizda tekshiring.";
 };
 
@@ -590,19 +592,21 @@ const finalizeAuthLogin = async (client, chatId, bot, isAdditional, isReyd, phon
     delete global.userStates[chatId];
 };
 
-const requestAuthCode = async (client, phoneNumber) => {
-    return client.invoke(new Api.auth.SendCode({
-        phoneNumber,
-        apiId: Number(config.apiId),
-        apiHash: config.apiHash,
-        settings: new Api.CodeSettings({
-            allowFlashcall: false,
-            currentNumber: true,
-            allowAppHash: true,
-            allowMissedCall: false,
-            allowFirebase: true
-        })
-    }));
+const getApiCredentials = () => ({
+    apiId: Number(config.apiId),
+    apiHash: config.apiHash
+});
+
+/** GramJS rasmiy sendCode (AUTH_RESTART qo'llab-quvvatlaydi) */
+const requestAuthCode = async (client, phoneNumber, forceSMS = false) => {
+    try {
+        return await client.sendCode(getApiCredentials(), phoneNumber, forceSMS);
+    } catch (err) {
+        if (authErrMsg(err).includes('AUTH_RESTART')) {
+            return client.sendCode(getApiCredentials(), phoneNumber, forceSMS);
+        }
+        throw err;
+    }
 };
 
 const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd = false) => {
@@ -617,9 +621,9 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
     await cleanupAuthClient(chatId);
     const client = await connectAuthClient();
 
-    let sentCode;
+    let codeResult;
     try {
-        sentCode = await requestAuthCode(client, phoneNumber);
+        codeResult = await requestAuthCode(client, phoneNumber, false);
     } catch (err) {
         await client.disconnect().catch(() => {});
         const msg = authErrMsg(err);
@@ -630,21 +634,23 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
         throw new Error(msg);
     }
 
-    const codeType = sentCode.type?.className || 'unknown';
-    console.log(`[Auth] SendCode OK: ${phoneNumber}, type=${codeType}, DC=${client.session?.dcId}`);
+    const { phoneCodeHash, isCodeViaApp } = codeResult;
+    let gramVersion = '?';
+    try { gramVersion = require('telegram/package.json').version; } catch (e) {}
+    console.log(`[Auth] sendCode OK: ${phoneNumber}, viaApp=${isCodeViaApp}, DC=${client.session?.dcId}, gramjs=${gramVersion}`);
 
     global.authClients[chatId] = {
         client,
         phoneNumber,
-        phoneCodeHash: sentCode.phoneCodeHash,
+        phoneCodeHash,
         isAdditional,
         isReyd,
         step: 'WAITING_CODE',
-        codeType
+        isCodeViaApp
     };
 
-    const hint = getCodeDeliveryHint(sentCode);
-    const isSms = sentCode.type instanceof Api.auth.SentCodeTypeSms;
+    const hint = getCodeDeliveryHint(isCodeViaApp);
+    const isSms = isCodeViaApp === false;
     const keyboard = isSms
         ? { inline_keyboard: [[{ text: '🔄 SMS qayta yuborish', callback_data: 'auth_resend_sms' }]] }
         : {
@@ -671,18 +677,31 @@ const resendAuthCode = async (chatId, bot, viaSms = false) => {
         throw new Error("Avval telefon raqam yuboring.");
     }
 
-    const sentCode = await auth.client.invoke(new Api.auth.ResendCode({
-        phoneNumber: auth.phoneNumber,
-        phoneCodeHash: auth.phoneCodeHash,
-        reason: viaSms ? 'sms' : undefined
-    }));
+    let phoneCodeHash;
+    let isCodeViaApp;
 
-    auth.phoneCodeHash = sentCode.phoneCodeHash;
-    auth.codeType = sentCode.type?.className;
+    if (viaSms) {
+        const result = await requestAuthCode(auth.client, auth.phoneNumber, true);
+        phoneCodeHash = result.phoneCodeHash;
+        isCodeViaApp = result.isCodeViaApp;
+    } else {
+        const sentCode = await auth.client.invoke(new Api.auth.ResendCode({
+            phoneNumber: auth.phoneNumber,
+            phoneCodeHash: auth.phoneCodeHash
+        }));
+        if (sentCode instanceof Api.auth.SentCodeSuccess) {
+            throw new Error("Allaqachon kirilgan. /start bosing.");
+        }
+        phoneCodeHash = sentCode.phoneCodeHash;
+        isCodeViaApp = sentCode.type instanceof Api.auth.SentCodeTypeApp;
+    }
+
+    auth.phoneCodeHash = phoneCodeHash;
+    auth.isCodeViaApp = isCodeViaApp;
     auth.step = 'WAITING_CODE';
-    console.log(`[Auth] Resend: ${auth.phoneNumber}, sms=${viaSms}, type=${auth.codeType}`);
+    console.log(`[Auth] Resend: ${auth.phoneNumber}, sms=${viaSms}, viaApp=${isCodeViaApp}`);
 
-    const hint = getCodeDeliveryHint(sentCode);
+    const hint = getCodeDeliveryHint(isCodeViaApp);
     await bot.sendMessage(chatId, `🔄 **Kod qayta yuborildi.**\n\n${hint}`, { parse_mode: "Markdown" });
     return true;
 };
