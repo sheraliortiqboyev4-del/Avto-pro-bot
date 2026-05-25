@@ -2,8 +2,8 @@ require('dotenv').config();
 
 module.exports = { 
     botToken: process.env.BOT_TOKEN, 
-    apiId: parseInt(process.env.API_ID) || 2040, 
-    apiHash: process.env.API_HASH || "b18441a1ff607e10a989891a5462e627", 
+    apiId: parseInt(process.env.API_ID) || 36529764, 
+    apiHash: process.env.API_HASH || "da5eccc1fa8d9913db7d984a145b9972", 
     adminId: parseInt(process.env.ADMIN_ID), 
     databaseUrl: process.env.DATABASE_URL, 
     port: process.env.PORT || 3000,
