@@ -169,8 +169,8 @@ const startUserbot = async (chatId, sessionStr, bot) => {
             // Peer ID ni aniqlash
             let peerStr;
             if (message.peerId instanceof Api.PeerUser) peerStr = message.peerId.userId.toString();
-            else if (message.peerId instanceof Api.PeerChat) peerStr = message.peerId.chatId.toString();
-            else if (message.peerId instanceof Api.PeerChannel) peerStr = message.peerId.channelId.toString();
+            else if (message.peerId instanceof Api.PeerChat) peerStr = `-${message.peerId.chatId}`;
+            else if (message.peerId instanceof Api.PeerChannel) peerStr = `-100${message.peerId.channelId}`;
 
             // Faqat akkaunt egasi yuborgan buyruqlarni tekshiramiz (/uteg yoki .uteg)
             const isOwner = fromId === chatId.toString();
@@ -200,6 +200,13 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                     // 3. Akkaunt rejimini tekshirish (agar o'rnatilmagan bo'lsa)
                     if (!user.utagAccountMode) {
                         await client.sendMessage(message.peerId, { message: "⚠️ **Avto UTag rejimi o'rnatilmagan.**\nIltimos, botga kirib rejimni tanlang (Asosiy menyu -> Avto UTag)." });
+                        return;
+                    }
+
+                    if (message.peerId instanceof Api.PeerUser) {
+                        await client.sendMessage(message.peerId, {
+                            message: "⚠️ Utag buyruqlarini **guruh yoki kanalda** yuboring (shaxsiy chatda emas)."
+                        });
                         return;
                     }
 
@@ -1420,6 +1427,65 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     return count;
 };
 
+const normalizeTelegramGroupId = (linkOrId) => {
+    const s = String(linkOrId).trim();
+    if (!s) return s;
+    if (s.startsWith('@') || s.includes('t.me/') || s.includes('joinchat')) return s;
+    if (/^-100\d+$/.test(s)) return s;
+    if (/^-\d+$/.test(s)) return s;
+    if (/^\d+$/.test(s)) return `-100${s}`;
+    return s;
+};
+
+const isUtagGroupEntity = (entity) => {
+    if (!entity) return false;
+    const cn = entity.className || entity.constructor?.name || '';
+    return cn === 'Channel' || cn === 'Chat' || entity.megagroup || entity.broadcast !== undefined;
+};
+
+const cacheUtagParticipant = async (client, participant) => {
+    if (!participant || participant.username) return true;
+    const userId = BigInt(participant.id);
+    const accessHash = participant.accessHash != null ? BigInt(participant.accessHash) : null;
+    try {
+        if (accessHash != null) {
+            await client.getInputEntity(new Api.InputPeerUser({ userId, accessHash }));
+        } else {
+            await client.getInputEntity(participant);
+        }
+        return true;
+    } catch (e) {
+        console.error(`[UTag] User ${participant.id} cache xato:`, e.message);
+        return false;
+    }
+};
+
+const sendUtagToParticipant = async (client, groupEntity, participant, extraText) => {
+    if (participant.bot || participant.deleted) return false;
+
+    if (participant.username) {
+        await client.sendMessage(groupEntity, { message: `@${participant.username}${extraText}` });
+        return true;
+    }
+
+    const canCache = await cacheUtagParticipant(client, participant);
+    if (!canCache) return false;
+
+    const name = participant.firstName || 'User';
+    const nameLen = getUtf16Length(name);
+    await client.sendMessage(groupEntity, {
+        message: `${name}${extraText}`,
+        formattingEntities: [
+            new Api.MessageEntityMentionName({
+                offset: 0,
+                length: nameLen,
+                userId: BigInt(participant.id)
+            })
+        ]
+    });
+    return true;
+};
+
 const fetchUtagParticipants = async (client, entity, memberFilter, limit) => {
     const cap = limit > 0 ? limit : undefined;
     let participants = [];
@@ -1500,10 +1566,9 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
 
     try {
         let entity;
-        const isNumeric = /^-?\d+$/.test(groupLink);
-        const peer = isNumeric ? parseInt(groupLink) : groupLink;
+        const rawLink = String(groupLink).trim();
+        const peer = normalizeTelegramGroupId(rawLink);
 
-        // Nishonni (entity) aniqlash (asosiy client orqali)
         if (typeof peer === 'string' && (peer.includes("t.me/+") || peer.includes("joinchat/"))) {
             const hash = peer.split('/').pop().replace('+', '');
             try {
@@ -1519,9 +1584,12 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
             entity = await mainClient.getEntity(peer);
         }
 
-        // Barcha qo'shimcha clientlar entity ni ko'rib olishi kerak (cache uchun)
-        for (let i = 1; i < clients.length; i++) {
-            try { await clients[i].getEntity(peer).catch(() => {}); } catch (e) {}
+        if (!isUtagGroupEntity(entity)) {
+            throw new Error("Bu guruh/kanal emas. Guruhni qayta tanlang.");
+        }
+
+        for (let i = 0; i < clients.length; i++) {
+            try { await clients[i].getEntity(entity).catch(() => {}); } catch (e) {}
         }
 
         const participants = await fetchUtagParticipants(mainClient, entity, memberFilter, parseInt(limit, 10) || 0);
@@ -1575,7 +1643,6 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
             
             try {
                 const tagNumber = count + 1;
-                let message;
                 let extraText = '';
                 if (mode === 'random_words') {
                     extraText = ' ' + (shuffledMessages[count % shuffledMessages.length] || "");
@@ -1583,23 +1650,16 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                     extraText = ' ' + tagText;
                 }
 
-                // Har 10-tagda promo shu xabar matnida (@user ... Uteg @bot orqali yuborildi.)
                 if (tagNumber % 10 === 0) {
                     extraText += ` ${PROMO_UTAG()}`;
                 }
 
-                if (p.username) {
-                    message = `@${p.username}${extraText}`;
-                } else {
-                    const name = p.firstName || "Foydalanuvchi";
-                    message = `<a href="tg://user?id=${p.id.toString()}">${name}</a>${extraText}`;
+                const sent = await sendUtagToParticipant(currentClient, entity, p, extraText);
+                if (!sent) {
+                    currentClientIndex = (currentClientIndex + 1) % clients.length;
+                    continue;
                 }
 
-                await currentClient.sendMessage(entity.id || entity, { 
-                    message, 
-                    parseMode: p.username ? undefined : 'html' 
-                });
-                
                 count++;
                 utagStates[chatId].count = count;
                 
