@@ -6,8 +6,16 @@ process.on('uncaughtException', (err) => {
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    // 429 xatolarini unhandled deb ko'rsatmaslik uchun (chunki biz wrapperda ushlayapmiz)
-    if (reason && reason.message && reason.message.includes('429')) return;
+    // Kutilgan xatolarni unhandled deb ko'rsatmaslik uchun
+    const isExpectedError = 
+        reason && 
+        reason.response && 
+        reason.response.statusCode && 
+        [400, 403, 404, 429].includes(reason.response.statusCode);
+    if (isExpectedError) {
+        console.log(`⚠️ [Expected Unhandled Error] Ignoring: ${reason.message}`);
+        return;
+    }
     console.error('❌ UNHANDLED REJECTION at:', promise, 'reason:', reason);
 });
 
@@ -100,6 +108,17 @@ bot.sendMessage = async (chatId, text, options = {}, retryCount = 0) => {
 
         return await baseSendMessage(chatId, finalText, finalOptions);
     } catch (error) {
+        // Kutilgan xatolar: 403 (bloklangan), 400 (chat topilmadi), 404 (chat topilmadi)
+        const isExpectedError = 
+            error.response && 
+            error.response.statusCode && 
+            [400, 403, 404].includes(error.response.statusCode);
+        
+        if (isExpectedError) {
+            console.log(`⚠️ [Expected Error] Xabar yuborib bo'lmadi (${chatId}): ${error.message}`);
+            return null;
+        }
+
         // 429 Too Many Requests (Flood)
         if (error.code === 'ETELEGRAM' && error.response && error.response.body && error.response.body.parameters) {
             const retryAfter = error.response.body.parameters.retry_after;
@@ -140,10 +159,22 @@ bot.sendMessage = async (chatId, text, options = {}, retryCount = 0) => {
                 delete fallbackOptions.entities;
                 return await baseSendMessage(chatId, safeText, fallbackOptions);
             } catch (e) {
-                console.error("Fallback sendMessage error:", e.message);
+                const isFallbackExpected = 
+                    e.response && 
+                    e.response.statusCode && 
+                    [400, 403, 404].includes(e.response.statusCode);
+                if (isFallbackExpected) {
+                    console.log(`⚠️ [Expected Error] Xabar yuborib bo'lmadi (${chatId}): ${e.message}`);
+                } else {
+                    console.error("Fallback sendMessage error:", e.message);
+                }
             }
         }
-        throw error;
+        // Kutilmagan xatolar uchun, ammo 400/403/404 bo'lsa qaytarmaslik
+        if (!isExpectedError) {
+            throw error;
+        }
+        return null;
     }
 };
 
