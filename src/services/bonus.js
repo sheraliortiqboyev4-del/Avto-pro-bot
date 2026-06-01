@@ -6,18 +6,18 @@ const BotSetting = require('../models/BotSetting');
 const CoinTransaction = require('../models/CoinTransaction');
 const { triggerBackup } = require('../utils/dbBackup');
 const { escapeHTML } = require('../utils/helpers');
+const config = require('../config');
 
 const COINS_PER_MONTH = 50;
 const REFERRAL_LINK_MS = 5 * 24 * 60 * 60 * 1000;
 const SETTING_KEY = 'bonus_system_enabled';
 
-/** Referral havolalar uchun — BOT_USERNAME (noto'g'ri) emas */
-const REFERRAL_BOT_USERNAME = 'Foydasizku_bot';
-
 const getReferralBotUsername = () => {
     const fromEnv = process.env.REFERRAL_BOT_USERNAME;
     if (fromEnv) return fromEnv.replace(/^@/, '').trim();
-    return REFERRAL_BOT_USERNAME;
+    const fromConfig = config.botPromoUsername;
+    if (fromConfig) return fromConfig.replace(/^@/, '').trim();
+    return 'Foydasizku_bot';
 };
 
 const isBonusEnabled = async () => {
