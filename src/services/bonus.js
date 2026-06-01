@@ -204,11 +204,11 @@ const getUserReferralStats = async (chatId) => {
 };
 
 const buildBonusMessage = async (bot, chatId) => {
-    const parseMode = 'HTML';
+    const parseMode = 'Markdown';
     const enabled = await isBonusEnabled();
     if (!enabled) {
         return {
-            text: '⏸ <b>Bonus tizimi vaqtincha o\'chirilgan.</b>\n\nKeyinroq qayta urinib ko\'ring.',
+            text: '⏸ **Bonus tizimi vaqtincha o\'chirilgan.**\n\nKeyinroq qayta urinib ko\'ring.',
             keyboard: { inline_keyboard: [[{ text: '🔙 Orqaga', callback_data: 'menu_back_main' }]] },
             parseMode
         };
@@ -224,16 +224,15 @@ const buildBonusMessage = async (bot, chatId) => {
     const shareText = encodeURIComponent("Menga bu bot juda yoqdi! Siz ham bu havola orqali kirib, 50 coin bilan 1 oylik obuna olishingiz mumkin!");
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link || '')}&text=${shareText}`;
 
-    // HTML: Markdown da Foydasizku_bot ichidagi _ kursiv bo'lib ko'rinardi (Foydasizkubot)
     const text =
-        `🎁 <b>Bonus / Referral</b>\n\n` +
-        `🪙 <b>Coinlar:</b> ${stats.coins} ta\n` +
-        `👥 <b>Taklif qilganlar:</b> ${stats.invited} ta\n` +
-        `⏳ <b>Kutilmoqda (obuna):</b> ${stats.pending} ta\n\n` +
-        `🔗 <b>Havola</b> (5 kun amal qiladi, muddati: ${escapeHTML(expires)}):\n` +
-        `<code>${escapeHTML(link || 'Havola yaratilmadi')}</code>\n\n` +
-        `<b>Faqat</b> <b>yangi</b> foydalanuvchi havolangiz bilan kirsa va kanallarga obuna bo'lsa — <b>+1 coin</b>.\n` +
-        `💰 1 oylik obuna <b>${COINS_PER_MONTH} coin</b>`;
+        `🎁 **Bonus / Referral**\n\n` +
+        `🪙 **Coinlar:** ${stats.coins} ta\n` +
+        `👥 **Taklif qilganlar:** ${stats.invited} ta\n` +
+        `⏳ **Kutilmoqda (obuna):** ${stats.pending} ta\n\n` +
+        `🔗 **Havola** (5 kun amal qiladi, muddati: ${expires}):\n` +
+        `\`${link || 'Havola yaratilmadi'}\`\n\n` +
+        `**Faqat yangi** foydalanuvchi havolangiz bilan kirsa va kanallarga obuna bo'lsa — **+1 coin**.\n` +
+        `💰 1 oylik obuna **${COINS_PER_MONTH} coin**`;
 
     const keyboard = {
         inline_keyboard: [
