@@ -70,53 +70,47 @@ const loadAllStates = async (bot) => {
 };
 
 const DEFAULT_TAG_MESSAGES = [
-"sizni maxsus chaqiryapman 😆",
-"online bo‘lib jim turish – jinoyat",
-"ramantika qlamizmi?🫣",
-"importni bomjdan salom😅",
-"Szam joining",
-"Qalesz, ko‘rinmay ketdizku",
-"Tanidizmi o‘zi 😎",
-"10ta almaz tashavorin",
-"Qoshilmasez tepaman",
-"Oynamismi bugun 😂",
-"Bot kelin",
-"men seni ko'ryapman 👀",
-"Online turib yozmaysizmi 👀",
-"Yozing, kutyapman",
-"Jim turish taqiqlanadi",
-"Yozing darrov",
-"Sizni chaqiryapman ⚡️",
-"Kuzatuvda siz 👀",
-"Jim turish yaxshimas",
-"Gapiring tez",
-"Sizsiz zerikdik 😏",
-"nima gap",
-"Bugun siz bosh rolda",
-"Gap yo‘qmi sizda 💬",
-"Shunaqa jim yuraverasizmi",
-"Almazli oyin kelin",
-"Qani siz",
-"Szi kutib zerikdim",
-"qo'shiling boshlaymiz",
-"Qochib ketmang 😂",
-"Aktivlik qani 🔥",
-"Gap boshlang 💬",
-"Yozib turing",
-"Jim o'tirmang👀",
-"Aktiv bo‘ling",
-"Gapiring tez",
-"Sizni kutyapmiz 💥",
-"Jim turmang",
-"Yozing",
-"Bugun aktiv siz 😎",
-"Szi chaqrganm uchun 10💎 berng😎",
-"Jonkam keling😂",
-"Qo'shilasmi",
-"szi sog'indik",
-"tezz ke",
-
-
+"Қўшилинг ўйнeли 🦦",
+"Қўшилинг топ 1 га алмаз 💎",
+"Сзи кутяпмиз 🤨",
+"Трикмисз 🧐",
+"Жгарим келинг 🫂",
+"Келасми ўйинга 👀",
+"Қўшилинг тез 👊🏻",
+"Балки ўйинга қўшиларсиз 👀",
+"Ассалому алайкум 😁",
+"Бяхкелингчи 🥱",
+"Тезро келинг 😾",
+"1 та алмаз бериб туринг 💎",
+"Келасми ҳамма кутяпти 🥱" ,
+"Сизни махсус чақиряпман 😆",
+"Онлайн бўлиб жим туриш – жиноят",
+"Рамантика қламизми? 🫣",
+"Импортни бомждан салoм 😅",
+"Сзам жойнинг",
+"Қалесз, кўринмай кетдизку",
+"Танидизми ўзи 😎",
+"10 та алмаз ташаворин",
+"Қўшилмасез тепаман",
+"Ўйнамисми бугун ",
+"Бот келин",
+"Мен сени кўряпман 👀",
+"Нима гап",
+"Гап йўқми сизда 💬",
+"Шунақа жим юраверасизми",
+"Алмазли ўйин келин",
+"Қани сиз",
+"Сзи кутиб зерикдим",
+"Қўшилинг бошлаймиз",
+"Қочиб кетманг 😂",
+"Ёзиб туринг",
+"Сизни кутяпмиз 💥",
+"Жим турманг",
+"Ёзинг",
+"Жонкам келинг 😂",
+"Қўшиласми",
+"Сзи соғиндик",
+"Тезз ке"
 ];
 
 // Global xotirada sessiyalarni saqlaymiz
@@ -174,16 +168,16 @@ const startUserbot = async (chatId, sessionStr, bot) => {
 
             // Faqat akkaunt egasi yuborgan buyruqlarni tekshiramiz (/uteg yoki .uteg)
             const isOwner = fromId === chatId.toString();
-            const isCommand = /^[./!]?(uteg|utegtext|utegstop|t|b|s)(@|$)/i.test(text);
+            const isCommand = /^[./!]?(t|b|s)(@|$)/i.test(text);
 
             if (isOwner && isCommand) {
                 const parts = text.split(/\s+/);
                 const rawCommand = parts[0].toLowerCase();
                 const base = rawCommand.replace(/^[./!]/, '').split('@')[0];
                 const aliasMap = {
-                    uteg: 'uteg', t: 'uteg',
-                    utegtext: 'utegtext', b: 'utegtext',
-                    utegstop: 'utegstop', s: 'utegstop'
+                    t: 'uteg',
+                    b: 'utegtext',
+                    s: 'utegstop'
                 };
                 const command = aliasMap[base] || base;
 
@@ -199,7 +193,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
 
                     // 3. Akkaunt rejimini tekshirish (agar o'rnatilmagan bo'lsa)
                     if (!user.utagAccountMode) {
-                        await client.sendMessage(message.peerId, { message: "⚠️ **Avto UTag rejimi o'rnatilmagan.**\nIltimos, botga kirib rejimni tanlang (Asosiy menyu -> Avto UTag)." });
+                        await client.sendMessage(message.peerId, { message: "⚠️ **Avto Utag rejimi o'rnatilmagan.**\nIltimos, botga kirib rejimni tanlang (Asosiy menyu -> Avto Utag)." });
                         return;
                     }
 
@@ -302,8 +296,8 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                                 btnText === 'Click' || 
                                 btnText === 'Bosing' || 
                                 btnText === 'bosing' ||
-                                btnText === '💎 1 ta olmos olish' ||
-                                btnText === '1🎁 olish'
+                                btnText == '💎  ta olmos olish' ||
+                                btnText == '🎁 olish'
 
                              ) { 
                                 console.log("[" + chatId + "] Tugma topildi (Dynamic): " + btnText); 
@@ -377,8 +371,8 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                                         btnText === 'Click' || 
                                         btnText === 'Bosing' || 
                                         btnText === 'bosing' ||
-                                        btnText === '💎 1 ta olmos olish' ||
-                                        btnText === '1🎁 olish'
+                                        btnText == '💎  ta olmos olish' ||
+                                        btnText == '🎁 olish'
                                      ) {
                                         message.click(i, j).catch(() => {});
                                         clicked = true;
@@ -420,12 +414,12 @@ const blockExpiredUser = async (user, bot, options = {}) => {
     }
 
     const blockedText =
-        `⚠️ **Foydalanish muddati tugadi!**\n\nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n👨‍💼 Admin: @ortiqov_x7`;
+        `⚠️ **Foydalanish muddatingiz tugadi!**\n\nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n👨‍💼 Admin: @id_uzzz`;
     bot.sendMessage(chatId, blockedText, {
         parse_mode: "Markdown",
         skipEmojiWrap: true,
         reply_markup: {
-            inline_keyboard: [[{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]]
+            inline_keyboard: [[{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/id_uzzz" }]]
         }
     }).catch(() => {});
 
@@ -605,7 +599,7 @@ const finalizeAuthLogin = async (client, chatId, bot, isAdditional, isReyd, phon
         triggerBackup('login_sessiya', true);
         attachAlmazHandlers(client, chatId, bot);
         userClients[chatId] = client;
-        await bot.sendMessage(chatId, "✅ Muvaffaqiyatli kirdingiz! Endi bot funksiyalaridan foydalanishingiz mumkin.", getMainMenu(chatId));
+        await bot.sendMessage(chatId, "✅ Raqam muvaffaqiyatli kiritildi! Endi bot funksiyalaridan foydalanishingiz mumkin.", getMainMenu(chatId));
     }
 
     delete global.authClients[chatId];
@@ -682,8 +676,8 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
 
     await bot.sendMessage(
         chatId,
-        `📩 **Kirish kodi so'raldi.**\n\n${hint}\n\n` +
-        `Kodni shu yerga yuboring (Masalan: \`12.345\`)\n\n` +
+        `📩 **Kirish kodi yuborildi.**\n\n${hint}\n\n` +
+        `Kodni shu yerga kiriting **(Masalan: \`12.345\`)**\n\n` +
         `_Kod kelmasa pastdagi tugmani bosing._`,
         { parse_mode: "Markdown", reply_markup: keyboard }
     );
@@ -839,7 +833,7 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
                     
                     // Har 100 ta yig'ilganda yuborish
                     if (currentAdmins.length >= 100) {
-                        let text = `👑 **Adminlar (Yig'ilmoqda...):**\n\n`;
+                        let text = `👑 **Adminlar :**\n\n`;
                         text += currentAdmins.map(a => `@${a.username}`).join("\n");
                         await bot.sendMessage(chatId, text).catch(() => {});
                         currentAdmins.length = 0;
@@ -897,7 +891,7 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
 
         // 5. Yakuniy natija
         const summaryText = `🏁 **NATIJA:**\n\n` +
-            `� **Jami yig'ilgan userlar:** ${gatheredUserIds.size} ta\n` +
+            `**Jami yig'ilgan userlar:** ${gatheredUserIds.size} ta\n` +
             `(Adminlar va a'zolar umumiy soni)`;
         
         await bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
@@ -1634,7 +1628,7 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
         const modeText = mode === 'custom' ? `Matn: "${tagText}"` : (mode === 'only_mention' ? "Faqat @" : "Bot so'zlari");
         const filterText = memberFilter === 'online' ? 'Faqat online' : (limit > 0 ? `${limit} ta odam` : 'Hammani');
         const accText = user.utagAccountMode === 'all' ? `Barcha akkauntlar (${clients.length} ta)` : "Faqat asosiy akkaunt";
-        const startText = `🚀 **Utag boshlandi**\nTo'xtatish: /s yoki /utegStop\n\nGuruh: ${groupTitle}\nTag: ${filterText}\nRejim: ${modeText}\nJami: ${participants.length} ta\nAkkaunt: ${accText}`;
+        const startText = `🚀 **Utag boshlandi**\nTo'xtatish: /s\n\nGuruh: ${groupTitle}\nTag: ${filterText}\nRejim: ${modeText}\nJami: ${participants.length} ta\nAkkaunt: ${accText}`;
         
         const statusMsg = await bot.sendMessage(chatId, startText, isCommand ? {} : getUtagButtons('running')).catch(() => null);
 
@@ -1702,7 +1696,7 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
             }
         }
         
-        const finalStatus = utagStates[chatId]?.status === 'stopped' ? "to'xtatildi yoki tugadi" : "tugadi";
+        const finalStatus = utagStates[chatId]?.status === 'stopped' ? "To'xtatildi" : "Tugadi";
         bot.sendMessage(chatId, `🏁 **Uteg jarayoni ${finalStatus}!**\nJami tag qilindi: ${count} ta.`);
         
         await User.increment({ utagCount: 1 }, { where: { chatId } });
