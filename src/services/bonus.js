@@ -221,6 +221,9 @@ const buildBonusMessage = async (bot, chatId) => {
         ? new Date(user.referralTokenExpiresAt).toLocaleDateString('uz-UZ')
         : '—';
 
+    const shareText = encodeURIComponent("Menga bu bot juda yoqdi! Siz ham bu havola orqali kirib, 50 coin bilan 1 oylik obuna olishingiz mumkin!");
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link || '')}&text=${shareText}`;
+
     // HTML: Markdown da Foydasizku_bot ichidagi _ kursiv bo'lib ko'rinardi (Foydasizkubot)
     const text =
         `🎁 <b>Bonus / Referral</b>\n\n` +
@@ -235,7 +238,7 @@ const buildBonusMessage = async (bot, chatId) => {
     const keyboard = {
         inline_keyboard: [
             [{ text: '🔄 Yangi havola yaratish', callback_data: 'bonus_new_link' }],
-            [{ text: '🪙 Coinlarim', callback_data: 'menu_coin' }],
+            [{ text: '👥 Do\'stlarga ulashish', url: shareUrl }],
             [{ text: '🔙 Orqaga', callback_data: 'menu_back_main' }]
         ]
     };
