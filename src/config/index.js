@@ -8,6 +8,7 @@ module.exports = {
     databaseUrl: process.env.DATABASE_URL, 
     port: process.env.PORT || 3000,
     botPromoUsername: process.env.BOT_PROMO_USERNAME || '@Foydasizku_bot',
+    
     // Auth ulanish (Render/cloud: WSS=443 odatda yaxshi ishlaydi)
     authUseWss: process.env.AUTH_USE_WSS !== '0',
     authReceiveUpdates: false,
@@ -21,10 +22,4 @@ module.exports = {
     tgDeviceModel: process.env.TG_DEVICE_MODEL || 'AvtoBotPro_v2',
     tgSystemVersion: process.env.TG_SYSTEM_VERSION || 'Windows 10',
     tgAppVersion: process.env.TG_APP_VERSION || 'Telegram Desktop 1.0.0',
-    // Eski BOT_USERNAME referralga ta'sir qilmaydi — bonus.js da REFERRAL_BOT_USERNAME
-    // BACKUP_SECRET — zaxira shifrlash (kamida 16 belgi, Render .env ga qo'shing)
-    channels: [
-        // { id: '@ortiqov_w', name: 'Personal', url: 'https://t.me/ortiqov_w' },
-        // { id: '@AvtoBot_News', name: '𝗔𝗩𝗧𝗢 𝗕𝗢𝗧 𝗡𝗘𝗪𝗦 💎', url: 'https://t.me/AvtoBot_News' }
-    ]
 };

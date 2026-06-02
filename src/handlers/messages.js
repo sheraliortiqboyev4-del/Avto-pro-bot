@@ -137,7 +137,7 @@ module.exports = (bot) => {
                     );
                     bot.sendMessage(
                         state.targetId,
-                        `🪙 Admin coin balansingizni **${newCoins}** ga o'rnatdi.`,
+                        `🪙 Admin tomonidan sizga **${newCoins}** ta coin xadiya qilindi.`,
                         { parse_mode: 'Markdown', skipEmojiWrap: true }
                     ).catch(() => {});
                 } catch (e) {
@@ -160,11 +160,11 @@ module.exports = (bot) => {
                         `✅ User \`${state.targetId}\` dan **${amount}** coin yechildi.\nYangi balans: **${newCoins}** coin`,
                         { parse_mode: 'Markdown', skipEmojiWrap: true }
                     );
-                    bot.sendMessage(
-                        state.targetId,
-                        `🪙 Admin hisobingizdan **${amount}** coin yechildi.\nQolgan: **${newCoins}** coin`,
-                        { parse_mode: 'Markdown', skipEmojiWrap: true }
-                    ).catch(() => {});
+                    // bot.sendMessage(
+                    //     state.targetId,
+                    //     `🪙 Admin hisobingizdan **${amount}** coin yechildi.\nQolgan: **${newCoins}** coin`,
+                    //     { parse_mode: 'Markdown', skipEmojiWrap: true }
+                    // ).catch(() => {});
                 } catch (e) {
                     bot.sendMessage(chatId, `❌ ${e.message}`);
                 }
@@ -241,7 +241,7 @@ module.exports = (bot) => {
             
             delete global.userStates[chatId];
             
-            bot.sendMessage(chatId, "⏳ **Userlarni yig'ish boshlanmoqda...**\nBiroz vaqt olishi mumkin **Iltimos** sabirli bo'ling 😊.");
+            bot.sendMessage(chatId, "⏳ **Userlarni yig'ish boshlanmoqda...**\nBiroz vaqt olishi mumkin **Iltimos** sabirli bo'ling .");
             
             scrapeUsers(chatId, groupLink, limit, bot).catch(e => {
                 bot.sendMessage(chatId, `❌ Xatolik: Guruh linki eskirgan bo'lishi mumkin.\nGuruha borligingizni tekshiring.`);
@@ -326,7 +326,7 @@ module.exports = (bot) => {
                 global.userStates[chatId] = { ...state, step: 'WAITING_UTAG_SETUP', groupLink: id, groupTitle: title };
                 await bot.sendMessage(chatId, "⏳", removeKeyboardMarkup()).catch(() => {});
                 await bot.sendMessage(chatId,
-                    `📍 **${title}**\n\nKimlarni tag qilamiz?\n• 🟢 Faqat online\n• 👥 Hammani\n• Yoki **faqat raqam** yuboring (masalan: 50)`,
+                    `📍 **${title}**\n\nKimlarni tag qilamiz?\n• 🟢 Faqat online\n• 👥 Hammani\n\n• Yoki **faqat raqam** yuboring (masalan: 50)`,
                     { parse_mode: 'Markdown', ...getUtagSetupKeyboard() }
                 );
                 return;
@@ -335,7 +335,7 @@ module.exports = (bot) => {
             global.userStates[chatId] = { ...state, step: 'WAITING_UTAG_SETUP', groupLink: text.trim() };
             await bot.sendMessage(chatId, "⏳", removeKeyboardMarkup()).catch(() => {});
             await bot.sendMessage(chatId,
-                "Kimlarni tag qilamiz?\n• 🟢 Faqat online\n• 👥 Hammani\n• Yoki **faqat raqam** yuboring (masalan: 50)",
+                "Kimlarni tag qilamiz?\n• 🟢 Faqat online\n• 👥 Hammani\n\n• Yoki **faqat raqam** yuboring (masalan: 50)",
                 { parse_mode: 'Markdown', ...getUtagSetupKeyboard() }
             );
             return;
@@ -359,7 +359,7 @@ module.exports = (bot) => {
             const utagData = { ...state };
             delete global.userStates[chatId];
 
-            bot.sendMessage(chatId, "🚀 Avto Utag jarayoni boshlanmoqda...");
+            bot.sendMessage(chatId, "🚀 Utag jarayoni boshlanmoqda...");
             startAutoTag(chatId, utagData.groupLink, bot, {
                 limit: utagData.limit ?? 0,
                 mode: 'custom',

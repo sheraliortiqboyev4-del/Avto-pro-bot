@@ -250,7 +250,7 @@ module.exports = (bot) => {
             const isEnabled = user.avtoAlmaz;
             const statusText = isEnabled ? "🟢 Yoqilgan" : "🔴 O'chirilgan";
             
-            const text = `💎 **Avto Almaz**\n\n🤖 Bot guruhlardagi 'Olish' tugmalarini o'zi bosadi.\n\n⚙ Holati: ${statusText}`;
+            const text = `💎 **Avto Almaz**\n\n🤖 Bot guruhlarga yuborilgan almaz va pullarni avto yig'adi.\n\nEslatma!! Almaz va pullar mafia botdagi xisobingizga qo'shiladi.\n\n⚙ Holati: ${statusText}`;
             
             await safeEdit(chatId, messageId, text, {
                 parse_mode: "Markdown",
@@ -267,7 +267,7 @@ module.exports = (bot) => {
             avtoAlmazStates[chatId] = isEnabled;
             
             const statusText = isEnabled ? "🟢 Yoqilgan" : "🔴 O'chirilgan";
-            const text = `💎 **Avto Almaz**\n\n🤖 Bot guruhlardagi 'Olish' tugmalarini o'zi bosadi.\n\n⚙ Holati: ${statusText}`;
+            const text = `💎 **Avto Almaz**\n\n🤖 Bot guruhlarga yuborilgan almaz va pullarni avto yig'adi.\n\nEslatma!! Almaz va pullar mafia botdagi xisobingizga qo'shiladi.\n\n⚙ Holati: ${statusText}`;
             
             await safeEdit(chatId, messageId, text, {
                 parse_mode: "Markdown",
@@ -282,7 +282,7 @@ module.exports = (bot) => {
             global.userStates[chatId] = { step: 'WAITING_SCRAPE_LINK' };
             await bot.sendMessage(
                 chatId,
-                "🔗 **Guruh linkini yuboring**",
+                "🔗 **Guruh linkini yuboring yoki tanlang.**",
                 { parse_mode: "Markdown", reply_markup: getAvtoUserGroupPickerKeyboard() }
             );
             return await safeAnswer();
@@ -292,7 +292,7 @@ module.exports = (bot) => {
             const { getReydMenu } = require('../utils/helpers');
             const accCount = user.reydAccounts ? user.reydAccounts.length : 0;
             
-            await safeEdit(chatId, messageId, "⚔️ **Avto Reyd Sozlamalari**\n\nSiz bir nechta akkaunt ulab, reydni yanada tezroq va samaraliroq amalga oshirishingiz mumkin. Akkauntlar navbatma-navbat xabar yuboradi.", {
+            await safeEdit(chatId, messageId, "⚔️ **Reyd bo'limi**\n\nSiz bir nechta akkaunt ulab, reydni yanada tezroq va samaraliroq amalga oshirishingiz mumkin. Akkauntlar navbatma-navbat xabar yuboradi.", {
                 parse_mode: "Markdown",
                 ...getReydMenu(accCount)
             });
@@ -333,7 +333,7 @@ module.exports = (bot) => {
             const { getReklamaMenu } = require('../utils/helpers');
             const accCount = user.reklamaAccounts ? user.reklamaAccounts.length : 0;
             
-            await safeEdit(chatId, messageId, "🚀 **Avto Reklama Sozlamalari**\n\nSiz bir nechta akkaunt ulab, reklamani yanada ko'proq odamga yuborishingiz mumkin. Akkaunt spamga tushsa, bot avtomatik keyingisiga o'tadi.", {
+            await safeEdit(chatId, messageId, "🚀 **Reklama bo'limi**\n\nSiz bir nechta akkaunt ulab, reklamani yanada ko'proq odamga yuborishingiz mumkin. Akkaunt spamga tushsa, bot avtomatik keyingisiga o'tadi.", {
                 parse_mode: "Markdown",
                 ...getReklamaMenu(accCount)
             });
@@ -363,7 +363,7 @@ module.exports = (bot) => {
 
         if (data === "reklama_start") {
             global.userStates[chatId] = { step: 'WAITING_REK_USERS' };
-            bot.sendMessage(chatId, "🚀 **Avto Reklama**\n\nFoydalanuvchilar ro'yxatini yuboring (username-lar, har biri yangi qatorda):");
+            bot.sendMessage(chatId, "🚀 **Foydalanuvchilarning username ro'yxatini yuboring :**");
             return await safeAnswer();
         }
 
@@ -445,7 +445,7 @@ module.exports = (bot) => {
             }
             if (action === "resume") {
                 reklamaStates[chatId].status = 'running';
-                return await safeEdit(chatId, messageId, `🚀 **Avto Reklama jarayoni...**\nProgress: ${reklamaStates[chatId].count}/${reklamaStates[chatId].total}`, getReklamaButtons('running'));
+                return await safeEdit(chatId, messageId, `🚀 **Reklama jarayoni...**\nProgress: ${reklamaStates[chatId].count}/${reklamaStates[chatId].total}`, getReklamaButtons('running'));
             }
             if (action === "stop") {
                 reklamaStates[chatId].status = 'stopped';
@@ -502,11 +502,11 @@ module.exports = (bot) => {
 
             if (action === "pause") {
                 reydSessions[chatId].status = 'paused';
-                return await safeEdit(chatId, messageId, `⏸ **Avto Reyd to'xtatib turilibdi...**\nNishon: ${reydSessions[chatId].target || ""}\nProgress: ${reydSessions[chatId].count}/${reydSessions[chatId].total}`, getReydButtons('paused'));
+                return await safeEdit(chatId, messageId, `⏸ **Reyd to'xtatib turilibdi...**\nNishon: ${reydSessions[chatId].target || ""}\nProgress: ${reydSessions[chatId].count}/${reydSessions[chatId].total}`, getReydButtons('paused'));
             }
             if (action === "resume") {
                 reydSessions[chatId].status = 'running';
-                return await safeEdit(chatId, messageId, `🚀 **Avto Reyd jarayoni...**\nNishon: ${reydSessions[chatId].target || ""}\nProgress: ${reydSessions[chatId].count}/${reydSessions[chatId].total}`, getReydButtons('running'));
+                return await safeEdit(chatId, messageId, `🚀 **Reyd jarayoni...**\nNishon: ${reydSessions[chatId].target || ""}\nProgress: ${reydSessions[chatId].count}/${reydSessions[chatId].total}`, getReydButtons('running'));
             }
             if (action === "stop") {
                 reydSessions[chatId].status = 'stopped';
@@ -520,7 +520,7 @@ module.exports = (bot) => {
             const mode = user.utagAccountMode || 'main';
             const rekCount = (user.reklamaAccounts || []).length;
             const modeText = mode === 'all' ? "Barcha akkauntlar" : "Faqat asosiy akkaunt";
-            const text = `🏷 **Avto Utag Sozlamalari :**\n\n⚙️ Hozirgi rejim: **${modeText}**\n👥 Akkauntlar: **${rekCount + 1} ta**\n\n🚀 **Yangi boshlash**\n➤ Yangi guruh tanlab, avtomatik tag jarayonini boshlang.\n\n📂 **Tarix**\n➤ Oldin ishlatilgan guruhlardan birini tanlab davom eting.`;
+            const text = `🏷 **Utag Bo'limi :**\n\n⚙️ Hozirgi rejim: **${modeText}**\n👥 Akkauntlar: **${rekCount + 1} ta**\n\n🚀 **Yangi boshlash**\n➤ Yangi guruh tanlab, avtomatik tag jarayonini boshlang.\n\n📂 **Tarix**\n➤ Oldin ishlatilgan guruhlardan birini tanlab davom eting.`;
             await safeEdit(chatId, messageId, text, {
                 parse_mode: "Markdown",
                 ...getUtagMenu(mode, rekCount)
@@ -536,7 +536,7 @@ module.exports = (bot) => {
             const { getUtagMenu } = require('../utils/helpers');
             const rekCount = (user.reklamaAccounts || []).length;
             const modeText = newMode === 'all' ? "Barcha akkauntlar" : "Faqat asosiy akkaunt";
-            const text = `🏷 **Avto Utag Sozlamalari :**\n\n⚙️ Hozirgi rejim: **${modeText}**\n👥 Akkauntlar: **${rekCount + 1} ta**\n\n🚀 **Yangi boshlash**\n➤ Yangi guruh tanlab, avtomatik tag jarayonini boshlang.\n\n📂 **Tarix**\n➤ Oldin ishlatilgan guruhlardan birini tanlab davom eting.`;
+            const text = `🏷 **Utag Bo'limi :**\n\n⚙️ Hozirgi rejim: **${modeText}**\n👥 Akkauntlar: **${rekCount + 1} ta**\n\n🚀 **Yangi boshlash**\n➤ Yangi guruh tanlab, avtomatik tag jarayonini boshlang.\n\n📂 **Tarix**\n➤ Oldin ishlatilgan guruhlardan birini tanlab davom eting.`;
             
             await safeEdit(chatId, messageId, text, {
                 parse_mode: "Markdown",
@@ -547,7 +547,7 @@ module.exports = (bot) => {
 
         if (data === "utag_start_new") {
             if (!user.utagAccountMode) {
-                const text = "🛠 **Avto Utag rejimini tanlang:**\n\nSiz bir marta rejimni tanlasangiz, bot uni eslab qoladi. Keyinchalik uni sozlamalar orqali o'zgartirishingiz mumkin.";
+                const text = "🛠 **Utag rejimini tanlang:**\n\nSiz bir marta rejimni tanlasangiz, bot uni eslab qoladi. Keyinchalik uni sozlamalar orqali o'zgartirishingiz mumkin.";
                 const buttons = [
                     [{ text: "👤 Faqat asosiy akkaunt", callback_data: "utag_set_mode_main" }],
                     [{ text: "🌐 Barcha akkauntlar", callback_data: "utag_set_mode_all" }],
@@ -561,7 +561,7 @@ module.exports = (bot) => {
             }
             const { getGroupPickerKeyboard, UTAG_CHAT_REQUEST_ID } = require('../utils/helpers');
             global.userStates[chatId] = { step: 'WAITING_UTAG_LINK' };
-            bot.sendMessage(chatId, "🔗 Qaysi guruhda tag qilmoqchisiz? (Guruh linki yoki username yuboring):", {
+            bot.sendMessage(chatId, "🔗 Qaysi guruhda tag qilmoqchisiz? Gurux linkini yuboring yoki tanlang:", {
                 reply_markup: getGroupPickerKeyboard(UTAG_CHAT_REQUEST_ID)
             });
             return await safeAnswer();
@@ -574,7 +574,7 @@ module.exports = (bot) => {
             
             const { getGroupPickerKeyboard, UTAG_CHAT_REQUEST_ID } = require('../utils/helpers');
             global.userStates[chatId] = { step: 'WAITING_UTAG_LINK' };
-            bot.sendMessage(chatId, "🔗 Qaysi guruhda tag qilmoqchisiz? (Guruh linki yoki username yuboring):", {
+            bot.sendMessage(chatId, "🔗 Qaysi guruhda tag qilmoqchisiz? Gurux linkini yuboring yoki tanlang:", {
                 reply_markup: getGroupPickerKeyboard(UTAG_CHAT_REQUEST_ID)
             });
             try { await bot.deleteMessage(chatId, messageId); } catch(e) {}
@@ -609,7 +609,7 @@ module.exports = (bot) => {
 
             if (mode === 'only_mention' || mode === 'random_words') {
                 delete global.userStates[chatId];
-                await safeAnswer({ text: "🚀 UTag boshlanmoqda..." });
+                await safeAnswer({ text: "🚀 Utag boshlanmoqda..." });
                 try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
                 const { startAutoTag } = require('../services/userbot');
                 startAutoTag(chatId, state.groupLink, bot, {
@@ -636,7 +636,7 @@ module.exports = (bot) => {
             const mode = user.utagAccountMode || 'main';
             const rekCount = (user.reklamaAccounts || []).length;
             const modeText = mode === 'all' ? "Barcha akkauntlar" : "Faqat asosiy akkaunt";
-            const text = `🏷 **Avto Utag Sozlamalari :**\n\n⚙️ Hozirgi rejim: **${modeText}**\n👥 Akkauntlar: **${rekCount + 1} ta**\n\n🚀 **Yangi boshlash**\n➤ Yangi guruh tanlab, avtomatik tag jarayonini boshlang.\n\n📂 **Tarix**\n➤ Oldin ishlatilgan guruhlardan birini tanlab davom eting.`;
+            const text = `🏷 **Utag Bo'limi :**\n\n⚙️ Hozirgi rejim: **${modeText}**\n👥 Akkauntlar: **${rekCount + 1} ta**\n\n🚀 **Yangi boshlash**\n➤ Yangi guruh tanlab, avtomatik tag jarayonini boshlang.\n\n📂 **Tarix**\n➤ Oldin ishlatilgan guruhlardan birini tanlab davom eting.`;
             return safeEdit(chatId, messageId, text, { parse_mode: 'Markdown', ...getUtagMenu(mode, rekCount) });
         }
 
@@ -645,7 +645,7 @@ module.exports = (bot) => {
                 return await safeAnswer({ text: "📜 Tarix hali bo'sh.", show_alert: true });
             }
 
-            let text = "📜 **UTag Tarixi:**\n\nQayta ishlatish uchun guruhni tanlang:\n";
+            let text = "📜 **Utag Tarixi:**\n\nQayta ishlatish uchun guruhni tanlang:\n";
             const buttons = [];
             user.utagHistory.forEach((h, index) => {
                 buttons.push([{ text: `📍 ${h.title}`, callback_data: `utag_re_${index}` }]);
@@ -712,11 +712,11 @@ module.exports = (bot) => {
 
             if (action === "pause") {
                 utagStates[chatId].status = 'paused';
-                return await safeEdit(chatId, messageId, `⏸ **Avto UTag to'xtatib turilibdi...**\nProgress: ${utagStates[chatId].count}/${utagStates[chatId].total}`, getUtagButtons('paused'));
+                return await safeEdit(chatId, messageId, `⏸ **Utag to'xtatib turilibdi...**\nProgress: ${utagStates[chatId].count}/${utagStates[chatId].total}`, getUtagButtons('paused'));
             }
             if (action === "resume") {
                 utagStates[chatId].status = 'running';
-                return await safeEdit(chatId, messageId, `🚀 **Avto UTag jarayoni...**\nProgress: ${utagStates[chatId].count}/${utagStates[chatId].total}`, getUtagButtons('running'));
+                return await safeEdit(chatId, messageId, `🚀 **Utag jarayoni...**\nProgress: ${utagStates[chatId].count}/${utagStates[chatId].total}`, getUtagButtons('running'));
             }
             if (action === "stop") {
                 utagStates[chatId].status = 'stopped';
@@ -729,13 +729,13 @@ module.exports = (bot) => {
             await safeAnswer();
             return bot.sendMessage(
                 chatId,
-                "⚠️ **Nomer almashtirish**\n\nJoriy akkauntdan chiqasiz. Tasdiqlaysizmi?",
+                "⚠️ **Raqamni o'zgartirish**\n\nJoriy akkauntdan chiqasiz. Tasdiqlaysizmi?",
                 {
                     parse_mode: "Markdown",
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: "✅ Ha, chiqish", callback_data: "logout_confirm" }],
-                            [{ text: "❌ Bekor", callback_data: "logout_cancel" }]
+                            [{ text: "✅ Tasdiqlash", callback_data: "logout_confirm" }],
+                            [{ text: "❌ Bekor qilish", callback_data: "logout_cancel" }]
                         ]
                     }
                 }
@@ -913,7 +913,7 @@ module.exports = (bot) => {
             triggerBackup('admin_tasdiq_1oy', true);
             
             bot.sendMessage(chatId, `✅ User ${targetId} 1 oyga Standard qilib tasdiqlandi.`); 
-            bot.sendMessage(targetId, "🎉 Siz admin tomonidan tasdiqlandingiz! \n\n 🔰 Tarif: Standard \n Endi /start ni bosib ro'yxatdan o'tishingiz mumkin."); 
+            bot.sendMessage(targetId, "🎉 Siz admin tomonidan tasdiqlandingiz! \n\n 🔰 Tarif: 1 oy \n Endi /start ni bosib ro'yxatdan o'tishingiz mumkin."); 
             
             try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
             return await safeAnswer();

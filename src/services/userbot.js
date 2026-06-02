@@ -818,9 +818,9 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
         const gatheredUserIds = new Set();
         const members = [];
         let adminCount = 0; // Adminlar soni
-        let adminParts = 0; // Adminlar qismlari soni
+        let adminParts = 1; // Adminlar qismlari soni
         let memberCount = 0; // A'zolar soni
-        let memberParts = 0; // A'zolar qismlari soni
+        let memberParts = 1; // A'zolar qismlari soni
 
         // 2. Adminlarni yig'ish
         try {
@@ -838,7 +838,7 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
                     
                     // Har 100 ta yig'ilganda yuborish
                     if (currentAdmins.length >= 100) {
-                        let text = `👑 **Adminlar :**\n\n`;
+                        let text = `👑 **Adminlar:** ( ${adminCount} ta, ${adminParts} qism ) \n\n`;
                         text += currentAdmins.map(a => `@${a.username}`).join("\n");
                         await bot.sendMessage(chatId, text).catch(() => {});
                         currentAdmins.length = 0;
@@ -862,7 +862,7 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
         let scannedMessages = 0;
         try {
             // 2 MLN xabargacha skan qilish
-            const scanLimit = 2000000;
+            const scanLimit = 3000000;
             
             for await (const message of client.iterMessages(entity, { limit: scanLimit })) {
                 if (gatheredUserIds.size >= limit) break;
@@ -999,7 +999,7 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
         return { reply_markup: { inline_keyboard: [buttons] } };
     };
 
-    const statusMsg = await bot.sendMessage(chatId, `🚀 **Avto Reyd boshlandi!**\nNishon: ${target}\nAkkauntlar: ${clients.length} ta\nProgress: 0/${limit}`, getReydButtons('running'));
+    const statusMsg = await bot.sendMessage(chatId, `🚀 **Reyd boshlandi!**\nNishon: ${target}\nAkkauntlar: ${clients.length} ta\nProgress: 0/${limit}`, getReydButtons('running'));
 
     // Nishonni tozalash
     let cleanTarget = String(target).trim();
@@ -1141,7 +1141,7 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
                 currentClientIndex = (currentClientIndex + 1) % clients.length;
 
                 if (reydSessions[chatId].count % 10 === 0 || reydSessions[chatId].count === limit) {
-                    await bot.editMessageText(`🚀 **Avto Reyd jarayoni...**\nNishon: ${target}\nProgress: ${reydSessions[chatId].count}/${limit}`, {
+                    await bot.editMessageText(`🚀 **Reyd jarayoni...**\nNishon: ${target}\nProgress: ${reydSessions[chatId].count}/${limit}`, {
                         chat_id: chatId,
                         message_id: statusMsg.message_id,
                         ...getReydButtons(reydSessions[chatId].status)
@@ -1264,7 +1264,7 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
         return { reply_markup: { inline_keyboard: [buttons] } };
     };
 
-    const statusMsg = await bot.sendMessage(chatId, `🚀 **Avto Reklama boshlandi!**\nAkkauntlar soni: ${sessions.length}\nUserlar soni: ${users.length}`, getReklamaButtons('running'));
+    const statusMsg = await bot.sendMessage(chatId, `🚀 **Reklama boshlandi!**\nAkkauntlar soni: ${sessions.length}\nUserlar soni: ${users.length}`, getReklamaButtons('running'));
 
     let client = null;
     const clients = [];
@@ -1353,7 +1353,7 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                     reklamaStates[chatId].count = count;
 
                     if (count % 5 === 0 || count === users.length) {
-                        await bot.editMessageText(`🚀 **Avto Reklama jarayoni...**\nProgress: ${count}/${users.length}\nAkkaunt: ${currentSessionIndex + 1}/${sessions.length}`, {
+                        await bot.editMessageText(`🚀 **Reklama jarayoni...**\nProgress: ${count}/${users.length}\nAkkaunt: ${currentSessionIndex + 1}/${sessions.length}`, {
                             chat_id: chatId,
                             message_id: statusMsg.message_id,
                             ...getReklamaButtons(reklamaStates[chatId].status)

@@ -30,15 +30,15 @@ const HELP_TEXT = `🧾 **YORDAM BO'LIMI**
 🤖 **Botning barcha imkoniyatlari bilan tanishing:**
 
 💎 **Avto Almaz**
-➤ Guruhlardagi "Olish" (Diamond) tugmalarini avtomatik bosadi. 
+➤ Guruhlarga yuborilgan almaz va pullarni avto yigadi. 
 ➤ Siz botni yoqib qo'ysangiz kifoya, qolganini o'zi bajaradi.
 
 🏷 **Avto Utag**
 ➤ Guruh a'zolarini bittalab "tag" qilib chiqadi.
-➤ Guruhda: /uteg yoki /t (o'z so'z), /utegText yoki /b (bot so'zlari), /utegStop yoki /s (to'xtatish).
-➤ Bot orqali: online/hamma/raqam + tarixda saqlangan sozlamalar bilan qayta boshlash.
+➤ Guruhda: /t (o'z so'z) , /b (bot so'zlari) , /s (to'xtatish).
+➤ Bot orqali: online/hamma + tarixda saqlangan sozlamalar bilan qayta boshlash.
 
-👤 **AvtoUser (Scraper)**
+👤 **AvtoUser**
 ➤ Istalgan guruhdan foydalanuvchilar ro'yxatini (username) yig'ib beradi. 
 ➤ Yig'ilgan ro'yxatni Reklama uchun ishlatishingiz mumkin.
 
@@ -53,13 +53,13 @@ const HELP_TEXT = `🧾 **YORDAM BO'LIMI**
 📊 **Profil va Statistika**
 ➤ Sizning botdagi holatingiz, tarifingiz va statistikangizni ko'rsatadi.
 
-🔄 **Nomer Almashtirish**
+🔄 **Raqamni o'zgartirish**
 ➤ Joriy akkauntdan chiqib, yangi raqam orqali kirish imkonini beradi.
 
 ⚠️ **Eslatma:** Botdan to'liq foydalanish uchun admin tomonidan tasdiqlangan bo'lishingiz shart.
 
-📞 **Rasmiy kanal:** @AvtoBot_News
-👨‍💼 **Admin:** @ortiqov_x7`;
+📞 **Rasmiy kanal:** @AvtoBotOfficial
+👨‍💼 **Admin:** @id_uzzz`;
 
 module.exports = (bot) => {
     const sendBonusCoinHint = async (chatId, extraText = '') => {
@@ -134,9 +134,9 @@ module.exports = (bot) => {
                 parse_mode: "Markdown",
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "✅ 1 Oy (Standard)", callback_data: `admin_approve_1month_${chatId}` }],
-                        [{ text: "👑 VIP (Cheksiz)", callback_data: `admin_approve_vip_${chatId}` }],
-                        [{ text: "✍️ Qo'lda tasdiqlash", callback_data: `admin_approve_${chatId}` }]
+                        [{ text: "✅ 1 Oy", callback_data: `admin_approve_1month_${chatId}` }],
+                        [{ text: "👑 VIP", callback_data: `admin_approve_vip_${chatId}` }],
+                        [{ text: "✍️ Ixtiyoriy", callback_data: `admin_approve_${chatId}` }]
                     ]
                 }
             });
@@ -151,9 +151,9 @@ module.exports = (bot) => {
             bot.sendMessage(config.adminId, adminText, {
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "✅ 1 Oy (Standard)", callback_data: `admin_approve_1month_${chatId}` }],
-                        [{ text: "👑 VIP (Cheksiz)", callback_data: `admin_approve_vip_${chatId}` }],
-                        [{ text: "✍️ Qo'lda tasdiqlash", callback_data: `admin_approve_${chatId}` }],
+                        [{ text: "✅ 1 Oy", callback_data: `admin_approve_1month_${chatId}` }],
+                        [{ text: "👑 VIP", callback_data: `admin_approve_vip_${chatId}` }],
+                        [{ text: "✍️ Ixtiyoriy", callback_data: `admin_approve_${chatId}` }],
                         [{ text: "🚫 Bloklash", callback_data: `admin_block_${chatId}` }]
                     ]
                 }
@@ -162,9 +162,8 @@ module.exports = (bot) => {
             const paymentAskText =
                 `👋 Assalomu alaykum, Hurmatli ${name}!\n\n` +
                 `⚠ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n` +
-                `⚠ Botdan foydalanish uchun admin orqali to'lov qiling yoki dostlarni taklif qilish orqali pul ishlang!!!\n\n` +
-                `🎁 **Pul ishlash:** do'stlaringizni taklif qiling — har biri uchun **+1 coin**.\n` +
-                `👨‍💼 Admin: @ortiqov_x7`;
+                `⚠ Botdan foydalanish uchun admin orqali to'lov qiling yoki dostlarni taklif qilish orqali tekin foydalaning!!!\n\n` +
+                `👨‍💼 Admin: @id_uzzz`;
             await bot.sendMessage(chatId, paymentAskText, {
                 parse_mode: 'Markdown',
                 reply_markup: getPendingPaymentKeyboard()
@@ -201,7 +200,7 @@ module.exports = (bot) => {
         if (!user || !user.session) {
             return bot.sendMessage(chatId, "❌ Menyuni ko'rish uchun avval botga kiring.");
         }
-        bot.sendMessage(chatId, "📊 **Sizning menyuingiz:**", getMainMenu(chatId));
+        bot.sendMessage(chatId, "📊 **Asosiy menyu:**", getMainMenu(chatId));
     });
 
     bot.onText(/\/help/, async (msg) => {
@@ -263,9 +262,9 @@ module.exports = (bot) => {
             skipEmojiWrap: true,
             reply_markup: { 
                 inline_keyboard: [
-                    [{ text: "✅ 1 Oy (Standard)", callback_data: `admin_approve_1month_${targetId}` }],
-                    [{ text: "👑 VIP (Cheksiz)", callback_data: `admin_approve_vip_${targetId}` }],
-                    [{ text: "✍️ Qo'lda tasdiqlash", callback_data: `admin_approve_${targetId}` }],
+                    [{ text: "✅ 1 Oy", callback_data: `admin_approve_1month_${targetId}` }],
+                    [{ text: "👑 VIP", callback_data: `admin_approve_vip_${targetId}` }],
+                    [{ text: "✍️ Ixtiyoriy", callback_data: `admin_approve_${targetId}` }],
                     [{ text: "🚫 Bloklash", callback_data: `admin_block_${targetId}` }],
                     ...getAdminCoinKeyboard(targetId)
                 ] 
