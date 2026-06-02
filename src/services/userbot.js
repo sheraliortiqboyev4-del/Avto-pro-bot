@@ -817,6 +817,10 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
 
         const gatheredUserIds = new Set();
         const members = [];
+        let adminCount = 0; // Adminlar soni
+        let adminParts = 0; // Adminlar qismlari soni
+        let memberCount = 0; // A'zolar soni
+        let memberParts = 0; // A'zolar qismlari soni
 
         // 2. Adminlarni yig'ish
         try {
@@ -830,6 +834,7 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
                 if (!gatheredUserIds.has(p.id.toString())) {
                     currentAdmins.push({ id: p.id.toString(), username: p.username });
                     gatheredUserIds.add(p.id.toString());
+                    adminCount++; // Adminlar sonini oshirish
                     
                     // Har 100 ta yig'ilganda yuborish
                     if (currentAdmins.length >= 100) {
@@ -837,25 +842,27 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
                         text += currentAdmins.map(a => `@${a.username}`).join("\n");
                         await bot.sendMessage(chatId, text).catch(() => {});
                         currentAdmins.length = 0;
+                        adminParts++; // Qism sonini oshirish
                         await new Promise(r => setTimeout(r, 500));
                     }
                 }
             }
             // Qolgan adminlarni yuborish
             if (currentAdmins.length > 0) {
-                let text = `👑 **Adminlar:**\n\n`;
+                let text = `👑 **Adminlar:** ( ${adminCount} ta, ${adminParts} qism )\n\n`;
                 text += currentAdmins.map(a => `@${a.username}`).join("\n");
                 await bot.sendMessage(chatId, text).catch(() => {});
+                adminParts++; // Qism sonini oshirish
             }
         } catch (e) {
             console.error("Adminlarni yig'ishda xato:", e.message);
         }
 
-        // 3. Tarixdan qidirish (History Scan)
+        // 3. Tarixdan qidirish (History Scan) - faqat bu ishlaydi, admin huquqi yo'q bo'lsa
         let scannedMessages = 0;
         try {
-            // 1 MLN xabargacha skan qilish
-            const scanLimit = 1000000;
+            // 2 MLN xabargacha skan qilish
+            const scanLimit = 2000000;
             
             for await (const message of client.iterMessages(entity, { limit: scanLimit })) {
                 if (gatheredUserIds.size >= limit) break;
@@ -868,21 +875,23 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
                     if (!gatheredUserIds.has(senderIdStr)) {
                         members.push({ id: senderIdStr, username: sender.username });
                         gatheredUserIds.add(senderIdStr);
+                        memberCount++; // A'zolar sonini oshirish
 
                         // Har 100 ta yig'ilganda darhol yuborish
                         if (members.length >= 100) {
-                            let text = `👥 **Azolar:**\n\n`;
+                            let text = `👥 **Azolar:** ( ${memberCount} ta, ${memberParts} qism )\n\n`;
                             text += members.map(m => `@${m.username}`).join("\n");
                             await bot.sendMessage(chatId, text).catch(e => console.error("Batch send error:", e.message));
                             members.length = 0; // Massivni tozalash
-                            await new Promise(r => setTimeout(r, 500)); // Flood protection
+                            memberParts++; // Qism sonini oshirish
+                            await new Promise(r => setTimeout(r, 2000)); // Flood protection
                         }
                     }
                 }
                 
-                // Har 200 ta xabardan keyin kichik tanaffus (Flood protection)
-                if (scannedMessages % 200 === 0) {
-                    await new Promise(r => setTimeout(r, 300));
+                // Har 500 ta xabardan keyin kichik tanaffus (Flood protection)
+                if (scannedMessages % 500 === 0) {
+                    await new Promise(r => setTimeout(r, 1500));
                 }
             }
         } catch (e) {
@@ -891,16 +900,18 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
 
         // 5. Yakuniy natija
         const summaryText = `🏁 **NATIJA:**\n\n` +
-            `**Jami yig'ilgan userlar:** ${gatheredUserIds.size} ta\n` +
-            `(Adminlar va a'zolar umumiy soni)`;
+            `👑 **Adminlar:** ${adminCount} ta, ${adminParts} qism\n` +
+            `👥 **A'zolar:** ${memberCount} ta, ${memberParts} qism\n` +
+            `📊 **Jami:** ${gatheredUserIds.size} ta`;
         
         await bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
         
         // Qolgan a'zolarni yuborish (agar 100 taga yetmagan bo'lsa)
         if (members.length > 0) {
-            let text = `👥 **Azolar:**\n\n`;
+            let text = `👥 **Azolar:** ( ${memberCount} ta, ${memberParts} qism )\n\n`;
             text += members.map(m => `@${m.username}`).join("\n");
             await bot.sendMessage(chatId, text).catch(e => console.error("Final batch send error:", e.message));
+            memberParts++; // Qism sonini oshirish
         }
 
         // 3. Yakuniy xulosa va menyu
