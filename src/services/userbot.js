@@ -1540,20 +1540,26 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
     if (!user) throw new Error("Foydalanuvchi topilmadi.");
 
     // Akkauntlarni tayyorlash
-    const sessions = [user.session];
-    if (user.utagAccountMode === 'all') {
-        const rekAccs = (user.reklamaAccounts || []).map(acc => acc.session);
-        sessions.push(...rekAccs);
+    const useAllMode = user.utagAccountMode === 'all';
+    const rekAccs = (user.reklamaAccounts || []).map(acc => acc.session);
+
+    // Agar barcha akkauntlar rejimida bo'lsa, faqat qo'shimcha akkauntlarni ishlatamiz
+    let sessions;
+    if (useAllMode) {
+        sessions = rekAccs;
+        if (sessions.length === 0) {
+            throw new Error("Sizda qo'shimcha akkaunt ulanmagan.");
+        }
+    } else {
+        sessions = [user.session];
     }
 
     const clients = [];
-    // Asosiy clientni har doim ishlatamiz (ensureClient orqali ulanadi)
-    const mainClient = await ensureClient(chatId, bot);
-    clients.push(mainClient);
+    let mainClient = null;
 
-    // Qo'shimcha clientlarni ulash (agar 'all' bo'lsa)
-    if (user.utagAccountMode === 'all' && sessions.length > 1) {
-        for (let i = 1; i < sessions.length; i++) {
+    if (useAllMode) {
+        // Barcha akkauntlar rejimida: faqat qo'shimcha akkauntlar
+        for (let i = 0; i < sessions.length; i++) {
             try {
                 const tempClient = new TelegramClient(new StringSession(sessions[i]), config.apiId, config.apiHash, {
                     connectionRetries: 5,
@@ -1574,6 +1580,15 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                 console.error(`[UTag] Akkaunt ${i} ulanishda xato:`, e.message);
             }
         }
+        // Barcha akkauntlar rejimida mainClient ni birinchi qo'shimcha akkauntga tenglashtiramiz
+        if (clients.length === 0) {
+            throw new Error("Sizda aktiv qo'shimcha akkauntlar yo'q.");
+        }
+        mainClient = clients[0];
+    } else {
+        // Faqat asosiy akkaunt rejimida: asosiy akkauntni ishlatamiz
+        mainClient = await ensureClient(chatId, bot);
+        clients.push(mainClient);
     }
 
     try {
@@ -1715,9 +1730,16 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
     } catch (e) {
         throw new Error(`Uteg xatosi: ${e.message}`);
     } finally {
-        // Qo'shimcha clientlarni uzish (asosiy clientdan tashqari)
-        for (let i = 1; i < clients.length; i++) {
-            try { await clients[i].disconnect(); } catch (e) {}
+        // Barcha qo'shimcha/clientlarni uzish (agar all mode bo'lsa)
+        if (useAllMode) {
+            for (let i = 0; i < clients.length; i++) {
+                try { await clients[i].disconnect(); } catch (e) {}
+            }
+        } else {
+            // Faqat qo'shimcha clientlarni uzish
+            for (let i = 1; i < clients.length; i++) {
+                try { await clients[i].disconnect(); } catch (e) {}
+            }
         }
     }
 };
