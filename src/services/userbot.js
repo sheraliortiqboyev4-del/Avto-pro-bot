@@ -1293,9 +1293,8 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     try {
         await connectClient(currentSessionIndex);
 
-        // Mediani bir marta yuklab olish va Telegramga upload qilish (Optimallashtirish)
+        // Mediani bir marta yuklab olish (Buffer sifatida)
         let mediaBuffer = null;
-        let uploadedFile = null;
         try {
             if (reklamaMsg.photo) {
                 const file = await bot.getFile(reklamaMsg.photo[reklamaMsg.photo.length - 1].file_id);
@@ -1307,12 +1306,8 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                 const file = await bot.getFile(reklamaMsg.video.file_id);
                 mediaBuffer = await downloadFile(`https://api.telegram.org/file/bot${config.botToken}/${file.file_path}`);
             }
-
-            if (mediaBuffer && client) {
-                uploadedFile = await client.uploadFile({ file: mediaBuffer, workers: 1 });
-            }
         } catch (downloadErr) {
-            console.error(`[Media Download/Upload Error] ${chatId}:`, downloadErr.message);
+            console.error(`[Media Download Error] ${chatId}:`, downloadErr.message);
             bot.sendMessage(chatId, `⚠️ Media yuklashda xatolik: ${downloadErr.message}. Reklama faqat matn ko'rinishida davom etadi.`);
             reklamaMsg.photo = null;
             reklamaMsg.video = null;
@@ -1329,15 +1324,18 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
             let success = false;
 
             while (currentSessionIndex < sessions.length && !success) {
+                // Har safar client o'zgarganini tekshirish
+                client = clients[currentSessionIndex];
+                
                 try {
-                    if (reklamaMsg.sticker) {
+                    if (reklamaMsg.sticker && mediaBuffer) {
                         await client.sendFile(targetUser, {
-                            file: uploadedFile || mediaBuffer,
+                            file: mediaBuffer,
                             attributes: [new Api.DocumentAttributeSticker({ alt: reklamaMsg.sticker.emoji || "", stickerset: new Api.InputStickerSetEmpty() })]
                         });
-                    } else if (reklamaMsg.photo || reklamaMsg.video) {
+                    } else if ((reklamaMsg.photo || reklamaMsg.video) && mediaBuffer) {
                         await client.sendFile(targetUser, {
-                            file: uploadedFile || mediaBuffer,
+                            file: mediaBuffer,
                             caption: reklamaText,
                             formattingEntities: entities
                         });
@@ -1364,7 +1362,33 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                     await new Promise(r => setTimeout(r, 500)); 
                 } catch (err) {
                     console.error(`[Reklama Error] Akkaunt ${currentSessionIndex}:`, err.message);
-                    const isSpam = err.message.includes("PEER_FLOOD") || err.message.includes("USER_PRIVACY_RESTRICTED") || err.message.includes("FLOOD_WAIT") || err.message.includes("Spam");
+                    
+                    // FLOOD_WAIT alohida handling
+                    if (err.message.includes("FLOOD_WAIT_")) {
+                        const waitSeconds = parseInt(err.message.match(/\d+/)?.[0]) || 60;
+                        bot.sendMessage(chatId, `⏳ Akkaunt ${currentSessionIndex + 1} FLOOD_WAIT oldi (${waitSeconds} soniya). Keyingi akkauntga o'tilmoqda...`);
+                        
+                        // Keyingi akkauntga o'tamiz
+                        const nextAcc = currentSessionIndex + 1;
+                        if (nextAcc < sessions.length) {
+                            currentSessionIndex++;
+                            try {
+                                await connectClient(currentSessionIndex);
+                                success = false; // Qayta urinish
+                            } catch (connectErr) {
+                                console.error(`[Reklama] Akkaunt ${currentSessionIndex} ulanishda xato:`, connectErr.message);
+                                success = true; // Bu userni skip qilish
+                            }
+                        } else {
+                            bot.sendMessage(chatId, "❌ Barcha akkauntlar ishlatildi.");
+                            reklamaStates[chatId].status = 'stopped';
+                            success = true;
+                            break;
+                        }
+                        continue; // While loopni davom ettirish
+                    }
+                    
+                    const isSpam = err.message.includes("PEER_FLOOD") || err.message.includes("USER_PRIVACY_RESTRICTED") || err.message.includes("Spam");
                     
                     if (isSpam) {
                         const nextAcc = currentSessionIndex + 1;
@@ -1390,18 +1414,27 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                             if (userDecision) {
                                 currentSessionIndex++;
                                 bot.sendMessage(chatId, `🔄 Keyingi akkauntga o'tildi (${currentSessionIndex + 1}/${sessions.length})...`);
-                                await connectClient(currentSessionIndex);
-                                // Uploaded file link might still work, if not, it will fail and success=true will be false
+                                try {
+                                    await connectClient(currentSessionIndex);
+                                    // MUHIM: success = false qilib, while loopni qayta ishlatish
+                                    success = false;
+                                } catch (connectErr) {
+                                    console.error(`[Reklama] Akkaunt ${currentSessionIndex} ulanishda xato:`, connectErr.message);
+                                    bot.sendMessage(chatId, `❌ Akkaunt ${currentSessionIndex + 1} ulanishda xato: ${connectErr.message}`);
+                                    // Keyingi akkauntga o'tamiz
+                                    success = false;
+                                    currentSessionIndex++;
+                                }
                             } else {
                                 bot.sendMessage(chatId, "⏹ Reklama foydalanuvchi tomonidan to'xtatildi.");
                                 reklamaStates[chatId].status = 'stopped';
-                                success = false;
+                                success = true; // Loop dan chiqish uchun
                                 break;
                             }
                         } else {
                             bot.sendMessage(chatId, "❌ Barcha akkauntlar spamga tushdi yoki tugadi.");
                             reklamaStates[chatId].status = 'stopped';
-                            success = false;
+                            success = true; // Loop dan chiqish uchun
                             break;
                         }
                     } else {

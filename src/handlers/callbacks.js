@@ -362,8 +362,24 @@ module.exports = (bot) => {
         }
 
         if (data === "reklama_start") {
-            global.userStates[chatId] = { step: 'WAITING_REK_USERS' };
-            bot.sendMessage(chatId, "🚀 **Foydalanuvchilarning username ro'yxatini yuboring :**");
+            global.userStates[chatId] = { step: 'WAITING_REK_USERS', usersList: '' };
+            bot.sendMessage(chatId, 
+                "🚀 **Foydalanuvchilarning username ro'yxatini yuboring:**\n\n" +
+                "📝 Ko'p xabar yuborishingiz mumkin (har birida 100 tagacha).\n" +
+                "✅ Tayyor bo'lgach \"Tayyor\" tugmasini bosing.\n" +
+                "⚠️ Maksimal: 1000 ta user",
+                {
+                    parse_mode: 'Markdown',
+                    reply_markup: {
+                        keyboard: [
+                            [{ text: '✅ Tayyor (Davom etish)' }],
+                            [{ text: '❌ Bekor qilish' }]
+                        ],
+                        resize_keyboard: true,
+                        one_time_keyboard: false
+                    }
+                }
+            );
             return await safeAnswer();
         }
 

@@ -16,7 +16,8 @@ const {
     removeKeyboardMarkup,
     getPhoneShareKeyboard,
     getUtagSetupKeyboard,
-    getUtagModeKeyboard
+    getUtagModeKeyboard,
+    getMainMenu
 } = require('../utils/helpers');
 const { triggerBackup } = require('../utils/dbBackup');
 const { adminSetCoins, adminAdjustCoins } = require('../services/bonus');
@@ -47,7 +48,7 @@ module.exports = (bot) => {
         if (!state) return;
 
         // 4. Session check for features
-        if (!['WAITING_PHONE', 'WAITING_CODE', 'WAITING_PASSWORD', 'WAITING_TIME', 'WAITING_BROADCAST', 'WAITING_COIN_SET', 'WAITING_COIN_DEDUCT'].includes(state.step)) {
+        if (!['WAITING_PHONE', 'WAITING_CODE', 'WAITING_PASSWORD', 'WAITING_TIME', 'WAITING_BROADCAST', 'WAITING_COIN_SET', 'WAITING_COIN_DEDUCT', 'WAITING_REK_USERS'].includes(state.step)) {
             const user = await User.findOne({ where: { chatId } });
             if (!user || !user.session) {
                 delete global.userStates[chatId];
@@ -298,9 +299,66 @@ module.exports = (bot) => {
         }
 
         if (state.step === 'WAITING_REK_USERS') {
+            // "Bekor qilish" tugmasini tekshirish
+            if (text && (text === '❌ Bekor qilish' || text.toLowerCase().includes('bekor'))) {
+                delete global.userStates[chatId];
+                return bot.sendMessage(chatId, '❌ Reklama bekor qilindi.', getMainMenu(chatId));
+            }
+            
+            // "Tayyor" tugmasini tekshirish
+            if (text && (text === '✅ Tayyor (Davom etish)' || text.toLowerCase().includes('tayyor') || text.toLowerCase().includes('davom'))) {
+                if (!state.usersList || state.usersList.trim() === '') {
+                    return bot.sendMessage(chatId, '❌ Avval userlar ro\'yxatini yuboring!');
+                }
+                
+                global.userStates[chatId] = { step: 'WAITING_REK_TEXT', usersList: state.usersList };
+                bot.sendMessage(chatId, "✍️ Reklama xabarini yuboring (Matn, rasm, stiker va h.k.):", removeKeyboardMarkup());
+                return;
+            }
+            
             if (!text) return;
-            global.userStates[chatId] = { step: 'WAITING_REK_TEXT', usersList: text };
-            bot.sendMessage(chatId, "✍️ Reklama xabarini yuboring (Matn, rasm, stiker va h.k.):");
+            
+            // Agar allaqachon usersList mavjud bo'lsa, yangi xabarni qo'shamiz
+            const existingUsers = state.usersList || '';
+            const newUsers = existingUsers ? `${existingUsers}\n${text}` : text;
+            
+            // Duplicate userlarni olib tashlash
+            const allUsers = newUsers.split(/\s+/).filter(u => u.startsWith('@'));
+            const uniqueUsers = [...new Set(allUsers)]; // Duplicate olib tashlash
+            const totalUsers = uniqueUsers.length;
+            
+            // Maksimal 1000 ta user
+            if (totalUsers > 1000) {
+                return bot.sendMessage(chatId, 
+                    `⚠️ **Maksimal 1000 ta user qabul qilish mumkin!**\n\n` +
+                    `Hozir: ${totalUsers} ta\n\n` +
+                    `Iltimos, kamroq user yuboring yoki "Tayyor" tugmasini bosing.`,
+                    { parse_mode: 'Markdown' }
+                );
+            }
+            
+            global.userStates[chatId] = { step: 'WAITING_REK_USERS', usersList: uniqueUsers.join('\n') };
+            
+            // Hozirgi holatni ko'rsatish
+            const duplicates = allUsers.length - totalUsers;
+            bot.sendMessage(chatId, 
+                `✅ Qabul qilindi!\n\n` +
+                `📊 Jami userlar: **${totalUsers}** ta\n` +
+                (duplicates > 0 ? `♻️ Duplicate: **${duplicates}** ta olib tashlandi\n` : '') +
+                `\n▶️ Yana userlar yuboring yoki **"Tayyor"** tugmasini bosing.\n` +
+                `⚠️ Maksimal: 1000 ta`,
+                { 
+                    parse_mode: 'Markdown',
+                    reply_markup: {
+                        keyboard: [
+                            [{ text: '✅ Tayyor (Davom etish)' }],
+                            [{ text: '❌ Bekor qilish' }]
+                        ],
+                        resize_keyboard: true,
+                        one_time_keyboard: false
+                    }
+                }
+            );
         } else if (state.step === 'WAITING_REK_TEXT') {
             global.userStates[chatId] = { ...state, step: 'CONFIRM_REK', reklamaMsg: msg };
             
