@@ -1268,31 +1268,65 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
 
     let client = null;
     const clients = [];
+    const connectedIndexes = []; // Muvaffaqiyatli ulangan akkauntlar
 
     const connectClient = async (index) => {
         if (clients[index]) return clients[index];
-        const newClient = new TelegramClient(new StringSession(sessions[index]), config.apiId, config.apiHash, {
-            connectionRetries: 50,
-            requestRetries: 15,
-            timeout: 120000,
-            autoReconnect: true,
-            floodSleepThreshold: 120,
-            useWSS: false,
-            proxy: undefined
-        });
-        await newClient.connect();
-        if (!(await newClient.checkAuthorization())) {
-            throw new Error(`[Reklama] Akkaunt ${index} avtorizatsiyadan o'tolmadi.`);
+        
+        try {
+            const newClient = new TelegramClient(new StringSession(sessions[index]), config.apiId, config.apiHash, {
+                connectionRetries: 5, // Kamroq retry (tezroq skip qilish uchun)
+                requestRetries: 3,
+                timeout: 30000, // 30 soniya (120s emas)
+                autoReconnect: true,
+                floodSleepThreshold: 120,
+                useWSS: false,
+                proxy: undefined
+            });
+            
+            await newClient.connect();
+            
+            if (!(await newClient.checkAuthorization())) {
+                throw new Error(`Akkaunt avtorizatsiyadan o'tolmadi`);
+            }
+            
+            clients[index] = newClient;
+            connectedIndexes.push(index);
+            reklamaStates[chatId].sessionIndex = index;
+            client = newClient;
+            console.log(`[Reklama] Akkaunt ${index + 1}/${sessions.length} muvaffaqiyatli ulandi`);
+            return newClient;
+        } catch (err) {
+            console.error(`[Reklama] Akkaunt ${index + 1} ulanishda xato:`, err.message);
+            // null qaytaramiz, keyingi akkauntga o'tish uchun
+            return null;
         }
-        clients[index] = newClient;
-        reklamaStates[chatId].sessionIndex = index;
-        client = newClient;
-        return newClient;
     };
 
-    try {
-        await connectClient(currentSessionIndex);
+    // Birinchi ishlaydigan akkauntni topish
+    let initialConnected = false;
+    for (let i = 0; i < sessions.length; i++) {
+        try {
+            const result = await connectClient(i);
+            if (result) {
+                currentSessionIndex = i;
+                initialConnected = true;
+                break;
+            } else {
+                bot.sendMessage(chatId, `⚠️ Akkaunt ${i + 1}/${sessions.length} ulanmadi, keyingisiga o'tilmoqda...`);
+            }
+        } catch (err) {
+            bot.sendMessage(chatId, `❌ Akkaunt ${i + 1}/${sessions.length} xato: ${err.message}`);
+        }
+    }
 
+    if (!initialConnected || connectedIndexes.length === 0) {
+        throw new Error("Hech bir akkaunt ulanmadi. Iltimos, akkauntlarni qayta ulang.");
+    }
+
+    bot.sendMessage(chatId, `✅ ${connectedIndexes.length}/${sessions.length} ta akkaunt tayyor!`);
+
+    try {
         // Mediani bir marta yuklab olish (Buffer sifatida)
         let mediaBuffer = null;
         try {
@@ -1324,6 +1358,18 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
             let success = false;
 
             while (currentSessionIndex < sessions.length && !success) {
+                // Faqat ulangan akkauntlardan foydalanish
+                if (!clients[currentSessionIndex]) {
+                    currentSessionIndex++;
+                    if (currentSessionIndex >= sessions.length || connectedIndexes.length === 0) {
+                        bot.sendMessage(chatId, "❌ Barcha akkauntlar ishlatildi yoki ulanmagan.");
+                        reklamaStates[chatId].status = 'stopped';
+                        success = true;
+                        break;
+                    }
+                    continue;
+                }
+                
                 // Har safar client o'zgarganini tekshirish
                 client = clients[currentSessionIndex];
                 
@@ -1368,17 +1414,35 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                         const waitSeconds = parseInt(err.message.match(/\d+/)?.[0]) || 60;
                         bot.sendMessage(chatId, `⏳ Akkaunt ${currentSessionIndex + 1} FLOOD_WAIT oldi (${waitSeconds} soniya). Keyingi akkauntga o'tilmoqda...`);
                         
-                        // Keyingi akkauntga o'tamiz
-                        const nextAcc = currentSessionIndex + 1;
-                        if (nextAcc < sessions.length) {
-                            currentSessionIndex++;
-                            try {
-                                await connectClient(currentSessionIndex);
-                                success = false; // Qayta urinish
-                            } catch (connectErr) {
-                                console.error(`[Reklama] Akkaunt ${currentSessionIndex} ulanishda xato:`, connectErr.message);
-                                success = true; // Bu userni skip qilish
+                        // Keyingi ulangan akkauntni topish
+                        let nextIndex = currentSessionIndex + 1;
+                        let foundNext = false;
+                        
+                        while (nextIndex < sessions.length) {
+                            if (clients[nextIndex]) {
+                                currentSessionIndex = nextIndex;
+                                foundNext = true;
+                                break;
                             }
+                            nextIndex++;
+                        }
+                        
+                        if (!foundNext) {
+                            // Yangi akkauntni ulab ko'ramiz
+                            for (let idx = currentSessionIndex + 1; idx < sessions.length; idx++) {
+                                if (!clients[idx]) {
+                                    const result = await connectClient(idx);
+                                    if (result) {
+                                        currentSessionIndex = idx;
+                                        foundNext = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (foundNext) {
+                            success = false; // Qayta urinish
                         } else {
                             bot.sendMessage(chatId, "❌ Barcha akkauntlar ishlatildi.");
                             reklamaStates[chatId].status = 'stopped';
@@ -1412,18 +1476,43 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                             });
 
                             if (userDecision) {
-                                currentSessionIndex++;
-                                bot.sendMessage(chatId, `🔄 Keyingi akkauntga o'tildi (${currentSessionIndex + 1}/${sessions.length})...`);
-                                try {
-                                    await connectClient(currentSessionIndex);
-                                    // MUHIM: success = false qilib, while loopni qayta ishlatish
-                                    success = false;
-                                } catch (connectErr) {
-                                    console.error(`[Reklama] Akkaunt ${currentSessionIndex} ulanishda xato:`, connectErr.message);
-                                    bot.sendMessage(chatId, `❌ Akkaunt ${currentSessionIndex + 1} ulanishda xato: ${connectErr.message}`);
-                                    // Keyingi akkauntga o'tamiz
-                                    success = false;
-                                    currentSessionIndex++;
+                                // Keyingi ulangan akkauntni topish
+                                let nextIndex = currentSessionIndex + 1;
+                                let foundNext = false;
+                                
+                                while (nextIndex < sessions.length) {
+                                    if (clients[nextIndex]) {
+                                        currentSessionIndex = nextIndex;
+                                        foundNext = true;
+                                        break;
+                                    }
+                                    nextIndex++;
+                                }
+                                
+                                if (!foundNext) {
+                                    // Yangi akkauntni ulab ko'ramiz
+                                    for (let idx = currentSessionIndex + 1; idx < sessions.length; idx++) {
+                                        if (!clients[idx]) {
+                                            const result = await connectClient(idx);
+                                            if (result) {
+                                                currentSessionIndex = idx;
+                                                foundNext = true;
+                                                break;
+                                            } else {
+                                                bot.sendMessage(chatId, `⚠️ Akkaunt ${idx + 1}/${sessions.length} ulanmadi, o'tkazib yuborildi.`);
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                if (foundNext) {
+                                    bot.sendMessage(chatId, `🔄 Akkaunt ${currentSessionIndex + 1}/${sessions.length} ga o'tildi. Davom etmoqda...`);
+                                    success = false; // Qayta urinish
+                                } else {
+                                    bot.sendMessage(chatId, "❌ Boshqa ishlaydigan akkaunt yo'q.");
+                                    reklamaStates[chatId].status = 'stopped';
+                                    success = true;
+                                    break;
                                 }
                             } else {
                                 bot.sendMessage(chatId, "⏹ Reklama foydalanuvchi tomonidan to'xtatildi.");
