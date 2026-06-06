@@ -6,6 +6,7 @@ const { CallbackQuery } = require("telegram/events/CallbackQuery");
 const fs = require("fs");
 const path = require("path");
 const config = require("../config"); 
+const texts = require("../config/texts");
 const User = require("../models/User");
 const { triggerBackup } = require('../utils/dbBackup');
 const { 
@@ -413,13 +414,11 @@ const blockExpiredUser = async (user, bot, options = {}) => {
         try { await userClients[chatId].disconnect(); delete userClients[chatId]; } catch (e) {}
     }
 
-    const blockedText =
-        `⚠️ **Foydalanish muddatingiz tugadi!**\n\nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n👨‍💼 Admin: @id_uzzz`;
-    bot.sendMessage(chatId, blockedText, {
+    bot.sendMessage(chatId, texts.payment.expired(texts.admin.username), {
         parse_mode: "Markdown",
         skipEmojiWrap: true,
         reply_markup: {
-            inline_keyboard: [[{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/id_uzzz" }]]
+            inline_keyboard: [[texts.adminButtons.contactAdmin(texts.admin.username)]]
         }
     }).catch(() => {});
 
@@ -627,9 +626,7 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
     console.log(`[Auth Start] ${chatId}: ${phoneNumber}`);
 
     if (!process.env.API_ID || !process.env.API_HASH) {
-        throw new Error(
-            "Botda API_ID/API_HASH yo'q. Admin Render → Environment ga my.telegram.org dan olingan API_ID va API_HASH qo'shishi shart — aks holda kod kelmaydi."
-        );
+        throw new Error(texts.errors.apiMissing);
     }
 
     await cleanupAuthClient(chatId);

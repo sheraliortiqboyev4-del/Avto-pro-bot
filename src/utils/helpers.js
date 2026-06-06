@@ -1,4 +1,5 @@
 const config = require('../config');
+const texts = require('../config/texts');
 const Channel = require('../models/Channel');
 
 const { Api } = require("telegram");
@@ -482,9 +483,7 @@ function getPendingPaymentKeyboard() {
     return {
         inline_keyboard: [
             [{ text: "🎁 Bonus Olish", callback_data: "menu_bonus" }],
-            [
-                { text: "👨‍💼 Admin", url: "https://t.me/ortiqov_x7" }
-            ]
+            [texts.adminButtons.contactAdmin(texts.admin.username)]
         ]
     };
 }

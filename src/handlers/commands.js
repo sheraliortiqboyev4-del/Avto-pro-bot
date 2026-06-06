@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const config = require('../config');
+const texts = require('../config/texts');
 const { getDbReady } = require('../config/db');
 const { findUserByChatId } = require('../utils/dbUser');
 const { startUserbot } = require('../services/userbot');
@@ -25,42 +26,6 @@ const bonusExtrasKeyboard = () => ({
     reply_markup: { inline_keyboard: [getBonusCoinRow()] }
 });
 
-const HELP_TEXT = `🧾 **YORDAM BO'LIMI**
-
-🤖 **Botning barcha imkoniyatlari bilan tanishing:**
-
-💎 **Avto Almaz**
-➤ Guruhlarga yuborilgan almaz va pullarni avto yigadi. 
-➤ Siz botni yoqib qo'ysangiz kifoya, qolganini o'zi bajaradi.
-
-🏷 **Avto Utag**
-➤ Guruh a'zolarini bittalab "tag" qilib chiqadi.
-➤ Guruhda: /t (o'z so'z) , /b (bot so'zlari) , /s (to'xtatish).
-➤ Bot orqali: online/hamma + tarixda saqlangan sozlamalar bilan qayta boshlash.
-
-👤 **AvtoUser**
-➤ Istalgan guruhdan foydalanuvchilar ro'yxatini (username) yig'ib beradi. 
-➤ Yig'ilgan ro'yxatni Reklama uchun ishlatishingiz mumkin.
-
-⚔️ **Avto Reyd**
-➤ Berilgan guruh yoki foydalanuvchiga tinimsiz xabar/stiker yuboradi. 
-➤ Bir vaqtning o'zida bir nechta akkauntdan foydalanish imkoniyati mavjud.
-
-🚀 **Avto Reklama**
-➤ Siz yuborgan foydalanuvchilar ro'yxatiga avtomatik reklama tarqatadi. 
-➤ Spamga tushmaslik uchun akkauntlarni navbatma-navbat almashtiradi.
-
-📊 **Profil va Statistika**
-➤ Sizning botdagi holatingiz, tarifingiz va statistikangizni ko'rsatadi.
-
-🔄 **Raqamni o'zgartirish**
-➤ Joriy akkauntdan chiqib, yangi raqam orqali kirish imkonini beradi.
-
-⚠️ **Eslatma:** Botdan to'liq foydalanish uchun admin tomonidan tasdiqlangan bo'lishingiz shart.
-
-📞 **Rasmiy kanal:** @AvtoBotOfficial
-👨‍💼 **Admin:** @id_uzzz`;
-
 module.exports = (bot) => {
     const sendBonusCoinHint = async (chatId, extraText = '') => {
         if (!(await isBonusEnabled())) return;
@@ -78,7 +43,7 @@ module.exports = (bot) => {
         const username = msg.from.username;
 
         if (!getDbReady()) {
-            return bot.sendMessage(chatId, '⏳ Bot hali yuklanmoqda. Iltimos, 10 soniyadan keyin qayta /start bosing.');
+            return bot.sendMessage(chatId, texts.errors.botLoading);
         }
         const startPayload = match && match[1] ? match[1].trim() : parseStartPayload(msg.text);
         const refToken = startPayload && startPayload.startsWith('ref_')
@@ -98,7 +63,7 @@ module.exports = (bot) => {
         if (refToken && isNewUser) {
             const refResult = await handleStartWithReferral(bot, chatId, name, username, refToken, true);
             if (refResult && refResult.invalidLink) {
-                await bot.sendMessage(chatId, '⚠️ Referral havola eskirgan. Do\'stingizdan yangi havola so\'rang.');
+                await bot.sendMessage(chatId, texts.errors.referralExpired);
             }
         }
 
@@ -108,7 +73,7 @@ module.exports = (bot) => {
             if (refToken && isNewUser) {
                 await bot.sendMessage(
                     chatId,
-                    '📢 Kanallarga obuna bo\'ling va **Tekshirish** ni bosing.',
+                    texts.subscription.askJoin,
                     { parse_mode: 'Markdown' }
                 ).catch(() => {});
             }
@@ -121,22 +86,19 @@ module.exports = (bot) => {
         }
     
         if (user.status === 'blocked') {
-            const blockedText =
-                `⚠ Sizning foydalanish muddatingiz tugagan.\nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring va botni qayta ishga tushiring.\n\n👨‍💼 Admin: @ortiqov_x7`;
-            bot.sendMessage(chatId, blockedText, {
+            bot.sendMessage(chatId, texts.payment.blocked(texts.admin.username), {
                 reply_markup: getPendingPaymentKeyboard()
             });
 
             // Adminga xabar yuborish
-            const now = new Date().toLocaleString('en-US', { timeZone: 'UTC' }); // Yoki foydalanuvchi vaqti
-            const adminNotifyText = `🆕 **Yangi foydalanuvchi!**\n\n👤 Ism: ${name}\n🆔 ID: \`${chatId}\`\n📅 Vaqt: ${now}\n\nBlokdan ochish uchun tugmani bosing:`;
-            bot.sendMessage(config.adminId, adminNotifyText, {
+            const now = new Date().toLocaleString('en-US', { timeZone: 'UTC' });
+            bot.sendMessage(config.adminId, texts.adminNotifications.blockedUser(name, chatId, now), {
                 parse_mode: "Markdown",
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "✅ 1 Oy", callback_data: `admin_approve_1month_${chatId}` }],
-                        [{ text: "👑 VIP", callback_data: `admin_approve_vip_${chatId}` }],
-                        [{ text: "✍️ Ixtiyoriy", callback_data: `admin_approve_${chatId}` }]
+                        [texts.adminButtons.approve1Month(chatId)],
+                        [texts.adminButtons.approveVIP(chatId)],
+                        [texts.adminButtons.approveCustom(chatId)]
                     ]
                 }
             });
@@ -145,26 +107,19 @@ module.exports = (bot) => {
 
         if (user.status !== 'approved') { 
             // Adminga xabar yuborish
-            const isPending = user.status === 'pending';
-            const adminHeader = isPending ? "🆕 **Yangi foydalanuvchi!**" : "🆕 **Yangi foydalanuvchi!**";
-            const adminText = `${adminHeader}\n\nIsm: ${name}\nUsername: @${username || 'yo\'q'}\nID: \`${chatId}\`\n\nTasdiqlash uchun quyidagi tugmani bosing:`;
-            bot.sendMessage(config.adminId, adminText, {
+            bot.sendMessage(config.adminId, texts.adminNotifications.newUser(name, username, chatId), {
+                parse_mode: "Markdown",
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "✅ 1 Oy", callback_data: `admin_approve_1month_${chatId}` }],
-                        [{ text: "👑 VIP", callback_data: `admin_approve_vip_${chatId}` }],
-                        [{ text: "✍️ Ixtiyoriy", callback_data: `admin_approve_${chatId}` }],
-                        [{ text: "🚫 Bloklash", callback_data: `admin_block_${chatId}` }]
+                        [texts.adminButtons.approve1Month(chatId)],
+                        [texts.adminButtons.approveVIP(chatId)],
+                        [texts.adminButtons.approveCustom(chatId)],
+                        [texts.adminButtons.block(chatId)]
                     ]
                 }
             });
 
-            const paymentAskText =
-                `👋 Assalomu alaykum, Hurmatli ${name}!\n\n` +
-                `⚠ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n` +
-                `⚠ Botdan foydalanish uchun admin orqali to'lov qiling yoki dostlarni taklif qilish orqali tekin foydalaning!!!\n\n` +
-                `👨‍💼 Admin: @id_uzzz`;
-            await bot.sendMessage(chatId, paymentAskText, {
+            await bot.sendMessage(chatId, texts.payment.pending(name, texts.admin.username), {
                 parse_mode: 'Markdown',
                 reply_markup: getPendingPaymentKeyboard()
             });
@@ -178,16 +133,14 @@ module.exports = (bot) => {
             avtoAlmazStates[chatId] = user.avtoAlmaz;
 
             // Agar sessiya bo'lsa, menyuni ko'rsatamiz va userbotni ulaymiz
-            const welcomeText = `👋 Assalomu alaykum, Hurmatli ${name}! \n\n 🤖 Bu bot orqali siz: \n • 💎 Avto Almaz - avtomatik almaz yig'ish \n • 👤 AvtoUser - guruhdan foydalanuvchilarni yig'ish \n • ⚔ Avto Reyd - guruhga yoki userga xabar yuborish \n • 📣 Avto Reklama - foydalanuvchilarga reklama yuborish \n • 🏷 Avto Uteg - guruhda foydalanuvchilarni uteg qilish \n\n Botdan foydalanish uchun menudan tanlang!`;
-            bot.sendMessage(chatId, welcomeText, getMainMenu(chatId)); 
+            bot.sendMessage(chatId, texts.welcome.withSession(name), getMainMenu(chatId)); 
             
             startUserbot(chatId, user.session, bot); 
         } else {
             // Agar sessiya bo'lmasa, login jarayonini boshlaymiz
             const { getPhoneShareKeyboard } = require('../utils/helpers');
             global.userStates[chatId] = { step: 'WAITING_PHONE' };
-            const text = `👋 **Xush kelibsiz!**\n\nBot funksiyalaridan foydalanish uchun Telegram akkauntingizga kirishingiz kerak.\n\n📞 Iltimos, **telefon raqamingizni** xalqaro formatda yuboring:\n(Masalan: \`+998901234567\`)`;
-            bot.sendMessage(chatId, text, { parse_mode: "Markdown", reply_markup: getPhoneShareKeyboard() });
+            bot.sendMessage(chatId, texts.welcome.withoutSession, { parse_mode: "Markdown", reply_markup: getPhoneShareKeyboard() });
         }
     }); 
 
@@ -198,14 +151,14 @@ module.exports = (bot) => {
 
         const user = await User.findOne({ where: { chatId } });
         if (!user || !user.session) {
-            return bot.sendMessage(chatId, "❌ Menyuni ko'rish uchun avval botga kiring.");
+            return bot.sendMessage(chatId, texts.errors.needLogin);
         }
         bot.sendMessage(chatId, "📊 **Asosiy menyu:**", getMainMenu(chatId));
     });
 
     bot.onText(/\/help/, async (msg) => {
         const chatId = msg.chat.id;
-        bot.sendMessage(chatId, HELP_TEXT);
+        bot.sendMessage(chatId, texts.help(texts.admin.channel, texts.admin.username));
     });
 
     bot.onText(/\/profile/, async (msg) => {
@@ -214,7 +167,7 @@ module.exports = (bot) => {
         if (!isMember) return sendSubscriptionAsk(bot, chatId);
 
         const user = await User.findOne({ where: { chatId } });
-        if (!user) return bot.sendMessage(chatId, "❌ Ro'yxatdan o'tmagansiz.");
+        if (!user) return bot.sendMessage(chatId, texts.errors.notRegistered);
 
         const accCount = (user.reklamaAccounts ? user.reklamaAccounts.length : 0) + (user.reydAccounts ? user.reydAccounts.length : 0) + (user.session ? 1 : 0);
         const text = `👤 **Profilingiz:**\n\nIsm: ${user.name}\nID: \`${user.chatId}\`\nStatus: ${user.status}\nTarif: ${user.subscriptionType}\nMuddat: ${formatRemainingTime(user.expireAt)}\n💎 Almazlar: ${user.clicks}\n📱 Akkauntlar: ${accCount} ta`;
@@ -225,51 +178,65 @@ module.exports = (bot) => {
     bot.onText(/\/info_(\d+)/, async (msg, match) => { 
         if (msg.chat.id.toString() !== config.adminId.toString()) return; 
         const targetId = match[1]; 
-        const user = await User.findOne({ where: { chatId: targetId } }); 
-        if (!user) return bot.sendMessage(config.adminId, "❌ Foydalanuvchi topilmadi."); 
         
-        const statusText = user.status === 'approved' ? "✅ Tasdiqlangan" : (user.status === 'blocked' ? "🚫 Bloklangan" : "⏳ Tasdiqlanmagan");
-        const tarifText = user.subscriptionType || "Oddiy";
-        let remainingTime = formatRemainingTime(user.expireAt);
-        if (remainingTime.includes("Cheksiz")) remainingTime = "Cheksiz";
+        try {
+            const user = await User.findOne({ where: { chatId: targetId } }); 
+            if (!user) return bot.sendMessage(config.adminId, "❌ Foydalanuvchi topilmadi."); 
+            
+            const statusText = user.status === 'approved' ? "✅ Tasdiqlangan" : (user.status === 'blocked' ? "🚫 Bloklangan" : "⏳ Tasdiqlanmagan");
+            const tarifText = user.subscriptionType || "Oddiy";
+            let remainingTime = formatRemainingTime(user.expireAt);
+            if (remainingTime.includes("Cheksiz")) remainingTime = "Cheksiz";
 
-        const rekAccCount = user.reklamaAccounts ? user.reklamaAccounts.length : 0;
-        const reydAccCount = user.reydAccounts ? user.reydAccounts.length : 0;
-        
-        const joinedDate = user.joinedAt ? new Date(user.joinedAt) : new Date();
-        const regDate = `${joinedDate.getFullYear()}-${String(joinedDate.getMonth() + 1).padStart(2, '0')}-${String(joinedDate.getDate()).padStart(2, '0')} ${String(joinedDate.getHours()).padStart(2, '0')}:${String(joinedDate.getMinutes()).padStart(2, '0')}`;
+            const rekAccCount = user.reklamaAccounts ? user.reklamaAccounts.length : 0;
+            const reydAccCount = user.reydAccounts ? user.reydAccounts.length : 0;
+            
+            const joinedDate = user.joinedAt ? new Date(user.joinedAt) : new Date();
+            const regDate = `${joinedDate.getFullYear()}-${String(joinedDate.getMonth() + 1).padStart(2, '0')}-${String(joinedDate.getDate()).padStart(2, '0')} ${String(joinedDate.getHours()).padStart(2, '0')}:${String(joinedDate.getMinutes()).padStart(2, '0')}`;
 
-        const text = `👤 **Foydalanuvchi Ma'lumotlari:**\n\n` +
-            `📛 **Ism:** ${user.name || "Noma'lum"}\n` +
-            `🔗 **Username:** ${user.username ? `@${user.username}` : "Yo'q"}\n` +
-            `🆔 **ID:** \`${user.chatId}\`\n` +
-            `🔰 **Holat:** ${statusText}\n` +
-            `⏰ **Tarif:** ${tarifText}\n` +
-            `⏳ **Qolgan vaqt:** ${remainingTime}\n\n` +
-            `🗂 **Ulangan akkauntlar soni:**\n` +
-            `📣 Reklama: ${rekAccCount} ta | ⚔️ Reyd: ${reydAccCount} ta\n\n` +
-            `📊 **Statistika:**\n` +
-            `⚔️ Reydlar: ${user.reydCount || 0} ta\n` +
-            `👥 Yig'ilgan userlar: ${user.usersGathered || 0} ta\n` +
-            `📢 Yuborilgan reklamalar: ${user.adsCount || 0} ta\n` +
-            `🏷 Utaglar: ${user.utagCount || 0} ta\n` +
-            `💎 Almazlar: ${user.clicks || 0} ta\n` +
-            `🪙 Coinlar: ${user.coins || 0} ta\n\n` +
-            `📅 **Ro'yxatdan o'tgan:** ${regDate}`;
+            // HTML escape function - escapes <, >, & to prevent HTML injection
+            const escapeHtml = (str) => {
+                if (!str) return str;
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+            };
+            
+            const text = `👤 <b>Foydalanuvchi Ma'lumotlari:</b>\n\n` +
+                `📛 <b>Ism:</b> ${escapeHtml(user.name || "Noma'lum")}\n` +
+                `🔗 <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : "Yo'q"}\n` +
+                `🆔 <b>ID:</b> <code>${user.chatId}</code>\n` +
+                `🔰 <b>Holat:</b> ${statusText}\n` +
+                `⏰ <b>Tarif:</b> ${escapeHtml(tarifText)}\n` +
+                `⏳ <b>Qolgan vaqt:</b> ${escapeHtml(remainingTime)}\n\n` +
+                `🗂 <b>Ulangan akkauntlar soni:</b>\n` +
+                `📣 Reklama: ${rekAccCount} ta | ⚔️ Reyd: ${reydAccCount} ta\n\n` +
+                `📊 <b>Statistika:</b>\n` +
+                `⚔️ Reydlar: ${user.reydCount || 0} ta\n` +
+                `👥 Yig'ilgan userlar: ${user.usersGathered || 0} ta\n` +
+                `📢 Yuborilgan reklamalar: ${user.adsCount || 0} ta\n` +
+                `🏷 Utaglar: ${user.utagCount || 0} ta\n` +
+                `💎 Almazlar: ${user.clicks || 0} ta\n` +
+                `🪙 Coinlar: ${user.coins || 0} ta\n\n` +
+                `📅 <b>Ro'yxatdan o'tgan:</b> ${regDate}`;
 
-        bot.sendMessage(config.adminId, text, { 
-            parse_mode: "Markdown",
-            skipEmojiWrap: true,
-            reply_markup: { 
-                inline_keyboard: [
-                    [{ text: "✅ 1 Oy", callback_data: `admin_approve_1month_${targetId}` }],
-                    [{ text: "👑 VIP", callback_data: `admin_approve_vip_${targetId}` }],
-                    [{ text: "✍️ Ixtiyoriy", callback_data: `admin_approve_${targetId}` }],
-                    [{ text: "🚫 Bloklash", callback_data: `admin_block_${targetId}` }],
-                    ...getAdminCoinKeyboard(targetId)
-                ] 
-            } 
-        }); 
+            await bot.sendMessage(config.adminId, text, { 
+                parse_mode: "HTML",
+                reply_markup: { 
+                    inline_keyboard: [
+                        [{ text: "✅ 1 Oy", callback_data: `admin_approve_1month_${targetId}` }],
+                        [{ text: "👑 VIP", callback_data: `admin_approve_vip_${targetId}` }],
+                        [{ text: "✍️ Ixtiyoriy", callback_data: `admin_approve_${targetId}` }],
+                        [{ text: "🚫 Bloklash", callback_data: `admin_block_${targetId}` }],
+                        ...getAdminCoinKeyboard(targetId)
+                    ] 
+                } 
+            });
+        } catch (error) {
+            console.error(`❌ /info_${targetId} xatolik:`, error);
+            bot.sendMessage(config.adminId, `❌ Xatolik yuz berdi:\n\nUser ID: ${targetId}\nXatolik: ${error.message}`);
+        }
     });
 
     bot.onText(/\/stats/, async (msg) => {
