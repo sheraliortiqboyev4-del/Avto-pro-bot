@@ -299,14 +299,14 @@ module.exports = (bot) => {
         }
 
         if (state.step === 'WAITING_REK_USERS') {
-            // "Bekor qilish" tugmasini tekshirish
-            if (text && (text === '❌ Bekor qilish' || text.toLowerCase().includes('bekor'))) {
+            // "Bekor qilish" tugmasini tekshirish - FAQAT aniq tugma matni
+            if (text && text === '❌ Bekor qilish') {
                 delete global.userStates[chatId];
                 return bot.sendMessage(chatId, '❌ Reklama bekor qilindi.', getMainMenu(chatId));
             }
             
-            // "Tayyor" tugmasini tekshirish
-            if (text && (text === '✅ Tayyor (Davom etish)' || text.toLowerCase().includes('tayyor') || text.toLowerCase().includes('davom'))) {
+            // "Tayyor" tugmasini tekshirish - FAQAT aniq tugma matni
+            if (text && text === '✅ Tayyor (Davom etish)') {
                 if (!state.usersList || state.usersList.trim() === '') {
                     return bot.sendMessage(chatId, '❌ Avval userlar ro\'yxatini yuboring!');
                 }
