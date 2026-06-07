@@ -1246,17 +1246,7 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
         throw new Error("Reklama uchun asosiy yoki qo'shimcha akkauntlar ulanmagan.");
     }
 
-    // Userlarni parse qilish va @ belgisini olib tashlash
-    const users = usersList
-        .split(/\s+/)
-        .filter(u => u.startsWith('@'))
-        .map(u => u.replace(/^@/, '')) // @ belgisini olib tashlash
-        .filter(u => u.length >= 5 && u.length <= 32) // Telegram min/max length
-        .slice(0, 500);
-    
-    if (users.length === 0) {
-        throw new Error("Hech qanday username topilmadi. Iltimos, userlarni @ bilan kiriting.");
-    }
+    const users = usersList.split(/\s+/).filter(u => u.startsWith('@')).slice(0, 500);
     
     let currentSessionIndex = 0;
     let count = 0;
@@ -1414,7 +1404,7 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                     // Sekundiga 2 ta xabar (500ms kechikish)
                     await new Promise(r => setTimeout(r, 500)); 
                 } catch (err) {
-                    console.error(`[Reklama Error] Akkaunt ${currentSessionIndex + 1}, User: @${targetUser}, Xatolik: ${err.message}`);
+                    console.error(`[Reklama Error] Akkaunt ${currentSessionIndex}:`, err.message);
                     
                     // FLOOD_WAIT alohida handling
                     if (err.message.includes("FLOOD_WAIT_")) {
