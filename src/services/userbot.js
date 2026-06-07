@@ -1246,7 +1246,24 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
         throw new Error("Reklama uchun asosiy yoki qo'shimcha akkauntlar ulanmagan.");
     }
 
-    const users = usersList.split(/\s+/).filter(u => u.startsWith('@')).slice(0, 500);
+    // Userlarni parse qilish
+    let users = usersList.split(/\s+/).filter(u => u.startsWith('@')).slice(0, 500);
+    
+    // Username validatsiya - faqat to'g'ri formatdagilarni qoldirish
+    users = users.map(u => {
+        // @ belgisini olib tashlash
+        const username = u.replace(/^@/, '');
+        // Telegram username qoidalari: 5-32 belgi, faqat a-z, A-Z, 0-9, _
+        // Raqam bilan boshlanmasligi kerak
+        if (/^[a-zA-Z][a-zA-Z0-9_]{4,31}$/.test(username)) {
+            return username;
+        }
+        return null;
+    }).filter(Boolean);
+    
+    if (users.length === 0) {
+        throw new Error("Hech qanday to'g'ri username topilmadi.");
+    }
     
     let currentSessionIndex = 0;
     let count = 0;
@@ -1321,7 +1338,66 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
         throw new Error("Hech bir akkaunt ulanmadi. Iltimos, akkauntlarni qayta ulang.");
     }
 
-    bot.sendMessage(chatId, `✅ ${connectedIndexes.length}/${sessions.length} ta akkaunt tayyor!`);
+    bot.sendMessage(chatId, `✅ ${connectedIndexes.length}/${sessions.length} ta akkaunt tayyor!\n\n🔍 Userlar tekshirilmoqda...`);
+
+    // Userlarni validatsiya qilish - mavjud bo'lganlarni ajratish
+    const validUsers = [];
+    const invalidUsers = [];
+    let validatedCount = 0;
+    
+    const validationMsg = await bot.sendMessage(chatId, `🔍 Userlar tekshirilmoqda: 0/${users.length}`);
+    
+    for (const username of users) {
+        try {
+            // Telegram API orqali userni tekshirish
+            const result = await client.invoke(
+                new Api.contacts.ResolveUsername({ username })
+            );
+            
+            if (result.users && result.users.length > 0) {
+                validUsers.push(username);
+            } else {
+                invalidUsers.push(username);
+            }
+        } catch (err) {
+            // USERNAME_NOT_OCCUPIED, USERNAME_INVALID, va boshqa xatolar
+            if (err.message.includes("USERNAME_NOT_OCCUPIED") || 
+                err.message.includes("USERNAME_INVALID") ||
+                err.message.includes("No user has")) {
+                invalidUsers.push(username);
+            } else {
+                // Boshqa xatolar - user mavjud deb hisoblaymiz
+                validUsers.push(username);
+            }
+        }
+        
+        validatedCount++;
+        
+        // Har 10 ta userdan keyin progress yangilash
+        if (validatedCount % 10 === 0 || validatedCount === users.length) {
+            await bot.editMessageText(`🔍 Userlar tekshirilmoqda: ${validatedCount}/${users.length}\n\n✅ To'g'ri: ${validUsers.length}\n❌ Xato: ${invalidUsers.length}`, {
+                chat_id: chatId,
+                message_id: validationMsg.message_id
+            }).catch(() => {});
+        }
+        
+        // Telegram API uchun delay (spam oldini olish)
+        await new Promise(r => setTimeout(r, 100));
+    }
+    
+    // Natija
+    if (validUsers.length === 0) {
+        throw new Error("Hech bir to'g'ri user topilmadi. Barcha userlar noto'g'ri yoki o'chirilgan.");
+    }
+    
+    await bot.editMessageText(`✅ Validatsiya tugadi!\n\n📊 Natija:\n✅ To'g'ri userlar: ${validUsers.length}\n❌ Noto'g'ri userlar: ${invalidUsers.length}\n\n🚀 Reklama faqat to'g'ri userlarga yuboriladi.`, {
+        chat_id: chatId,
+        message_id: validationMsg.message_id
+    }).catch(() => {});
+    
+    // Validatsiya qilingan userlarni ishlatamiz
+    users = validUsers;
+    reklamaStates[chatId].total = users.length;
 
     try {
         // Mediani bir marta yuklab olish (Buffer sifatida)
@@ -1404,7 +1480,51 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                     // Sekundiga 2 ta xabar (500ms kechikish)
                     await new Promise(r => setTimeout(r, 500)); 
                 } catch (err) {
-                    console.error(`[Reklama Error] Akkaunt ${currentSessionIndex}:`, err.message);
+                    console.error(`[Reklama Error] Akkaunt ${currentSessionIndex}, User @${targetUser}:`, err.message);
+                    
+                    // O'chirilgan yoki bloklangan userlar - skip qilish
+                    if (err.message.includes("USERNAME_NOT_OCCUPIED") || 
+                        err.message.includes("USERNAME_INVALID") ||
+                        err.message.includes("No user has") ||
+                        err.message.includes("USER_DELETED") ||
+                        err.message.includes("USER_DEACTIVATED") ||
+                        err.message.includes("USER_IS_BLOCKED") ||
+                        err.message.includes("INPUT_USER_DEACTIVATED")) {
+                        console.log(`[Reklama Skip] User @${targetUser} o'chirilgan yoki mavjud emas, o'tkazib yuborildi.`);
+                        success = true; // Keyingi userga o'tish
+                        continue;
+                    }
+                    
+                    // TIMEOUT xatosi - disconnect va qayta ulanish
+                    if (err.message.includes("TIMEOUT") || err.message.includes("timeout")) {
+                        console.log(`⚠️ [Reklama] Akkaunt ${currentSessionIndex + 1} TIMEOUT oldi, qayta ulanmoqda...`);
+                        
+                        try {
+                            // Eski clientni disconnect qilish
+                            if (clients[currentSessionIndex]) {
+                                await clients[currentSessionIndex].disconnect();
+                                clients[currentSessionIndex] = null;
+                            }
+                            
+                            // Qayta ulanish
+                            const reconnected = await connectClient(currentSessionIndex);
+                            if (reconnected) {
+                                bot.sendMessage(chatId, `✅ Akkaunt ${currentSessionIndex + 1} qayta ulandi, davom etmoqda...`);
+                                success = false; // Bu userni qaytadan urinish
+                                continue;
+                            } else {
+                                bot.sendMessage(chatId, `⚠️ Akkaunt ${currentSessionIndex + 1} qayta ulanmadi, keyingisiga o'tilmoqda...`);
+                                currentSessionIndex++;
+                                success = false;
+                                continue;
+                            }
+                        } catch (reconnectErr) {
+                            console.error(`[Reklama] Qayta ulanishda xato:`, reconnectErr.message);
+                            currentSessionIndex++;
+                            success = false;
+                            continue;
+                        }
+                    }
                     
                     // FLOOD_WAIT alohida handling
                     if (err.message.includes("FLOOD_WAIT_")) {
