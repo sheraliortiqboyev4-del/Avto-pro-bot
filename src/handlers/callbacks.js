@@ -778,7 +778,7 @@ module.exports = (bot) => {
         }
 
         if (data === "menu_profile") {
-            const { formatRemainingTime } = require('../utils/helpers');
+            const { formatRemainingTime, withPremiumEmojis } = require('../utils/helpers');
             
             const statusText = user.status === 'approved' ? "✅ Tasdiqlangan" : "⏳ Tasdiqlanmagan";
             const tarifText = user.subscriptionType || "Oddiy";
@@ -791,23 +791,26 @@ module.exports = (bot) => {
             const joinedDate = user.joinedAt ? new Date(user.joinedAt) : new Date();
             const regDate = `${joinedDate.getDate()}/${joinedDate.getMonth() + 1}/${joinedDate.getFullYear()}`;
             
-            const text = `👤 *Sizning Profilingiz:*\n\n` +
-                `📛 *Ism:* ${user.name || "Noma'lum"}\n` +
-                `🆔 *ID:* \`${user.chatId}\`\n` +
-                `🔰 *Holat:* ${statusText}\n` +
-                `⏰ *Tarif:* ${tarifText}\n` +
-                `⏳ *Qolgan vaqt:* ${remainingTime}\n\n` +
-                `🗂 *Ulangan akkauntlar soni:*\n` +
+            const rawText = `👤 Sizning Profilingiz:\n\n` +
+                `📛 Ism: ${user.name || "Noma'lum"}\n` +
+                `🆔 ID: \`${user.chatId}\`\n` +
+                `🔰 Holat: ${statusText}\n` +
+                `⏰ Tarif: ${tarifText}\n` +
+                `⏳ Qolgan vaqt: ${remainingTime}\n\n` +
+                `🗂 Ulangan akkauntlar soni:\n` +
                 `📣 Rek: ${rekAccCount} ta  , ⚔️ Reyd ${reydAccCount} ta\n\n` +
-                `⚔️ *Reydlar soni:* ${user.reydCount || 0} ta\n` +
-                `👥 *Yig'ilgan userlar:* ${user.usersGathered || 0} ta\n` +
-                `📢 *Yuborilgan reklamalar:* ${user.adsCount || 0} ta\n` +
-                `🏷 *Utag jarayonlari:* ${user.utagCount || 0} ta\n` +
-                `💎 *To'plangan almazlar:* ${user.clicks || 0} ta\n\n` +
-                `📅 *Ro'yxatdan o'tgan sana:* ${regDate}`;
+                `⚔️ Reydlar soni: ${user.reydCount || 0} ta\n` +
+                `👥 Yig'ilgan userlar: ${user.usersGathered || 0} ta\n` +
+                `📢 Yuborilgan reklamalar: ${user.adsCount || 0} ta\n` +
+                `🏷 Utag jarayonlari: ${user.utagCount || 0} ta\n` +
+                `💎 To'plangan almazlar: ${user.clicks || 0} ta\n\n` +
+                `📅 Ro'yxatdan o'tgan sana: ${regDate}`;
 
-            await safeEdit(chatId, messageId, text, {
+            const { cleanText, entities } = withPremiumEmojis(rawText);
+
+            await safeEdit(chatId, messageId, cleanText, {
                 parse_mode: "Markdown",
+                entities: entities,
                 reply_markup: {
                     inline_keyboard: [[{ text: "🔙 Orqaga", callback_data: "menu_back_main" }]]
                 }

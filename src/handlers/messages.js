@@ -300,27 +300,37 @@ module.exports = (bot) => {
         }
 
         if (state.step === 'WAITING_REK_USERS') {
+            console.log(`[WAITING_REK_USERS] Xabar keldi: "${text}"`);
+            
             // "Bekor qilish" tugmasini tekshirish - FAQAT aniq tugma matni
             if (text && text === '❌ Bekor qilish') {
-                sendBotReaction(bot, chatId, msg.message_id, 'error'); // ❌ reaksiya
+                console.log('[Reaction] Bekor qilish bosildi, error reaksiya qo\'yilmoqda...');
+                sendBotReaction(bot, chatId, msg.message_id, 'error');
+                
                 delete global.userStates[chatId];
                 return bot.sendMessage(chatId, '❌ Reklama bekor qilindi.', getMainMenu(chatId));
             }
             
             // "Tayyor" tugmasini tekshirish - FAQAT aniq tugma matni
             if (text && text === '✅ Tayyor (Davom etish)') {
+                console.log('[Reaction] Tayyor bosildi');
                 if (!state.usersList || state.usersList.trim() === '') {
-                    sendBotReaction(bot, chatId, msg.message_id, 'error'); // ❌ reaksiya
+                    console.log('[Reaction] Userlar yo\'q - error reaksiya');
+                    sendBotReaction(bot, chatId, msg.message_id, 'error');
                     return bot.sendMessage(chatId, '❌ Avval userlar ro\'yxatini yuboring!');
                 }
                 
-                sendBotReaction(bot, chatId, msg.message_id, 'success'); // ✅ reaksiya
+                console.log('[Reaction] Userlar mavjud - success reaksiya');
+                sendBotReaction(bot, chatId, msg.message_id, 'success');
+                
                 global.userStates[chatId] = { step: 'WAITING_REK_TEXT', usersList: state.usersList };
                 bot.sendMessage(chatId, "✍️ Reklama xabarini yuboring (Matn, rasm, stiker va h.k.):", removeKeyboardMarkup());
                 return;
             }
             
             if (!text) return;
+            
+            console.log('[Reaction] Userlar ro\'yxati yuborildi, tekshirilmoqda...');
             
             // Agar allaqachon usersList mavjud bo'lsa, yangi xabarni qo'shamiz
             const existingUsers = state.usersList || '';
@@ -333,7 +343,9 @@ module.exports = (bot) => {
             
             // Maksimal 1000 ta user
             if (totalUsers > 1000) {
-                sendBotReaction(bot, chatId, msg.message_id, 'error'); // ❌ reaksiya
+                console.log('[Reaction] Juda ko\'p userlar - error reaksiya');
+                sendBotReaction(bot, chatId, msg.message_id, 'error');
+                
                 return bot.sendMessage(chatId, 
                     `⚠️ **Maksimal 1000 ta user qabul qilish mumkin!**\n\n` +
                     `Hozir: ${totalUsers} ta\n\n` +
@@ -344,8 +356,8 @@ module.exports = (bot) => {
             
             global.userStates[chatId] = { step: 'WAITING_REK_USERS', usersList: uniqueUsers.join('\n') };
             
-            // ✅ To'g'ri formatda userlar qabul qilindi
-            sendBotReaction(bot, chatId, msg.message_id, 'success'); // ✅ reaksiya
+            console.log(`[Reaction] Userlar qabul qilindi: ${totalUsers} ta - success reaksiya`);
+            sendBotReaction(bot, chatId, msg.message_id, 'success');
             
             // Hozirgi holatni ko'rsatish
             const duplicates = allUsers.length - totalUsers;

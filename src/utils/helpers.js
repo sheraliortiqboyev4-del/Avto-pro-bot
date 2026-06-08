@@ -573,14 +573,14 @@ async function sendBotReaction(bot, chatId, messageId, reactionType = 'success')
     try {
         const reactionId = REACTION_EMOJIS[reactionType] || REACTION_EMOJIS.success;
         
-        console.log(`[Reaction] Qo'yilmoqda: chatId=${chatId}, msgId=${messageId}, type=${reactionType}, emojiId=${reactionId}`);
+        console.log(`[Reaction START] chatId=${chatId}, msgId=${messageId}, type=${reactionType}`);
         
-        // node-telegram-bot-api setMessageReaction qo'llab-quvvatlamaydi
-        // To'g'ridan-to'g'ri Telegram Bot API'ga so'rov yuboramiz
+        // node-telegram-bot-api orqali to'g'ridan-to'g'ri API'ga murojaat qilamiz
         const axios = require('axios');
-        const config = require('../config');
+        const botToken = require('../config').botToken;
         
-        const response = await axios.post(`https://api.telegram.org/bot${config.botToken}/setMessageReaction`, {
+        const url = `https://api.telegram.org/bot${botToken}/setMessageReaction`;
+        const payload = {
             chat_id: chatId,
             message_id: messageId,
             reaction: [{
@@ -588,17 +588,35 @@ async function sendBotReaction(bot, chatId, messageId, reactionType = 'success')
                 custom_emoji_id: reactionId
             }],
             is_big: false
+        };
+        
+        console.log(`[Reaction] So'rov yuborilmoqda:`, JSON.stringify(payload));
+        
+        const response = await axios.post(url, payload, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 10000 // 10 soniya timeout
         });
         
-        console.log(`[Reaction] Muvaffaqiyatli qo'yildi: ${reactionType}`);
-        return true;
-    } catch (error) {
-        // Reaksiya qo'yish xato bersa, log qilamiz lekin jarayonni to'xtatmaymiz
-        const errorMsg = error.response?.data?.description || error.message;
-        console.error(`[Reaction] XATOLIK (${reactionType}):`, errorMsg);
-        if (error.response?.data) {
-            console.error('[Reaction] Response data:', JSON.stringify(error.response.data));
+        if (response.data && response.data.ok) {
+            console.log(`[Reaction SUCCESS] ${reactionType} reaksiya qo'yildi ✅`);
+            return true;
+        } else {
+            console.error(`[Reaction FAILED] Response:`, response.data);
+            return false;
         }
+    } catch (error) {
+        // Reaksiya xato bersa ham, asosiy jarayonni to'xtatmaymiz
+        const errorMsg = error.response?.data?.description || error.message;
+        console.error(`[Reaction ERROR] (${reactionType}):`, errorMsg);
+        
+        // Batafsil debug uchun
+        if (error.response?.data) {
+            console.error('[Reaction] API Response:', JSON.stringify(error.response.data, null, 2));
+        }
+        if (error.code) {
+            console.error('[Reaction] Error code:', error.code);
+        }
+        
         return false;
     }
 }
