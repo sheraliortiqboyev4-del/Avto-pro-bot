@@ -1296,10 +1296,14 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     const originalText = reklamaMsg.text || reklamaMsg.caption || "";
     const originalEntities = reklamaMsg.entities || reklamaMsg.caption_entities || [];
     const promoFooter = `\n\n${PROMO_REKLAMA()}`;
-    const reklamaText = originalText ? `${originalText}${promoFooter}` : PROMO_REKLAMA();
+    const reklamaTextRaw = originalText ? `${originalText}${promoFooter}` : PROMO_REKLAMA();
     
-    // GramJS uchun entitylarni konvertatsiya qilish (faqat asl matn entitylari)
-    const entities = convertToGramJsEntities(originalEntities);
+    // Premium emoji'larni qo'shish
+    const { cleanText: reklamaText, entities: promoEntities } = withPremiumEmojis(reklamaTextRaw);
+    
+    // GramJS uchun entitylarni konvertatsiya qilish (asl matn + promo entitylari)
+    const originalGramJsEntities = convertToGramJsEntities(originalEntities);
+    const entities = [...originalGramJsEntities, ...promoEntities];
 
     // Reklamani vaqtinchalik bazaga saqlash
     await PremiumAd.upsert({
@@ -1683,15 +1687,37 @@ const sendUtagToParticipant = async (client, groupEntity, participant, extraText
 
     const send = async (activeClient) => {
         if (participant.username) {
-            await activeClient.sendMessage(groupEntity, { message: `@${participant.username}${extraText}` });
+            // Username bo'lsa, premium emoji'larni qo'shish
+            const fullText = `@${participant.username}${extraText}`;
+            const { cleanText, entities } = withPremiumEmojis(fullText);
+            await activeClient.sendMessage(groupEntity, { 
+                message: cleanText,
+                formattingEntities: entities 
+            });
             return;
         }
         await cacheUtagParticipant(activeClient, participant).catch(() => {});
         const name = participant.firstName || 'Foydalanuvchi';
         const userId = participant.id?.toString?.() || String(participant.id);
+        
+        // HTML tag va extraText birlashtiramiz, keyin premium emoji qo'shamiz
+        const htmlTag = `<a href="tg://user?id=${userId}">${escapeHTML(name)}</a>`;
+        const fullText = `${htmlTag}${extraText}`;
+        
+        // Premium emoji'lar extraText'da bo'lishi mumkin
+        const { cleanText, entities: emojiEntities } = withPremiumEmojis(fullText);
+        
+        // HTML entity (link) ni qo'shamiz
+        const linkEntity = {
+            _: 'MessageEntityTextUrl',
+            offset: 0,
+            length: escapeHTML(name).length,
+            url: `tg://user?id=${userId}`
+        };
+        
         await activeClient.sendMessage(groupEntity, {
-            message: `<a href="tg://user?id=${userId}">${escapeHTML(name)}</a>${extraText}`,
-            parseMode: 'html'
+            message: cleanText,
+            formattingEntities: [linkEntity, ...emojiEntities]
         });
     };
 
