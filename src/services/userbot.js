@@ -1302,8 +1302,11 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     const { cleanText: reklamaText, entities: promoEntities } = withPremiumEmojis(reklamaTextRaw);
     
     // GramJS uchun entitylarni konvertatsiya qilish (asl matn + promo entitylari)
-    const originalGramJsEntities = convertToGramJsEntities(originalEntities);
-    const entities = [...originalGramJsEntities, ...promoEntities];
+    const originalGramJsEntities = convertToGramJsEntities(originalEntities) || [];
+    const promoGramJsEntities = convertToGramJsEntities(promoEntities) || [];
+    const entities = [...originalGramJsEntities, ...promoGramJsEntities].filter(Boolean);
+    
+    console.log(`[Reklama] Matn tayyorlandi: ${reklamaText.length} belgi, ${entities.length} ta entity`);
 
     // Reklamani vaqtinchalik bazaga saqlash
     await PremiumAd.upsert({
@@ -1437,10 +1440,13 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
 
             const targetUser = users[i];
             let success = false;
+            
+            console.log(`[Reklama] User ${i + 1}/${users.length}: ${targetUser}`);
 
             while (currentSessionIndex < sessions.length && !success) {
                 // Faqat ulangan akkauntlardan foydalanish
                 if (!clients[currentSessionIndex]) {
+                    console.log(`[Reklama] Akkaunt ${currentSessionIndex + 1} ulanmagan, keyingisiga o'tilmoqda...`);
                     currentSessionIndex++;
                     if (currentSessionIndex >= sessions.length || connectedIndexes.length === 0) {
                         bot.sendMessage(chatId, "❌ Barcha akkauntlar ishlatildi yoki ulanmagan.");
@@ -1453,6 +1459,7 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                 
                 // Har safar client o'zgarganini tekshirish
                 client = clients[currentSessionIndex];
+                console.log(`[Reklama] Akkaunt ${currentSessionIndex + 1} ishlatilmoqda...`);
                 
                 try {
                     if (reklamaMsg.sticker && mediaBuffer) {
@@ -1464,18 +1471,19 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                         await client.sendFile(targetUser, {
                             file: mediaBuffer,
                             caption: reklamaText,
-                            formattingEntities: entities
+                            formattingEntities: entities.length > 0 ? entities : undefined
                         });
                     } else {
                         await client.sendMessage(targetUser, {
                             message: reklamaText,
-                            formattingEntities: entities
+                            formattingEntities: entities.length > 0 ? entities : undefined
                         });
                     }
 
                     success = true;
                     count++;
                     reklamaStates[chatId].count = count;
+                    console.log(`[Reklama] ✅ Yuborildi: ${targetUser}, Jami: ${count}`);
 
                     if (count % 5 === 0 || count === users.length) {
                         await bot.editMessageText(`🚀 **Reklama jarayoni...**\nProgress: ${count}/${users.length}\nAkkaunt: ${currentSessionIndex + 1}/${sessions.length}`, {
@@ -1488,7 +1496,7 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                     // Sekundiga 2 ta xabar (500ms kechikish)
                     await new Promise(r => setTimeout(r, 500)); 
                 } catch (err) {
-                    console.error(`[Reklama Error] Akkaunt ${currentSessionIndex}:`, err.message);
+                    console.error(`[Reklama Error] ${targetUser} -> Akkaunt ${currentSessionIndex + 1}:`, err.message);
                     
                     // FLOOD_WAIT alohida handling
                     if (err.message.includes("FLOOD_WAIT_")) {

@@ -342,11 +342,11 @@ function getMainMenu(chatId) {
     return {
         reply_markup: {
             inline_keyboard: [
-                [{ text: "💎 Avto Almaz", callback_data: "menu_almaz" }, { text: "🏷 Avto UTag", callback_data: "menu_utag" }],
+                [{ text: "💎 Avto Almaz", callback_data: "menu_almaz" }, { text: "🏷 Avto Utag", callback_data: "menu_utag" }],
                 [{ text: "👤 AvtoUser", callback_data: "menu_avtouser" }, { text: "⚔️ Avto Reyd", callback_data: "menu_reyd" }],
-                [{ text: "📣 Avto Reklama", callback_data: "menu_reklama" }, { text: "📊 Profil", callback_data: "menu_profile" }],
+                [{ text: "📣 Avto Reklama", callback_data: "menu_reklama" }],
                 [{ text: "🎁 Bonus", callback_data: "menu_bonus" }],
-                [{ text: "🔄 Nomer almashtirish", callback_data: "menu_logout" }],
+                [{ text: "🔄 Xisobdan chiqish", callback_data: "menu_logout" }, { text: "📊 Profil", callback_data: "menu_profile" }],
                 lastRow
             ]
         }
