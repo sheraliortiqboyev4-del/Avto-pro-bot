@@ -1673,30 +1673,30 @@ const cacheUtagParticipant = async (client, participant) => {
     }
 };
 
-const sendUtagToParticipant = async (client, groupEntity, participant, extraText, fallbackClient = null) => {
+const sendUtagToParticipant = async (client, groupEntity, participant, extraText, fallbackClient = null, fallbackEntity = null) => {
     if (participant.bot || participant.deleted) return false;
 
-    const send = async (activeClient) => {
+    const send = async (activeClient, activeEntity) => {
         if (participant.username) {
-            await activeClient.sendMessage(groupEntity, { message: `@${participant.username}${extraText}` });
+            await activeClient.sendMessage(activeEntity, { message: `@${participant.username}${extraText}` });
             return;
         }
         await cacheUtagParticipant(activeClient, participant).catch(() => {});
         const name = participant.firstName || 'Foydalanuvchi';
         const userId = participant.id?.toString?.() || String(participant.id);
-        await activeClient.sendMessage(groupEntity, {
+        await activeClient.sendMessage(activeEntity, {
             message: `<a href="tg://user?id=${userId}">${escapeHTML(name)}</a>${extraText}`,
             parseMode: 'html'
         });
     };
 
     try {
-        await send(client);
+        await send(client, groupEntity);
         return true;
     } catch (e) {
         if (fallbackClient && fallbackClient !== client) {
             try {
-                await send(fallbackClient);
+                await send(fallbackClient, fallbackEntity || groupEntity);
                 return true;
             } catch (e2) {
                 console.error(`[UTag] Fallback ham xato (User: ${participant.id}):`, e2.message);
@@ -1823,17 +1823,55 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
             throw new Error("Bu guruh/kanal emas. Guruhni qayta tanlang.");
         }
 
+        // Har bir client uchun guruhni ALOHIDA resolve qilish.
+        // Sabab: har bir akkauntning o'z access_hash'i bor, mainClient'ning entity'sini
+        // boshqa akkauntda ishlatib bo'lmaydi ("Could not find the input entity" xatosi).
+        const clientEntities = new Map(); // client -> shu client uchun entity
+        const workingClients = [];
         for (let i = 0; i < clients.length; i++) {
-            try { await clients[i].getEntity(entity).catch(() => {}); } catch (e) {}
+            const cl = clients[i];
+            let clEntity = null;
+            try {
+                // Avval dialoglarni yangilab, cache'ni to'ldiramiz
+                await cl.getDialogs({ limit: 50 }).catch(() => {});
+                clEntity = await cl.getEntity(entity);
+            } catch (e1) {
+                // getEntity ishlamasa, link/username orqali urinib ko'ramiz
+                try {
+                    const rawPeer = normalizeTelegramGroupId(String(groupLink).trim());
+                    clEntity = await cl.getEntity(rawPeer);
+                } catch (e2) {
+                    clEntity = null;
+                }
+            }
+            if (clEntity) {
+                clientEntities.set(cl, clEntity);
+                workingClients.push(cl);
+                console.log(`[UTag] Akkaunt #${i + 1} guruhni topdi ✅`);
+            } else {
+                console.log(`[UTag] Akkaunt #${i + 1} guruhga kira olmadi (a'zo emas), o'tkazib yuborildi ❌`);
+            }
         }
 
-        const participants = await fetchUtagParticipants(mainClient, entity, memberFilter, parseInt(limit, 10) || 0);
+        if (workingClients.length === 0) {
+            throw new Error("Hech bir akkaunt guruhga kira olmadi. Akkauntlar guruhga a'zo ekanligini tekshiring.");
+        }
 
-        const groupId = normalizeUtagGroupId(entity.id?.toString() || groupLink);
-        const groupTitle = presetTitle || entity.title || entity.username || "Guruh";
+        // Faqat ishlaydigan clientlar bilan davom etamiz
+        clients.length = 0;
+        clients.push(...workingClients);
+        mainClient = clients[0];
+        console.log(`[UTag] Guruhga kira oladigan akkauntlar: ${clients.length} ta`);
+
+        const mainEntity = clientEntities.get(mainClient) || entity;
+
+        const participants = await fetchUtagParticipants(mainClient, mainEntity, memberFilter, parseInt(limit, 10) || 0);
+
+        const groupId = normalizeUtagGroupId(mainEntity.id?.toString() || groupLink);
+        const groupTitle = presetTitle || mainEntity.title || mainEntity.username || "Guruh";
         const historyLink = /^-?\d+$/.test(String(groupLink).trim())
             ? groupId
-            : (entity.username ? `@${entity.username}` : String(groupLink).trim());
+            : (mainEntity.username ? `@${mainEntity.username}` : String(groupLink).trim());
 
         const history = upsertUtagHistory(user.utagHistory, {
             id: groupId,
@@ -1889,7 +1927,7 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                     extraText += ` ${PROMO_UTAG()}`;
                 }
 
-                await sendUtagToParticipant(currentClient, entity, p, extraText, mainClient);
+                await sendUtagToParticipant(currentClient, clientEntities.get(currentClient) || mainEntity, p, extraText, mainClient, mainEntity);
 
                 count++;
                 utagStates[chatId].count = count;
