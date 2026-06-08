@@ -105,13 +105,14 @@ const EMOJI_MAP = {
     '📜':'5305444432118555890',
 };
 
-// Bot reaksiyalari uchun premium emoji ID'lari
+// Bot reaksiyalari uchun oddiy emoji'larning premium ID'lari
 const REACTION_EMOJIS = {
-    success: '5472100935708711380', // ✅ - To'g'ri xabar uchun
-    error: '5472224162615401195',   // ❌ - Noto'g'ri xabar uchun
-    // Kerak bo'lsa qo'shimcha:
-    // warning: '5420323339723881652', // ⚠️
-    // thinking: '5307872610796055927',  // 🤔
+    success: '5107584321108051014', // 👍 oddiy emoji ID
+    error: '5104841245755180586',   // 👎 oddiy emoji ID
+    fire: '5104594941209652303',    // 🔥
+    heart: '5159644522449868411',   // ❤
+    party: '5107584321108051014',   // 🎉
+    ok: '5104594941209652303'       // 👌
 };
 
 // UTF-16 asosida matn uzunligini to'g'ri hisoblash (Telegram uchun .length kifoya)
@@ -573,7 +574,7 @@ async function sendBotReaction(bot, chatId, messageId, reactionType = 'success')
     try {
         const reactionId = REACTION_EMOJIS[reactionType] || REACTION_EMOJIS.success;
         
-        console.log(`[Reaction START] chatId=${chatId}, msgId=${messageId}, type=${reactionType}`);
+        console.log(`[Reaction START] chatId=${chatId}, msgId=${messageId}, type=${reactionType}, emojiId=${reactionId}`);
         
         // node-telegram-bot-api orqali to'g'ridan-to'g'ri API'ga murojaat qilamiz
         const axios = require('axios');
@@ -594,7 +595,7 @@ async function sendBotReaction(bot, chatId, messageId, reactionType = 'success')
         
         const response = await axios.post(url, payload, {
             headers: { 'Content-Type': 'application/json' },
-            timeout: 10000 // 10 soniya timeout
+            timeout: 10000
         });
         
         if (response.data && response.data.ok) {

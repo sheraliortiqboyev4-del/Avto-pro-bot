@@ -1303,8 +1303,7 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     
     // GramJS uchun entitylarni konvertatsiya qilish (asl matn + promo entitylari)
     const originalGramJsEntities = convertToGramJsEntities(originalEntities);
-    const promoGramJsEntities = convertToGramJsEntities(promoEntities);
-    const entities = [...originalGramJsEntities, ...promoGramJsEntities];
+    const entities = [...originalGramJsEntities, ...promoEntities];
 
     // Reklamani vaqtinchalik bazaga saqlash
     await PremiumAd.upsert({
@@ -1688,28 +1687,15 @@ const sendUtagToParticipant = async (client, groupEntity, participant, extraText
 
     const send = async (activeClient) => {
         if (participant.username) {
-            // Username bo'lsa, premium emoji'larni qo'shish
-            const fullText = `@${participant.username}${extraText}`;
-            const { cleanText, entities: plainEntities } = withPremiumEmojis(fullText);
-            const entities = convertToGramJsEntities(plainEntities);
-            await activeClient.sendMessage(groupEntity, { 
-                message: cleanText,
-                formattingEntities: entities 
-            });
+            await activeClient.sendMessage(groupEntity, { message: `@${participant.username}${extraText}` });
             return;
         }
         await cacheUtagParticipant(activeClient, participant).catch(() => {});
         const name = participant.firstName || 'Foydalanuvchi';
         const userId = participant.id?.toString?.() || String(participant.id);
-        
-        // HTML formatda yuborish (GramJS HTML parse qiladi)
-        const fullText = `<a href="tg://user?id=${userId}">${escapeHTML(name)}</a>${extraText}`;
-        const { cleanText, entities: plainEntities } = withPremiumEmojis(fullText);
-        const entities = convertToGramJsEntities(plainEntities);
-        
         await activeClient.sendMessage(groupEntity, {
-            message: cleanText,
-            formattingEntities: entities
+            message: `<a href="tg://user?id=${userId}">${escapeHTML(name)}</a>${extraText}`,
+            parseMode: 'html'
         });
     };
 
@@ -1790,9 +1776,7 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
 
     if (useAllMode) {
         // Barcha akkauntlar rejimida: faqat qo'shimcha akkauntlar
-        console.log(`[UTag] Barcha akkauntlar rejimi. Jami: ${sessions.length} ta`);
         for (let i = 0; i < sessions.length; i++) {
-            console.log(`[UTag] Akkaunt ${i + 1} ulanishga urinish...`);
             try {
                 const tempClient = new TelegramClient(new StringSession(sessions[i]), config.apiId, config.apiHash, {
                     connectionRetries: 5,
@@ -1804,29 +1788,22 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                     proxy: undefined
                 });
                 await tempClient.connect();
-                console.log(`[UTag] Akkaunt ${i + 1} ulandi, avtorizatsiya tekshirilmoqda...`);
                 if (await tempClient.checkAuthorization()) {
                     // Muhim: Entity cache ni to'ldirish uchun dialoglarni olamiz
                     await tempClient.getDialogs({ limit: 50 }).catch(() => {});
                     clients.push(tempClient);
-                    console.log(`[UTag] ✅ Akkaunt ${i + 1} muvaffaqiyatli ulandi va tayyorlandi`);
-                } else {
-                    console.log(`[UTag] ❌ Akkaunt ${i + 1} avtorizatsiyadan o'tmadi`);
-                    try { await tempClient.disconnect(); } catch (e) {}
                 }
             } catch (e) {
-                console.error(`[UTag] ❌ Akkaunt ${i + 1} ulanishda xato:`, e.message);
+                console.error(`[UTag] Akkaunt ${i} ulanishda xato:`, e.message);
             }
         }
         // Barcha akkauntlar rejimida mainClient ni birinchi qo'shimcha akkauntga tenglashtiramiz
         if (clients.length === 0) {
             throw new Error("Sizda aktiv qo'shimcha akkauntlar yo'q.");
         }
-        console.log(`[UTag] 🎯 Ulangan akkauntlar: ${clients.length} ta (jami ${sessions.length} tadan)`);
         mainClient = clients[0];
     } else {
         // Faqat asosiy akkaunt rejimida: asosiy akkauntni ishlatamiz
-        console.log(`[UTag] Faqat asosiy akkaunt rejimi`);
         mainClient = await ensureClient(chatId, bot);
         clients.push(mainClient);
     }
@@ -1908,11 +1885,6 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
 
             const currentClient = clients[currentClientIndex];
             
-            // Har 10 ta xabardan 1 marta qaysi akkaunt ishlatayotganini log qilamiz
-            if (count % 10 === 0 && clients.length > 1) {
-                console.log(`[UTag] Xabar ${count}: Akkaunt #${currentClientIndex + 1} ishlatilmoqda (jami: ${clients.length})`);
-            }
-            
             try {
                 const tagNumber = count + 1;
                 let extraText = '';
@@ -1951,10 +1923,8 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
             } catch (e) {
                 if (e.message.includes("FLOOD_WAIT")) {
                     const waitTime = parseInt(e.message.match(/\d+/)[0]);
-                    console.log(`[UTag] FLOOD_WAIT: Akkaunt #${currentClientIndex + 1} - ${waitTime}s`);
                     // Agar bu akkaunt flood bo'lsa, uni vaqtincha tashlab ketamiz
                     if (clients.length > 1) {
-                        console.log(`[UTag] Akkaunt #${currentClientIndex + 1} olib tashlandi. Qolgan: ${clients.length - 1}`);
                         clients.splice(currentClientIndex, 1);
                         if (clients.length === 0) break; // Hech qaysi akkaunt qolmasa to'xtatamiz
                         currentClientIndex = currentClientIndex % clients.length;
@@ -1962,7 +1932,7 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                         await new Promise(r => setTimeout(r, waitTime * 1000));
                     }
                 } else {
-                    console.error(`[UTag] Tag xatosi (User: ${p.id}, Akkaunt #${currentClientIndex + 1}):`, e.message);
+                    console.error(`Tag xatosi (User: ${p.id}):`, e.message);
                     // Keyingi clientga o'tib urinib ko'ramiz
                     currentClientIndex = (currentClientIndex + 1) % clients.length;
                 }
