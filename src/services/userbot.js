@@ -1410,6 +1410,30 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
 
     bot.sendMessage(chatId, `✅ ${connectedIndexes.length}/${sessions.length} ta akkaunt tayyor!`);
 
+    // Keyingi ishlaydigan akkauntga KETMA-KET o'tish (1→2→3→4 tartibida)
+    const switchToNextAccount = async () => {
+        for (let idx = currentSessionIndex + 1; idx < sessions.length; idx++) {
+            // Agar akkaunt allaqachon ulangan bo'lsa - shunga o'tamiz
+            if (clients[idx]) {
+                currentSessionIndex = idx;
+                console.log(`[Reklama] Akkaunt ${currentSessionIndex + 1} ga o'tildi`);
+                return true;
+            }
+            // Ulanmagan bo'lsa - ulashga harakat qilamiz
+            console.log(`[Reklama] Akkaunt ${idx + 1} ulanishga harakat...`);
+            const result = await connectClient(idx);
+            if (result) {
+                currentSessionIndex = idx;
+                bot.sendMessage(chatId, `✅ Akkaunt ${currentSessionIndex + 1} ulandi va ishga tushdi!`).catch(() => {});
+                return true;
+            } else {
+                bot.sendMessage(chatId, `⚠️ Akkaunt ${idx + 1}/${sessions.length} ulanmadi, o'tkazib yuborildi.`).catch(() => {});
+                // Keyingisini sinashda davom etamiz (ketma-ketlik buzilmaydi)
+            }
+        }
+        return false;
+    };
+
     try {
         // Mediani bir marta yuklab olish (Buffer sifatida)
         let mediaBuffer = null;
@@ -1497,183 +1521,87 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                     await new Promise(r => setTimeout(r, 500)); 
                 } catch (err) {
                     console.error(`[Reklama Error] ${targetUser} -> Akkaunt ${currentSessionIndex + 1}:`, err.message);
-                    
-                    // FLOOD_WAIT yoki username xatolari - keyingi akkauntga o'tish
-                    if (err.message.includes("FLOOD_WAIT") || err.message.includes("A wait of")) {
-                        const waitMatch = err.message.match(/(\d+)\s*seconds/i);
-                        const waitSeconds = waitMatch ? parseInt(waitMatch[1]) : 60;
-                        const waitMinutes = Math.floor(waitSeconds / 60);
-                        const waitHours = Math.floor(waitMinutes / 60);
-                        const waitText = waitHours > 0 ? `${waitHours} soat` : `${waitMinutes} daqiqa`;
-                        
-                        console.log(`[Reklama] ⚠️ FLOOD_WAIT: Akkaunt ${currentSessionIndex + 1} - ${waitSeconds}s`);
-                        
+
+                    const isFlood = err.message.includes("FLOOD_WAIT") || err.message.includes("A wait of");
+                    const isSpam = err.message.includes("PEER_FLOOD") || err.message.includes("USER_PRIVACY_RESTRICTED") || err.message.includes("Spam");
+                    const isUsernameError = err.message.includes("No user has") || err.message.includes("USERNAME_NOT_OCCUPIED") || err.message.includes("USERNAME_INVALID");
+
+                    // 1. Username topilmasa - bu userni tashlab ketamiz (akkaunt almashtirmaymiz)
+                    if (isUsernameError) {
+                        console.log(`[Reklama] Username topilmadi: ${targetUser}, skip`);
+                        success = true; // Keyingi userga o'tamiz
+                        break;
+                    }
+
+                    // 2. FLOOD_WAIT yoki SPAM - foydalanuvchidan keyingi akkauntga o'tishni so'rash
+                    if (isFlood || isSpam) {
                         const nextAcc = currentSessionIndex + 1;
-                        if (nextAcc < sessions.length) {
-                            // Foydalanuvchidan so'rash
-                            const floodInfo = `⚠️ **Akkaunt spam oldi!**\n\n` +
+                        if (nextAcc >= sessions.length) {
+                            bot.sendMessage(chatId, "❌ Barcha akkauntlar spamga tushdi yoki tugadi.").catch(() => {});
+                            reklamaStates[chatId].status = 'stopped';
+                            success = true;
+                            break;
+                        }
+
+                        // Xabar matnini xato turiga qarab tayyorlash
+                        let askInfo;
+                        if (isFlood) {
+                            const waitMatch = err.message.match(/(\d+)\s*seconds/i);
+                            const waitSeconds = waitMatch ? parseInt(waitMatch[1]) : 60;
+                            const waitMinutes = Math.floor(waitSeconds / 60);
+                            const waitHours = Math.floor(waitMinutes / 60);
+                            const waitText = waitHours > 0 ? `${waitHours} soat` : `${waitMinutes} daqiqa`;
+                            console.log(`[Reklama] ⚠️ FLOOD_WAIT: Akkaunt ${currentSessionIndex + 1} - ${waitSeconds}s`);
+                            askInfo = `⚠️ **Akkaunt spam oldi!**\n\n` +
                                 `Akkaunt: ${currentSessionIndex + 1}/${sessions.length}\n` +
                                 `Kutish vaqti: ${waitText}\n` +
                                 `Progress: ${count}/${users.length}\n\n` +
                                 `Keyingi akkauntga o'tib davom etaylikmi?`;
-                            
-                            bot.sendMessage(chatId, floodInfo, {
-                                parse_mode: 'Markdown',
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: "▶️ Davom etish", callback_data: "reklama_flood_continue" }],
-                                        [{ text: "⏹ To'xtatish", callback_data: "reklama_flood_stop" }]
-                                    ]
-                                }
-                            });
-
-                            // Foydalanuvchi javobini kutish
-                            const userDecision = await new Promise((resolve) => {
-                                reklamaStates[chatId].resolveFlood = resolve;
-                            });
-
-                            if (userDecision) {
-                                // Keyingi ulangan akkauntni topish
-                                let nextIndex = currentSessionIndex + 1;
-                                let foundNext = false;
-                                
-                                while (nextIndex < sessions.length) {
-                                    if (clients[nextIndex]) {
-                                        currentSessionIndex = nextIndex;
-                                        foundNext = true;
-                                        console.log(`[Reklama] Akkaunt ${currentSessionIndex + 1} ga o'tildi`);
-                                        break;
-                                    }
-                                    nextIndex++;
-                                }
-                                
-                                if (!foundNext) {
-                                    // Yangi akkauntni ulab ko'ramiz
-                                    for (let idx = currentSessionIndex + 1; idx < sessions.length; idx++) {
-                                        if (!clients[idx]) {
-                                            console.log(`[Reklama] Akkaunt ${idx + 1} ulanishga harakat...`);
-                                            const result = await connectClient(idx);
-                                            if (result) {
-                                                currentSessionIndex = idx;
-                                                foundNext = true;
-                                                bot.sendMessage(chatId, `✅ Akkaunt ${currentSessionIndex + 1} ulandi va ishga tushdi!`).catch(() => {});
-                                                break;
-                                            } else {
-                                                bot.sendMessage(chatId, `⚠️ Akkaunt ${idx + 1}/${sessions.length} ulanmadi, o'tkazib yuborildi.`).catch(() => {});
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                if (foundNext) {
-                                    bot.sendMessage(chatId, `🔄 Akkaunt ${currentSessionIndex + 1}/${sessions.length} ga o'tildi. Davom etmoqda...`).catch(() => {});
-                                    // Qayta urinish - success ni false qoldiramiz
-                                    continue; 
-                                } else {
-                                    bot.sendMessage(chatId, "❌ Boshqa ishlaydigan akkaunt yo'q.").catch(() => {});
-                                    reklamaStates[chatId].status = 'stopped';
-                                    success = true;
-                                    break;
-                                }
-                            } else {
-                                bot.sendMessage(chatId, "⏹ Reklama foydalanuvchi tomonidan to'xtatildi.").catch(() => {});
-                                reklamaStates[chatId].status = 'stopped';
-                                success = true;
-                                break;
-                            }
                         } else {
-                            bot.sendMessage(chatId, "❌ Barcha akkauntlar spam oldi yoki tugadi.").catch(() => {});
+                            console.log(`[Reklama] ⚠️ PEER_FLOOD/SPAM: Akkaunt ${currentSessionIndex + 1}`);
+                            askInfo = `⚠️ **Akkaunt spamga tushdi!**\n\nAkkaunt: ${currentSessionIndex + 1}/${sessions.length}\nProgress: ${count}/${users.length}\n\nKeyingi akkauntga o'tib davom etaylikmi?`;
+                        }
+
+                        bot.sendMessage(chatId, askInfo, {
+                            parse_mode: 'Markdown',
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: "▶️ Davom etish", callback_data: "reklama_spam_continue" }],
+                                    [{ text: "⏹ To'xtatish", callback_data: "reklama_spam_stop" }]
+                                ]
+                            }
+                        });
+
+                        // Foydalanuvchi javobini kutish
+                        const userDecision = await new Promise((resolve) => {
+                            reklamaStates[chatId].resolveSpam = resolve;
+                        });
+
+                        if (!userDecision) {
+                            bot.sendMessage(chatId, "⏹ Reklama foydalanuvchi tomonidan to'xtatildi.").catch(() => {});
+                            reklamaStates[chatId].status = 'stopped';
+                            success = true;
+                            break;
+                        }
+
+                        // Keyingi ishlaydigan akkauntga o'tish
+                        const switched = await switchToNextAccount();
+                        if (switched) {
+                            bot.sendMessage(chatId, `🔄 Akkaunt ${currentSessionIndex + 1}/${sessions.length} ga o'tildi. Davom etmoqda...`).catch(() => {});
+                            // success = false -> while loop shu userni qayta urinadi
+                            continue;
+                        } else {
+                            bot.sendMessage(chatId, "❌ Boshqa ishlaydigan akkaunt yo'q.").catch(() => {});
                             reklamaStates[chatId].status = 'stopped';
                             success = true;
                             break;
                         }
                     }
-                    
-                    // Username topilmasa - bu userni tashlab ketamiz
-                    if (err.message.includes("No user has") || err.message.includes("USERNAME_NOT_OCCUPIED") || err.message.includes("USERNAME_INVALID")) {
-                        console.log(`[Reklama] Username topilmadi: ${targetUser}, skip`);
-                        success = true; // Keyingi userga o'tamiz
-                        continue;
-                    }
-                    
-                    const isSpam = err.message.includes("PEER_FLOOD") || err.message.includes("USER_PRIVACY_RESTRICTED") || err.message.includes("Spam");
-                    
-                    if (isSpam) {
-                        const nextAcc = currentSessionIndex + 1;
-                        if (nextAcc < sessions.length) {
-                            // Foydalanuvchidan so'rash
-                            const spamInfo = `⚠️ **Akkaunt spamga tushdi!**\n\nAkkaunt: ${currentSessionIndex + 1}/${sessions.length}\nProgress: ${count}/${users.length}\n\nKeyingi akkauntga o'tib davom etaylikmi?`;
-                            
-                            bot.sendMessage(chatId, spamInfo, {
-                                parse_mode: 'Markdown',
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: "▶️ Davom etish", callback_data: "reklama_spam_continue" }],
-                                        [{ text: "⏹ To'xtatish", callback_data: "reklama_spam_stop" }]
-                                    ]
-                                }
-                            });
 
-                            // Foydalanuvchi javobini kutish
-                            const userDecision = await new Promise((resolve) => {
-                                reklamaStates[chatId].resolveSpam = resolve;
-                            });
-
-                            if (userDecision) {
-                                // Keyingi ulangan akkauntni topish
-                                let nextIndex = currentSessionIndex + 1;
-                                let foundNext = false;
-                                
-                                while (nextIndex < sessions.length) {
-                                    if (clients[nextIndex]) {
-                                        currentSessionIndex = nextIndex;
-                                        foundNext = true;
-                                        break;
-                                    }
-                                    nextIndex++;
-                                }
-                                
-                                if (!foundNext) {
-                                    // Yangi akkauntni ulab ko'ramiz
-                                    for (let idx = currentSessionIndex + 1; idx < sessions.length; idx++) {
-                                        if (!clients[idx]) {
-                                            const result = await connectClient(idx);
-                                            if (result) {
-                                                currentSessionIndex = idx;
-                                                foundNext = true;
-                                                break;
-                                            } else {
-                                                bot.sendMessage(chatId, `⚠️ Akkaunt ${idx + 1}/${sessions.length} ulanmadi, o'tkazib yuborildi.`);
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                if (foundNext) {
-                                    bot.sendMessage(chatId, `🔄 Akkaunt ${currentSessionIndex + 1}/${sessions.length} ga o'tildi. Davom etmoqda...`);
-                                    success = false; // Qayta urinish
-                                } else {
-                                    bot.sendMessage(chatId, "❌ Boshqa ishlaydigan akkaunt yo'q.");
-                                    reklamaStates[chatId].status = 'stopped';
-                                    success = true;
-                                    break;
-                                }
-                            } else {
-                                bot.sendMessage(chatId, "⏹ Reklama foydalanuvchi tomonidan to'xtatildi.");
-                                reklamaStates[chatId].status = 'stopped';
-                                success = true; // Loop dan chiqish uchun
-                                break;
-                            }
-                        } else {
-                            bot.sendMessage(chatId, "❌ Barcha akkauntlar spamga tushdi yoki tugadi.");
-                            reklamaStates[chatId].status = 'stopped';
-                            success = true; // Loop dan chiqish uchun
-                            break;
-                        }
-                    } else {
-                        // Boshqa xatoliklar (masalan, noto'g'ri username) bo'lsa, bu userni tashlab ketamiz
-                        success = true; 
-                    }
+                    // 3. Boshqa xatoliklar - bu userni tashlab ketamiz
+                    console.log(`[Reklama] Boshqa xato, user skip: ${targetUser}`);
+                    success = true;
+                    break;
                 }
             }
         }
