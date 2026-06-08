@@ -27,6 +27,75 @@ const userClients = {};
 const avtoAlmazStates = {}; 
 const utagStates = {}; 
 const reklamaStates = {};
+const reydSessions = {}; // Reyd uchun global state
+
+// Temporary cleanup - faqat tugagan jarayonlarni tozalash
+const cleanupTempData = () => {
+    try {
+        const now = Date.now();
+        let cleaned = 0;
+        
+        // 1. Tugagan reklama jarayonlarini tozalash (10 daqiqadan keyin)
+        for (const chatId in reklamaStates) {
+            const state = reklamaStates[chatId];
+            if (state.status === 'stopped' && state.finishedAt && (now - state.finishedAt > 600000)) {
+                delete reklamaStates[chatId];
+                cleaned++;
+            }
+        }
+        
+        // 2. Tugagan reyd jarayonlarini tozalash (10 daqiqadan keyin)
+        for (const chatId in reydSessions) {
+            const state = reydSessions[chatId];
+            if ((state.status === 'stopped' || state.status === 'finished') && state.finishedAt && (now - state.finishedAt > 600000)) {
+                delete reydSessions[chatId];
+                cleaned++;
+            }
+        }
+        
+        // 3. Tugagan utag jarayonlarini tozalash (10 daqiqadan keyin)
+        for (const chatId in utagStates) {
+            const state = utagStates[chatId];
+            if (state.status === 'stopped' && state.finishedAt && (now - state.finishedAt > 600000)) {
+                delete utagStates[chatId];
+                cleaned++;
+            }
+        }
+        
+        // 4. Temporary file'larni tozalash (1 soatdan eski)
+        const tempDir = path.join(process.cwd(), 'temp');
+        if (fs.existsSync(tempDir)) {
+            const files = fs.readdirSync(tempDir);
+            for (const file of files) {
+                const filePath = path.join(tempDir, file);
+                try {
+                    const stats = fs.statSync(filePath);
+                    if (now - stats.mtimeMs > 3600000) { // 1 soat
+                        fs.unlinkSync(filePath);
+                        cleaned++;
+                    }
+                } catch (e) {
+                    // Fayl allaqachon o'chirilgan yoki access yo'q
+                }
+            }
+        }
+        
+        // 5. Garbage collection (agar mavjud bo'lsa)
+        if (global.gc) {
+            global.gc();
+        }
+        
+        if (cleaned > 0) {
+            console.log(`[Cleanup] ${cleaned} ta vaqtinchalik ma'lumot tozalandi`);
+        }
+        
+    } catch (e) {
+        console.error('[Cleanup Error]:', e.message);
+    }
+};
+
+// Har 5 daqiqada cleanup ishga tushirish
+setInterval(cleanupTempData, 300000); // 5 daqiqa
 
 const getPromoBot = () => {
     const u = (config.botPromoUsername || '@Foydasizku_bot').trim();
@@ -1176,14 +1245,25 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
         const finalStatus = reydSessions[chatId]?.status === 'stopped' ? "to'xtatildi" : "tugadi";
         bot.sendMessage(chatId, `🏁 **Avto Reyd ${finalStatus}!**\nJami yuborildi: ${reydSessions[chatId]?.count || 0} ta.`, getMainMenu(chatId));
         
+        // finishedAt timestamp qo'shish (cleanup uchun)
+        if (reydSessions[chatId]) {
+            reydSessions[chatId].finishedAt = Date.now();
+        }
+        
         const countToAdd = reydSessions[chatId]?.count || 0;
-        delete reydSessions[chatId];
+        // 10 daqiqadan keyin cleanup avtomatik o'chiradi
+        // delete reydSessions[chatId]; - buni olib tashladik
+        
         await User.increment({ reydCount: 1 }, { where: { chatId } });
         
         // Barcha vaqtinchalik klientlarni uzish
         for (const key in userClients) {
             if (key.startsWith(`${chatId}_`)) {
-                try { await userClients[key].disconnect(); } catch(e) {}
+                try { 
+                    await userClients[key].disconnect(); 
+                } catch(e) {
+                    console.error('[Reyd] Client disconnect error:', e.message);
+                }
                 delete userClients[key];
             }
         }
@@ -1537,9 +1617,20 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     // Reklama tugadi.
     const finalStatus = reklamaStates[chatId]?.status === 'stopped' ? "to'xtatildi" : "tugadi";
     
+    // finishedAt timestamp qo'shish (cleanup uchun)
+    if (reklamaStates[chatId]) {
+        reklamaStates[chatId].finishedAt = Date.now();
+    }
+    
     // Clientlarni yopish
     for (const cl of clients) {
-        if (cl) { try { await cl.disconnect(); } catch (e) {} }
+        if (cl) { 
+            try { 
+                await cl.disconnect(); 
+            } catch (e) {
+                console.error('[Reklama] Client disconnect error:', e.message);
+            }
+        }
     }
 
     // Bazadan reklamani o'chirish
@@ -1547,7 +1638,10 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
 
     await User.increment({ adsCount: count }, { where: { chatId } });
     bot.sendMessage(chatId, `✅ Reklama yakunlandi. Jami yuborildi: ${count} ta.`, getMainMenu(chatId));
-    delete reklamaStates[chatId];
+    
+    // 10 daqiqadan keyin cleanup avtomatik o'chiradi
+    // delete reklamaStates[chatId]; - buni olib tashladik
+    
     return count;
 };
 
@@ -1844,15 +1938,26 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
         const finalStatus = utagStates[chatId]?.status === 'stopped' ? "To'xtatildi" : "Tugadi";
         bot.sendMessage(chatId, `🏁 **Uteg jarayoni ${finalStatus}!**\nJami tag qilindi: ${count} ta.`);
         
+        // finishedAt timestamp qo'shish (cleanup uchun)
+        if (utagStates[chatId]) {
+            utagStates[chatId].finishedAt = Date.now();
+        }
+        
         await User.increment({ utagCount: 1 }, { where: { chatId } });
-        delete utagStates[chatId];
+        // 10 daqiqadan keyin cleanup avtomatik o'chiradi
+        // delete utagStates[chatId]; - buni olib tashladik
+        
     } catch (e) {
         throw new Error(`Uteg xatosi: ${e.message}`);
     } finally {
         // Barcha qo'shimcha/clientlarni uzish (agar all mode bo'lsa)
         if (useAllMode) {
             for (let i = 0; i < clients.length; i++) {
-                try { await clients[i].disconnect(); } catch (e) {}
+                try { 
+                    await clients[i].disconnect(); 
+                } catch (e) {
+                    console.error('[Utag] Client disconnect error:', e.message);
+                }
             }
         } else {
             // Faqat qo'shimcha clientlarni uzish
