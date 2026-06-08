@@ -102,6 +102,7 @@ const EMOJI_MAP = {
     '📍': '5228967510006580700',
     '🧙': '5305367311685788308',
     '✈':'5305338582649545744',
+    '📜':'5305444432118555890',
 };
 
 // UTF-16 asosida matn uzunligini to'g'ri hisoblash (Telegram uchun .length kifoya)

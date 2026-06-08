@@ -1303,7 +1303,8 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     
     // GramJS uchun entitylarni konvertatsiya qilish (asl matn + promo entitylari)
     const originalGramJsEntities = convertToGramJsEntities(originalEntities);
-    const entities = [...originalGramJsEntities, ...promoEntities];
+    const promoGramJsEntities = convertToGramJsEntities(promoEntities);
+    const entities = [...originalGramJsEntities, ...promoGramJsEntities];
 
     // Reklamani vaqtinchalik bazaga saqlash
     await PremiumAd.upsert({
@@ -1689,7 +1690,8 @@ const sendUtagToParticipant = async (client, groupEntity, participant, extraText
         if (participant.username) {
             // Username bo'lsa, premium emoji'larni qo'shish
             const fullText = `@${participant.username}${extraText}`;
-            const { cleanText, entities } = withPremiumEmojis(fullText);
+            const { cleanText, entities: plainEntities } = withPremiumEmojis(fullText);
+            const entities = convertToGramJsEntities(plainEntities);
             await activeClient.sendMessage(groupEntity, { 
                 message: cleanText,
                 formattingEntities: entities 
@@ -1700,24 +1702,14 @@ const sendUtagToParticipant = async (client, groupEntity, participant, extraText
         const name = participant.firstName || 'Foydalanuvchi';
         const userId = participant.id?.toString?.() || String(participant.id);
         
-        // HTML tag va extraText birlashtiramiz, keyin premium emoji qo'shamiz
-        const htmlTag = `<a href="tg://user?id=${userId}">${escapeHTML(name)}</a>`;
-        const fullText = `${htmlTag}${extraText}`;
-        
-        // Premium emoji'lar extraText'da bo'lishi mumkin
-        const { cleanText, entities: emojiEntities } = withPremiumEmojis(fullText);
-        
-        // HTML entity (link) ni qo'shamiz
-        const linkEntity = {
-            _: 'MessageEntityTextUrl',
-            offset: 0,
-            length: escapeHTML(name).length,
-            url: `tg://user?id=${userId}`
-        };
+        // HTML formatda yuborish (GramJS HTML parse qiladi)
+        const fullText = `<a href="tg://user?id=${userId}">${escapeHTML(name)}</a>${extraText}`;
+        const { cleanText, entities: plainEntities } = withPremiumEmojis(fullText);
+        const entities = convertToGramJsEntities(plainEntities);
         
         await activeClient.sendMessage(groupEntity, {
             message: cleanText,
-            formattingEntities: [linkEntity, ...emojiEntities]
+            formattingEntities: entities
         });
     };
 
