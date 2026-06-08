@@ -438,6 +438,33 @@ module.exports = (bot) => {
             return;
         }
 
+        // FLOOD_WAIT uchun handlers
+        if (data === "reklama_flood_continue") {
+            const { reklamaStates } = require('../services/userbot');
+            if (reklamaStates[chatId] && reklamaStates[chatId].resolveFlood) {
+                reklamaStates[chatId].resolveFlood(true);
+                delete reklamaStates[chatId].resolveFlood;
+                await safeAnswer({ text: "▶️ Keyingi akkauntga o'tilmoqda..." });
+                try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
+            } else {
+                await safeAnswer({ text: "❌ Jarayon topilmadi.", show_alert: true });
+            }
+            return;
+        }
+
+        if (data === "reklama_flood_stop") {
+            const { reklamaStates } = require('../services/userbot');
+            if (reklamaStates[chatId] && reklamaStates[chatId].resolveFlood) {
+                reklamaStates[chatId].resolveFlood(false);
+                delete reklamaStates[chatId].resolveFlood;
+                await safeAnswer({ text: "⏹ Reklama to'xtatildi." });
+                try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
+            } else {
+                await safeAnswer({ text: "❌ Jarayon topilmadi.", show_alert: true });
+            }
+            return;
+        }
+
         if (data.startsWith("reklama_")) {
             const { reklamaStates } = require('../services/userbot');
             if (!reklamaStates[chatId]) {
