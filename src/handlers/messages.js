@@ -7,6 +7,7 @@ const {
     parseTime,
     checkMembership,
     sendSubscriptionAsk,
+    sendBotReaction,
     normalizeTelegramUrl,
     SCRAPE_CHAT_REQUEST_ID,
     REYD_CHAT_REQUEST_ID,
@@ -301,6 +302,7 @@ module.exports = (bot) => {
         if (state.step === 'WAITING_REK_USERS') {
             // "Bekor qilish" tugmasini tekshirish - FAQAT aniq tugma matni
             if (text && text === '❌ Bekor qilish') {
+                sendBotReaction(bot, chatId, msg.message_id, 'error'); // ❌ reaksiya
                 delete global.userStates[chatId];
                 return bot.sendMessage(chatId, '❌ Reklama bekor qilindi.', getMainMenu(chatId));
             }
@@ -308,9 +310,11 @@ module.exports = (bot) => {
             // "Tayyor" tugmasini tekshirish - FAQAT aniq tugma matni
             if (text && text === '✅ Tayyor (Davom etish)') {
                 if (!state.usersList || state.usersList.trim() === '') {
+                    sendBotReaction(bot, chatId, msg.message_id, 'error'); // ❌ reaksiya
                     return bot.sendMessage(chatId, '❌ Avval userlar ro\'yxatini yuboring!');
                 }
                 
+                sendBotReaction(bot, chatId, msg.message_id, 'success'); // ✅ reaksiya
                 global.userStates[chatId] = { step: 'WAITING_REK_TEXT', usersList: state.usersList };
                 bot.sendMessage(chatId, "✍️ Reklama xabarini yuboring (Matn, rasm, stiker va h.k.):", removeKeyboardMarkup());
                 return;
@@ -329,6 +333,7 @@ module.exports = (bot) => {
             
             // Maksimal 1000 ta user
             if (totalUsers > 1000) {
+                sendBotReaction(bot, chatId, msg.message_id, 'error'); // ❌ reaksiya
                 return bot.sendMessage(chatId, 
                     `⚠️ **Maksimal 1000 ta user qabul qilish mumkin!**\n\n` +
                     `Hozir: ${totalUsers} ta\n\n` +
@@ -338,6 +343,9 @@ module.exports = (bot) => {
             }
             
             global.userStates[chatId] = { step: 'WAITING_REK_USERS', usersList: uniqueUsers.join('\n') };
+            
+            // ✅ To'g'ri formatda userlar qabul qilindi
+            sendBotReaction(bot, chatId, msg.message_id, 'success'); // ✅ reaksiya
             
             // Hozirgi holatni ko'rsatish
             const duplicates = allUsers.length - totalUsers;

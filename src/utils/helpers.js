@@ -105,6 +105,15 @@ const EMOJI_MAP = {
     '📜':'5305444432118555890',
 };
 
+// Bot reaksiyalari uchun premium emoji ID'lari
+const REACTION_EMOJIS = {
+    success: '5472100935708711380', // ✅ - To'g'ri xabar uchun
+    error: '5472224162615401195',   // ❌ - Noto'g'ri xabar uchun
+    // Kerak bo'lsa qo'shimcha:
+    // warning: '5420323339723881652', // ⚠️
+    // thinking: '5307872610796055927',  // 🤔
+};
+
 // UTF-16 asosida matn uzunligini to'g'ri hisoblash (Telegram uchun .length kifoya)
 const getUtf16Length = (str) => str.length;
 
@@ -559,6 +568,22 @@ function removeKeyboardMarkup() {
     return { reply_markup: { remove_keyboard: true } };
 }
 
+// Bot reaksiya qo'yish funksiyasi
+async function sendBotReaction(bot, chatId, messageId, reactionType = 'success') {
+    try {
+        const reactionId = REACTION_EMOJIS[reactionType] || REACTION_EMOJIS.success;
+        await bot.setMessageReaction(chatId, messageId, [{
+            type: 'custom_emoji',
+            custom_emoji_id: reactionId
+        }]);
+        return true;
+    } catch (error) {
+        // Reaksiya qo'yish xato bersa, log qilamiz lekin jarayonni to'xtatmaymiz
+        console.log(`[Reaction] Xatolik: ${error.message}`);
+        return false;
+    }
+}
+
 module.exports = { 
     escapeMarkdown, 
     escapeHTML,
@@ -570,7 +595,8 @@ module.exports = {
     getUtf16Length,
     normalizeTelegramUrl,
     checkMembership, 
-    sendSubscriptionAsk, 
+    sendSubscriptionAsk,
+    sendBotReaction, 
     getMainMenu, 
     getAlmazMenu,
     getUtagMenu,
