@@ -778,7 +778,7 @@ module.exports = (bot) => {
         }
 
         if (data === "menu_profile") {
-            const { formatRemainingTime, withPremiumEmojis, convertToGramJsEntities } = require('../utils/helpers');
+            const { formatRemainingTime } = require('../utils/helpers');
             
             const statusText = user.status === 'approved' ? "✅ Tasdiqlangan" : "⏳ Tasdiqlanmagan";
             const tarifText = user.subscriptionType || "Oddiy";
@@ -791,52 +791,22 @@ module.exports = (bot) => {
             const joinedDate = user.joinedAt ? new Date(user.joinedAt) : new Date();
             const regDate = `${joinedDate.getDate()}/${joinedDate.getMonth() + 1}/${joinedDate.getFullYear()}`;
             
-            const textRaw = `👤 **Sizning Profilingiz:**\n\n` +
-                `📛 **Ism:** ${user.name || "Noma'lum"}\n` +
-                `🆔 **ID:** \`${user.chatId}\`\n` +
-                `🔰 **Holat:** ${statusText}\n` +
-                `⏰ **Tarif:** ${tarifText}\n` +
-                `⏳ **Qolgan vaqt:** ${remainingTime}\n\n` +
-                `🗂 **Ulangan akkauntlar soni:**\n` +
+            const text = `👤 *Sizning Profilingiz:*\n\n` +
+                `📛 *Ism:* ${user.name || "Noma'lum"}\n` +
+                `🆔 *ID:* \`${user.chatId}\`\n` +
+                `🔰 *Holat:* ${statusText}\n` +
+                `⏰ *Tarif:* ${tarifText}\n` +
+                `⏳ *Qolgan vaqt:* ${remainingTime}\n\n` +
+                `🗂 *Ulangan akkauntlar soni:*\n` +
                 `📣 Rek: ${rekAccCount} ta  , ⚔️ Reyd ${reydAccCount} ta\n\n` +
-                `⚔️ **Reydlar soni:** ${user.reydCount || 0} ta\n` +
-                `👥 **Yig'ilgan userlar:** ${user.usersGathered || 0} ta\n` +
-                `📢 **Yuborilgan reklamalar:** ${user.adsCount || 0} ta\n` +
-                `🏷 **Utag jarayonlari:** ${user.utagCount || 0} ta\n` +
-                `💎 **To'plangan almazlar:** ${user.clicks || 0} ta\n\n` +
-                `📅 **Ro'yxatdan o'tgan sana:** ${regDate}`;
+                `⚔️ *Reydlar soni:* ${user.reydCount || 0} ta\n` +
+                `👥 *Yig'ilgan userlar:* ${user.usersGathered || 0} ta\n` +
+                `📢 *Yuborilgan reklamalar:* ${user.adsCount || 0} ta\n` +
+                `🏷 *Utag jarayonlari:* ${user.utagCount || 0} ta\n` +
+                `💎 *To'plangan almazlar:* ${user.clicks || 0} ta\n\n` +
+                `📅 *Ro'yxatdan o'tgan sana:* ${regDate}`;
 
-            // Premium emoji qo'shish
-            const { cleanText, entities: plainEntities } = withPremiumEmojis(textRaw);
-            const entities = convertToGramJsEntities(plainEntities);
-
-            // Userbot orqali yuborish (agar mavjud bo'lsa)
-            try {
-                const { userClients } = require('../services/userbot');
-                const userClient = userClients[chatId];
-                
-                if (userClient && userClient.connected) {
-                    // Eski xabarni o'chirish
-                    await bot.deleteMessage(chatId, messageId).catch(() => {});
-                    
-                    // Userbot orqali yangi xabar yuborish
-                    const Api = require('telegram').Api;
-                    const buttons = [[new Api.KeyboardButtonCallback({ text: "🔙 Orqaga", data: Buffer.from("menu_back_main") })]];
-                    
-                    await userClient.sendMessage(chatId, {
-                        message: cleanText,
-                        formattingEntities: entities,
-                        buttons: buttons
-                    });
-                    
-                    return await safeAnswer();
-                }
-            } catch (e) {
-                console.log('[Profile] Userbot xato, bot API ishlatilmoqda:', e.message);
-            }
-            
-            // Fallback: Bot API orqali (premium emoji'siz)
-            await safeEdit(chatId, messageId, textRaw, {
+            await safeEdit(chatId, messageId, text, {
                 parse_mode: "Markdown",
                 reply_markup: {
                     inline_keyboard: [[{ text: "🔙 Orqaga", callback_data: "menu_back_main" }]]

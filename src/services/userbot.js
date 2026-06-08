@@ -1790,6 +1790,7 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
 
     if (useAllMode) {
         // Barcha akkauntlar rejimida: faqat qo'shimcha akkauntlar
+        console.log(`[UTag] Barcha akkauntlar rejimi. Jami: ${sessions.length} ta`);
         for (let i = 0; i < sessions.length; i++) {
             try {
                 const tempClient = new TelegramClient(new StringSession(sessions[i]), config.apiId, config.apiHash, {
@@ -1806,18 +1807,23 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                     // Muhim: Entity cache ni to'ldirish uchun dialoglarni olamiz
                     await tempClient.getDialogs({ limit: 50 }).catch(() => {});
                     clients.push(tempClient);
+                    console.log(`[UTag] Akkaunt ${i + 1} muvaffaqiyatli ulandi`);
+                } else {
+                    console.log(`[UTag] Akkaunt ${i + 1} avtorizatsiyadan o'tmadi`);
                 }
             } catch (e) {
-                console.error(`[UTag] Akkaunt ${i} ulanishda xato:`, e.message);
+                console.error(`[UTag] Akkaunt ${i + 1} ulanishda xato:`, e.message);
             }
         }
         // Barcha akkauntlar rejimida mainClient ni birinchi qo'shimcha akkauntga tenglashtiramiz
         if (clients.length === 0) {
             throw new Error("Sizda aktiv qo'shimcha akkauntlar yo'q.");
         }
+        console.log(`[UTag] Ulangan akkauntlar: ${clients.length} ta`);
         mainClient = clients[0];
     } else {
         // Faqat asosiy akkaunt rejimida: asosiy akkauntni ishlatamiz
+        console.log(`[UTag] Faqat asosiy akkaunt rejimi`);
         mainClient = await ensureClient(chatId, bot);
         clients.push(mainClient);
     }

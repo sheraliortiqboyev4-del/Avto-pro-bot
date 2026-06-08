@@ -572,14 +572,25 @@ function removeKeyboardMarkup() {
 async function sendBotReaction(bot, chatId, messageId, reactionType = 'success') {
     try {
         const reactionId = REACTION_EMOJIS[reactionType] || REACTION_EMOJIS.success;
-        await bot.setMessageReaction(chatId, messageId, [{
-            type: 'custom_emoji',
-            custom_emoji_id: reactionId
-        }]);
+        
+        // node-telegram-bot-api setMessageReaction qo'llab-quvvatlamaydi
+        // To'g'ridan-to'g'ri Telegram Bot API'ga so'rov yuboramiz
+        const axios = require('axios');
+        const config = require('../config');
+        
+        await axios.post(`https://api.telegram.org/bot${config.botToken}/setMessageReaction`, {
+            chat_id: chatId,
+            message_id: messageId,
+            reaction: [{
+                type: 'custom_emoji',
+                custom_emoji_id: reactionId
+            }]
+        });
+        
         return true;
     } catch (error) {
         // Reaksiya qo'yish xato bersa, log qilamiz lekin jarayonni to'xtatmaymiz
-        console.log(`[Reaction] Xatolik: ${error.message}`);
+        console.log(`[Reaction] Xatolik (${reactionType}):`, error.response?.data?.description || error.message);
         return false;
     }
 }
