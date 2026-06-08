@@ -105,14 +105,16 @@ const EMOJI_MAP = {
     '📜':'5305444432118555890',
 };
 
-// Bot reaksiyalari uchun oddiy emoji'larning premium ID'lari
+// Bot reaksiyalari uchun standart emojilar (Bot API qo'llab-quvvatlaydi)
+// Premium emoji'lar faqat GramJS orqali ishlaydi, Bot API uchun standart emoji kerak
 const REACTION_EMOJIS = {
-    success: '5107584321108051014', // 👍 oddiy emoji ID
-    error: '5104841245755180586',   // 👎 oddiy emoji ID
-    fire: '5104594941209652303',    // 🔥
-    heart: '5159644522449868411',   // ❤
-    party: '5107584321108051014',   // 🎉
-    ok: '5104594941209652303'       // 👌
+    success: '👍', // 👍 - To'g'ri xabar uchun
+    error: '👎',   // 👎 - Noto'g'ri xabar uchun
+    // Kerak bo'lsa qo'shimcha:
+    fire: '🔥',
+    heart: '❤',
+    party: '🎉',
+    ok: '👌'
 };
 
 // UTF-16 asosida matn uzunligini to'g'ri hisoblash (Telegram uchun .length kifoya)
@@ -572,9 +574,9 @@ function removeKeyboardMarkup() {
 // Bot reaksiya qo'yish funksiyasi
 async function sendBotReaction(bot, chatId, messageId, reactionType = 'success') {
     try {
-        const reactionId = REACTION_EMOJIS[reactionType] || REACTION_EMOJIS.success;
+        const reactionEmoji = REACTION_EMOJIS[reactionType] || REACTION_EMOJIS.success;
         
-        console.log(`[Reaction START] chatId=${chatId}, msgId=${messageId}, type=${reactionType}, emojiId=${reactionId}`);
+        console.log(`[Reaction START] chatId=${chatId}, msgId=${messageId}, type=${reactionType}, emoji=${reactionEmoji}`);
         
         // node-telegram-bot-api orqali to'g'ridan-to'g'ri API'ga murojaat qilamiz
         const axios = require('axios');
@@ -585,8 +587,8 @@ async function sendBotReaction(bot, chatId, messageId, reactionType = 'success')
             chat_id: chatId,
             message_id: messageId,
             reaction: [{
-                type: 'custom_emoji',
-                custom_emoji_id: reactionId
+                type: 'emoji',  // Standart emoji uchun 'emoji' type ishlatiladi
+                emoji: reactionEmoji
             }],
             is_big: false
         };
@@ -595,11 +597,11 @@ async function sendBotReaction(bot, chatId, messageId, reactionType = 'success')
         
         const response = await axios.post(url, payload, {
             headers: { 'Content-Type': 'application/json' },
-            timeout: 10000
+            timeout: 10000 // 10 soniya timeout
         });
         
         if (response.data && response.data.ok) {
-            console.log(`[Reaction SUCCESS] ${reactionType} reaksiya qo'yildi ✅`);
+            console.log(`[Reaction SUCCESS] ${reactionType} (${reactionEmoji}) reaksiya qo'yildi ✅`);
             return true;
         } else {
             console.error(`[Reaction FAILED] Response:`, response.data);
