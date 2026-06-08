@@ -996,7 +996,7 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
     }
 };
 
-const reydSessions = {}; // { chatId: { status: 'running'|'stopped' } }
+// reydSessions allaqachon tepada e'lon qilingan (30-qator)
 
 const ensureClient = async (chatId, bot) => {
     if (userClients[chatId] && userClients[chatId].connected) return userClients[chatId];
