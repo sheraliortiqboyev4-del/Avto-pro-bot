@@ -1962,10 +1962,13 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                 await cl.getDialogs({ limit: 50 }).catch(() => {});
                 clEntity = await cl.getEntity(entity);
             } catch (e1) {
+                // Agar entity ishlamasa, link/username orqali urinib ko'ramiz
                 try {
                     const rawPeer = normalizeTelegramGroupId(String(groupLink).trim());
                     clEntity = await cl.getEntity(rawPeer);
                 } catch (e2) {
+                    // CHANNEL_INVALID yoki boshqa xatolar
+                    console.error(`[UTag] Akkaunt #${i + 1} guruhni topa olmadi: ${e2.message}`);
                     clEntity = null;
                 }
             }
