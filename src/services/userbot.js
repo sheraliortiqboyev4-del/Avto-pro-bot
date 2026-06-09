@@ -756,7 +756,8 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
         isAdditional,
         isReyd,
         step: 'WAITING_CODE',
-        isCodeViaApp
+        isCodeViaApp,
+        codeAttempts: 0 // Kod kiritish urinishlari
     };
 
     const hint = getCodeDeliveryHint(isCodeViaApp);
@@ -844,11 +845,23 @@ const handleAuthStep = async (chatId, input, bot) => {
                 await bot.sendMessage(chatId, "🔐 **2FA parol** kerak. Parolingizni yuboring:", { parse_mode: "Markdown" });
                 return "NEED_PASSWORD";
             }
-            if (msg.includes('PHONE_CODE_INVALID')) throw new Error("Kod noto'g'ri. Qaytadan yuboring.");
+            if (msg.includes('PHONE_CODE_INVALID')) {
+                auth.codeAttempts = (auth.codeAttempts || 0) + 1;
+                
+                if (auth.codeAttempts >= 3) {
+                    // 3 marta noto'g'ri kiritdi - jarayonni bekor qilish
+                    await cleanupAuthClient(chatId);
+                    delete global.userStates[chatId];
+                    throw new Error("❌ Kod 3 marta noto'g'ri kiritildi. Jarayon bekor qilindi.\n\nQaytadan boshlash uchun \"Akkaunt ulash\" tugmasini bosing.");
+                }
+                
+                const remaining = 3 - auth.codeAttempts;
+                throw new Error(`❌ Kod noto'g'ri. ${remaining} ta urinish qoldi.\n\nQaytadan kodni kiriting:`);
+            }
             if (msg.includes('PHONE_CODE_EXPIRED')) {
                 await cleanupAuthClient(chatId);
                 delete global.userStates[chatId];
-                throw new Error("Kod muddati tugagan. /start bosing.");
+                throw new Error("Kod muddati tugagan. Qaytadan boshlash uchun \"Akkaunt ulash\" tugmasini bosing.");
             }
             throw new Error(msg);
         }
