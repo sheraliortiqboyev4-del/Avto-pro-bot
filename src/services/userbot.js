@@ -284,6 +284,21 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                     }
 
                     if (command === 'utegtext') {
+                        // Rejim tekshiruvi va default rejim o'rnatish
+                        let user = await User.findOne({ where: { chatId } });
+                        if (!user || !user.utagAccountMode) {
+                            // Default rejimni o'rnatish: 'main' (asosiy akkaunt)
+                            if (user) {
+                                await User.update({ utagAccountMode: 'main' }, { where: { chatId } });
+                                user.utagAccountMode = 'main';
+                                console.log(`[Utag] Default rejim o'rnatildi (main) user ${chatId} uchun`);
+                            } else {
+                                await client.sendMessage(message.peerId, { 
+                                    message: "⚠️ Foydalanuvchi topilmadi. Iltimos, botga /start buyrug'ini yuboring." 
+                                });
+                                return;
+                            }
+                        }
                         await client.sendMessage(message.peerId, { message: "🚀 **Utag (bot so'zlari) boshlanmoqda...**" });
                         startAutoTag(chatId, peerStr, bot, {
                             limit: 0, mode: 'random_words', memberFilter: 'all', isCommand: true
@@ -292,6 +307,21 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                     }
 
                     if (command === 'uteg') {
+                        // Rejim tekshiruvi va default rejim o'rnatish
+                        let user = await User.findOne({ where: { chatId } });
+                        if (!user || !user.utagAccountMode) {
+                            // Default rejimni o'rnatish: 'main' (asosiy akkaunt)
+                            if (user) {
+                                await User.update({ utagAccountMode: 'main' }, { where: { chatId } });
+                                user.utagAccountMode = 'main';
+                                console.log(`[Utag] Default rejim o'rnatildi (main) user ${chatId} uchun`);
+                            } else {
+                                await client.sendMessage(message.peerId, { 
+                                    message: "⚠️ Foydalanuvchi topilmadi. Iltimos, botga /start buyrug'ini yuboring." 
+                                });
+                                return;
+                            }
+                        }
                         const args = parts.slice(1).join(' ').trim();
                         if (args) {
                             await client.sendMessage(message.peerId, { message: `🚀 **Utag ("${args}" bilan) boshlanmoqda...**` });
