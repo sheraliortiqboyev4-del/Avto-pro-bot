@@ -364,8 +364,70 @@ module.exports = (bot) => {
         }
 
         if (data === "reklama_clear_acc") {
+            // Akkauntlar ro'yxatini ko'rsatish
+            const rekAccounts = user.reklamaAccounts || [];
+            if (rekAccounts.length === 0) {
+                return await safeAnswer({ text: "❌ Reklama akkauntlari yo'q.", show_alert: true });
+            }
+
+            let text = "🗑 **Qaysi akkauntni o'chirmoqchisiz?**\n\n";
+            const buttons = [];
+            
+            rekAccounts.forEach((acc, idx) => {
+                const phone = acc.phoneNumber || `Akkaunt ${idx + 1}`;
+                text += `${idx + 1}. ${phone}\n`;
+                buttons.push([{ 
+                    text: `❌ ${phone}`, 
+                    callback_data: `reklama_remove_${idx}` 
+                }]);
+            });
+
+            buttons.push([
+                { text: "🗑 Barchasini tozalash", callback_data: "reklama_clear_all" }
+            ]);
+            buttons.push([
+                { text: "🔙 Orqaga", callback_data: "menu_reklama" }
+            ]);
+
+            await safeEdit(chatId, messageId, text, {
+                parse_mode: "Markdown",
+                reply_markup: { inline_keyboard: buttons }
+            });
+            return await safeAnswer();
+        }
+
+        if (data === "reklama_clear_all") {
             await User.update({ reklamaAccounts: [] }, { where: { chatId } });
-            return await safeAnswer({ text: "🗑 Reklama akkauntlari tozalandi.", show_alert: true });
+            await safeAnswer({ text: "🗑 Barcha reklama akkauntlari tozalandi.", show_alert: true });
+            
+            const { getReklamaMenu } = require('../utils/helpers');
+            await safeEdit(chatId, messageId, "🚀 **Reklama bo'limi**\n\nSiz bir nechta akkaunt ulab, reklamani yanada ko'proq odamga yuborishingiz mumkin. Akkaunt spamga tushsa, bot avtomatik keyingisiga o'tadi.", {
+                parse_mode: "Markdown",
+                ...getReklamaMenu(0)
+            });
+            return;
+        }
+
+        if (data.startsWith("reklama_remove_")) {
+            const idx = parseInt(data.replace("reklama_remove_", ""));
+            const rekAccounts = user.reklamaAccounts || [];
+            
+            if (idx < 0 || idx >= rekAccounts.length) {
+                return await safeAnswer({ text: "❌ Akkaunt topilmadi.", show_alert: true });
+            }
+
+            const removedPhone = rekAccounts[idx].phoneNumber || `Akkaunt ${idx + 1}`;
+            rekAccounts.splice(idx, 1);
+            
+            await User.update({ reklamaAccounts: rekAccounts }, { where: { chatId } });
+            await safeAnswer({ text: `✅ ${removedPhone} o'chirildi.`, show_alert: true });
+            
+            const { getReklamaMenu } = require('../utils/helpers');
+            await safeEdit(chatId, messageId, "🚀 **Reklama bo'limi**\n\nSiz bir nechta akkaunt ulab, reklamani yanada ko'proq odamga yuborishingiz mumkin. Akkaunt spamga tushsa, bot avtomatik keyingisiga o'tadi.", {
+                parse_mode: "Markdown",
+                ...getReklamaMenu(rekAccounts.length)
+            });
+            return;
         }
 
         if (data === "reklama_start") {

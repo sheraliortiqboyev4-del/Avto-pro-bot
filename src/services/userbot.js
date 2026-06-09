@@ -1945,10 +1945,17 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                 } else { throw err; }
             }
         } else {
-            entity = await mainClient.getEntity(peer);
+            try {
+                entity = await mainClient.getEntity(peer);
+            } catch (entityErr) {
+                // MainClient guruhni topa olmasa ham, boshqa akkauntlar topishi mumkin
+                console.error(`[UTag] MainClient guruhni topa olmadi: ${entityErr.message}. Boshqa akkauntlar bilan davom etilmoqda...`);
+                // entity null qoladi, keyingi akkauntlar o'z entity'larini oladi
+                entity = null;
+            }
         }
 
-        if (!isUtagGroupEntity(entity)) {
+        if (entity && !isUtagGroupEntity(entity)) {
             throw new Error("Bu guruh/kanal emas. Guruhni qayta tanlang.");
         }
 
@@ -1960,7 +1967,14 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
             let clEntity = null;
             try {
                 await cl.getDialogs({ limit: 50 }).catch(() => {});
-                clEntity = await cl.getEntity(entity);
+                // Agar entity mavjud bo'lsa uni ishlatamiz, aks holda link orqali topamiz
+                if (entity) {
+                    clEntity = await cl.getEntity(entity);
+                } else {
+                    // Entity yo'q bo'lsa, to'g'ridan-to'g'ri link orqali topamiz
+                    const rawPeer = normalizeTelegramGroupId(String(groupLink).trim());
+                    clEntity = await cl.getEntity(rawPeer);
+                }
             } catch (e1) {
                 // Agar entity ishlamasa, link/username orqali urinib ko'ramiz
                 try {
