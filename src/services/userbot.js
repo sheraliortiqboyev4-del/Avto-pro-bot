@@ -1832,6 +1832,12 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
     const useAllMode = user.utagAccountMode === 'all';
     const rekAccs = (user.reklamaAccounts || []).map(acc => acc.session);
 
+    // Telefon raqamlarini olish
+    const phoneNumbers = [
+        null, // Asosiy akkaunt
+        ...(user.reklamaAccounts || []).map(acc => acc.phoneNumber || 'Noma\'lum')
+    ];
+
     // Agar barcha akkauntlar rejimida bo'lsa, faqat qo'shimcha akkauntlarni ishlatamiz
     let sessions;
     if (useAllMode) {
@@ -1845,10 +1851,18 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
 
     const clients = [];
     let mainClient = null;
+    
+    // Har bir akkaunt uchun statistika
+    const accountStats = sessions.map((_, idx) => ({
+        phone: useAllMode ? phoneNumbers[idx + 1] : (phoneNumbers[0] || 'Asosiy akkaunt'),
+        sent: 0,
+        status: 'kutilmoqda' // kutilmoqda | ishlayapti | ulanmadi | flood
+    }));
 
     if (useAllMode) {
         // Barcha akkauntlar rejimida: faqat qo'shimcha akkauntlar
         for (let i = 0; i < sessions.length; i++) {
+            accountStats[i].status = 'ulanmoqda...';
             try {
                 const tempClient = new TelegramClient(new StringSession(sessions[i]), config.apiId, config.apiHash, {
                     connectionRetries: 5,
@@ -1861,23 +1875,27 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                 });
                 await tempClient.connect();
                 if (await tempClient.checkAuthorization()) {
-                    // Muhim: Entity cache ni to'ldirish uchun dialoglarni olamiz
                     await tempClient.getDialogs({ limit: 50 }).catch(() => {});
                     clients.push(tempClient);
+                    accountStats[i].status = 'ishlayapti';
+                    console.log(`[UTag] Akkaunt ${i + 1}/${sessions.length} ulandi ✅`);
+                } else {
+                    accountStats[i].status = 'ulanmadi';
                 }
             } catch (e) {
-                console.error(`[UTag] Akkaunt ${i} ulanishda xato:`, e.message);
+                console.error(`[UTag] Akkaunt ${i + 1} ulanishda xato:`, e.message);
+                accountStats[i].status = 'ulanmadi';
             }
         }
-        // Barcha akkauntlar rejimida mainClient ni birinchi qo'shimcha akkauntga tenglashtiramiz
         if (clients.length === 0) {
-            throw new Error("Sizda aktiv qo'shimcha akkauntlar yo'q.");
+            throw new Error("Hech bir qo'shimcha akkaunt ulanmadi.");
         }
         mainClient = clients[0];
     } else {
-        // Faqat asosiy akkaunt rejimida: asosiy akkauntni ishlatamiz
+        // Faqat asosiy akkaunt rejimida
         mainClient = await ensureClient(chatId, bot);
         clients.push(mainClient);
+        accountStats[0].status = 'ishlayapti';
     }
 
     try {
@@ -1904,20 +1922,16 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
             throw new Error("Bu guruh/kanal emas. Guruhni qayta tanlang.");
         }
 
-        // Har bir client uchun guruhni ALOHIDA resolve qilish.
-        // Sabab: har bir akkauntning o'z access_hash'i bor, mainClient'ning entity'sini
-        // boshqa akkauntda ishlatib bo'lmaydi ("Could not find the input entity" xatosi).
-        const clientEntities = new Map(); // client -> shu client uchun entity
+        // Har bir client uchun guruhni ALOHIDA resolve qilish
+        const clientEntities = new Map();
         const workingClients = [];
         for (let i = 0; i < clients.length; i++) {
             const cl = clients[i];
             let clEntity = null;
             try {
-                // Avval dialoglarni yangilab, cache'ni to'ldiramiz
                 await cl.getDialogs({ limit: 50 }).catch(() => {});
                 clEntity = await cl.getEntity(entity);
             } catch (e1) {
-                // getEntity ishlamasa, link/username orqali urinib ko'ramiz
                 try {
                     const rawPeer = normalizeTelegramGroupId(String(groupLink).trim());
                     clEntity = await cl.getEntity(rawPeer);
@@ -1930,7 +1944,8 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                 workingClients.push(cl);
                 console.log(`[UTag] Akkaunt #${i + 1} guruhni topdi ✅`);
             } else {
-                console.log(`[UTag] Akkaunt #${i + 1} guruhga kira olmadi (a'zo emas), o'tkazib yuborildi ❌`);
+                console.log(`[UTag] Akkaunt #${i + 1} guruhga kira olmadi ❌`);
+                accountStats[i].status = 'guruhga kira olmadi';
             }
         }
 
@@ -1978,12 +1993,30 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
             return { reply_markup: { inline_keyboard: [buttons] } };
         };
 
-        const modeText = mode === 'custom' ? `Matn: "${tagText}"` : (mode === 'only_mention' ? "Faqat @" : "Bot so'zlari");
-        const filterText = memberFilter === 'online' ? 'Faqat online' : (limit > 0 ? `${limit} ta odam` : 'Hammani');
-        const accText = user.utagAccountMode === 'all' ? `Barcha akkauntlar (${clients.length} ta)` : "Faqat asosiy akkaunt";
-        const startText = `🚀 **Utag boshlandi**\nTo'xtatish: /s\n\nGuruh: ${groupTitle}\nTag: ${filterText}\nRejim: ${modeText}\nJami: ${participants.length} ta\nAkkaunt: ${accText}`;
-        
-        const statusMsg = await bot.sendMessage(chatId, startText, isCommand ? {} : getUtagButtons('running')).catch(() => null);
+        // Status xabarini yaratish funksiyasi
+        const buildUtagStatusText = () => {
+            const modeText = mode === 'custom' ? `"${tagText}"` : (mode === 'only_mention' ? "Faqat @" : "Bot so'zlari");
+            const filterText = memberFilter === 'online' ? 'Online' : (limit > 0 ? `${limit} ta` : 'Hammasi');
+            
+            let text = `🚀 **Utag jarayoni**\n\n`;
+            text += `📊 Progress: ${count}/${participants.length}\n`;
+            text += `👥 Guruh: ${groupTitle}\n`;
+            text += `🏷 Rejim: ${modeText} | ${filterText}\n\n`;
+            text += `📱 **Akkauntlar:**\n`;
+            
+            accountStats.forEach((acc, idx) => {
+                const statusEmoji = acc.status === 'ishlayapti' ? '✅' : 
+                                   acc.status === 'flood' ? '⏳' :
+                                   acc.status === 'ulanmadi' || acc.status === 'guruhga kira olmadi' ? '❌' : '⏸';
+                text += `${idx + 1}. ${acc.phone}\n`;
+                text += `   ├ Yuborildi: ${acc.sent} ta\n`;
+                text += `   └ Holat: ${statusEmoji} ${acc.status}\n\n`;
+            });
+            
+            return text;
+        };
+
+        const statusMsg = await bot.sendMessage(chatId, buildUtagStatusText(), isCommand ? {} : getUtagButtons('running')).catch(() => null);
 
         let currentClientIndex = 0;
 
@@ -2011,60 +2044,86 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                 await sendUtagToParticipant(currentClient, clientEntities.get(currentClient) || mainEntity, p, extraText, mainClient, mainEntity);
 
                 count++;
+                accountStats[currentClientIndex].sent++;
                 utagStates[chatId].count = count;
                 
-                // Navbatdagi clientga o'tamiz (har 2 ta xabardan keyin rotatsiya)
+                // Har 2 ta xabardan keyin keyingi clientga o'tish (ketma-ketlik)
                 if (count % 2 === 0) {
                     currentClientIndex = (currentClientIndex + 1) % clients.length;
                 }
 
-                if (statusMsg && (count % 5 === 0 || count === participants.length)) {
+                // Har 3 ta xabardan keyin status yangilash
+                if (statusMsg && (count % 3 === 0 || count === participants.length)) {
                     const buttons = isCommand ? {} : getUtagButtons(utagStates[chatId].status);
-                    await bot.editMessageText(`🚀 **Uteg jarayoni...**\nProgress: ${count}/${participants.length}`, {
+                    await bot.editMessageText(buildUtagStatusText(), {
                         chat_id: chatId,
                         message_id: statusMsg.message_id,
+                        parse_mode: 'Markdown',
                         ...buttons
                     }).catch(() => {});
                 }
 
-                // Delay: Akkauntlar ko'p bo'lsa tezroq, kam bo'lsa sekinroq
+                // Delay: Akkauntlar ko'p bo'lsa tezroq
                 const delay = clients.length > 1 ? 500 : 1000;
                 await new Promise(r => setTimeout(r, delay)); 
             } catch (e) {
                 if (e.message.includes("FLOOD_WAIT")) {
-                    const waitTime = parseInt(e.message.match(/\d+/)[0]);
-                    // Agar bu akkaunt flood bo'lsa, uni vaqtincha tashlab ketamiz
+                    accountStats[currentClientIndex].status = 'flood';
+                    const waitTime = parseInt(e.message.match(/\d+/)?.[0] || 60);
+                    console.error(`[UTag] Akkaunt ${currentClientIndex + 1} flood oldi: ${waitTime}s`);
+                    
+                    // Keyingi akkauntga o'tish
                     if (clients.length > 1) {
-                        clients.splice(currentClientIndex, 1);
-                        if (clients.length === 0) break; // Hech qaysi akkaunt qolmasa to'xtatamiz
-                        currentClientIndex = currentClientIndex % clients.length;
+                        currentClientIndex = (currentClientIndex + 1) % clients.length;
                     } else {
-                        await new Promise(r => setTimeout(r, waitTime * 1000));
+                        // Yagona akkaunt flood bo'lsa - to'xtatish
+                        break;
                     }
                 } else {
                     console.error(`Tag xatosi (User: ${p.id}):`, e.message);
-                    // Keyingi clientga o'tib urinib ko'ramiz
-                    currentClientIndex = (currentClientIndex + 1) % clients.length;
                 }
             }
         }
         
-        const finalStatus = utagStates[chatId]?.status === 'stopped' ? "To'xtatildi" : "Tugadi";
-        bot.sendMessage(chatId, `🏁 **Uteg jarayoni ${finalStatus}!**\nJami tag qilindi: ${count} ta.`);
+        const finalStatus = utagStates[chatId]?.status === 'stopped' ? "to'xtatildi" : "tugadi";
         
-        // finishedAt timestamp qo'shish (cleanup uchun)
+        // finishedAt timestamp qo'shish
         if (utagStates[chatId]) {
             utagStates[chatId].finishedAt = Date.now();
         }
         
+        // Final statistikani yaratish
+        let finalText = `✅ **Utag ${finalStatus}**\n\n`;
+        finalText += `📊 Jami tag qilindi: ${count}/${participants.length}\n`;
+        finalText += `👥 Guruh: ${groupTitle}\n\n`;
+        finalText += `📱 **Akkauntlar statistikasi:**\n`;
+        accountStats.forEach((acc, idx) => {
+            const statusEmoji = acc.status === 'ishlayapti' ? '✅' : 
+                               acc.status === 'flood' ? '⏳' :
+                               acc.status === 'ulanmadi' || acc.status === 'guruhga kira olmadi' ? '❌' : '⏸';
+            finalText += `${idx + 1}. ${acc.phone}\n`;
+            finalText += `   ├ Yuborildi: ${acc.sent} ta\n`;
+            finalText += `   └ Holat: ${statusEmoji} ${acc.status}\n\n`;
+        });
+        
+        // Status xabarini yakuniy natijaga o'zgartirish
+        if (statusMsg) {
+            await bot.editMessageText(finalText, {
+                chat_id: chatId,
+                message_id: statusMsg.message_id,
+                parse_mode: 'Markdown'
+            }).catch(() => {});
+        }
+        
+        // Asosiy menuni alohida yuborish
+        bot.sendMessage(chatId, "🏠 Asosiy menu:", getMainMenu(chatId));
+        
         await User.increment({ utagCount: 1 }, { where: { chatId } });
-        // 10 daqiqadan keyin cleanup avtomatik o'chiradi
-        // delete utagStates[chatId]; - buni olib tashladik
         
     } catch (e) {
         throw new Error(`Uteg xatosi: ${e.message}`);
     } finally {
-        // Barcha qo'shimcha/clientlarni uzish (agar all mode bo'lsa)
+        // Barcha qo'shimcha/clientlarni uzish
         if (useAllMode) {
             for (let i = 0; i < clients.length; i++) {
                 try { 
@@ -2072,11 +2131,6 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                 } catch (e) {
                     console.error('[Utag] Client disconnect error:', e.message);
                 }
-            }
-        } else {
-            // Faqat qo'shimcha clientlarni uzish
-            for (let i = 1; i < clients.length; i++) {
-                try { await clients[i].disconnect(); } catch (e) {}
             }
         }
     }

@@ -103,12 +103,14 @@ const EMOJI_MAP = {
     '🧙': '5305367311685788308',
     '✈':'5305338582649545744',
     '📜':'5305444432118555890',
+    '💰': '5305517270468928539',
+    '🪙': '5395536520817947330',
 };
 
 // Bot reaksiyalari uchun standart emojilar (Bot API qo'llab-quvvatlaydi)
 // Premium emoji'lar faqat GramJS orqali ishlaydi, Bot API uchun standart emoji kerak
 const REACTION_EMOJIS = {
-    success: '👍', // 👍 - To'g'ri xabar uchun
+    success: '❤️', // 👍 - To'g'ri xabar uchun
     error: '👎',   // 👎 - Noto'g'ri xabar uchun
     // Kerak bo'lsa qo'shimcha:
     fire: '🔥',
