@@ -1333,10 +1333,23 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
         throw new Error("Reklama uchun asosiy yoki qo'shimcha akkauntlar ulanmagan.");
     }
 
+    // Telefon raqamlarini olish (asosiy akkaunt uchun null, qo'shimchalar uchun phoneNumber)
+    const phoneNumbers = [
+        null, // Asosiy akkaunt (session saqlanmagan telefon raqami bilan)
+        ...(user.reklamaAccounts || []).map(acc => acc.phoneNumber || 'Noma\'lum')
+    ];
+
     const users = usersList.split(/\s+/).filter(u => u.startsWith('@')).slice(0, 500);
     
     let currentSessionIndex = 0;
     let count = 0;
+
+    // Har bir akkaunt uchun statistika
+    const accountStats = sessions.map((_, idx) => ({
+        phone: phoneNumbers[idx] || (idx === 0 ? 'Asosiy akkaunt' : 'Noma\'lum'),
+        sent: 0,
+        status: 'kutilmoqda' // kutilmoqda | ishlayapti | spam | flood | ulanmadi
+    }));
 
     reklamaStates[chatId] = { status: 'running', count: 0, total: users.length, sessionIndex: 0 };
 
@@ -1348,7 +1361,30 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
         return { reply_markup: { inline_keyboard: [buttons] } };
     };
 
-    const statusMsg = await bot.sendMessage(chatId, `🚀 **Reklama boshlandi!**\nAkkauntlar soni: ${sessions.length}\nUserlar soni: ${users.length}`, getReklamaButtons('running'));
+    // Status matnini yaratish funksiyasi
+    const buildReklamaStatusText = () => {
+        let text = `🚀 **Reklama jarayoni**\n\n`;
+        text += `📊 Progress: ${count}/${users.length}\n\n`;
+        text += `📱 **Akkauntlar:**\n`;
+        
+        accountStats.forEach((acc, idx) => {
+            const statusEmoji = acc.status === 'ishlayapti' ? '✅' : 
+                               acc.status === 'spam' ? '🚫' :
+                               acc.status === 'flood' ? '⏳' :
+                               acc.status === 'ulanmadi' ? '❌' : '⏸';
+            const statusText = acc.status === 'ishlayapti' ? 'ishlayapti' :
+                              acc.status === 'spam' ? 'spam' :
+                              acc.status === 'flood' ? 'flood' :
+                              acc.status === 'ulanmadi' ? 'ulanmadi' : 'kutilmoqda';
+            text += `${idx + 1}. ${acc.phone}\n`;
+            text += `   ├ Yuborildi: ${acc.sent} ta\n`;
+            text += `   └ Holat: ${statusEmoji} ${statusText}\n\n`;
+        });
+        
+        return text;
+    };
+
+    const statusMsg = await bot.sendMessage(chatId, buildReklamaStatusText(), getReklamaButtons('running'));
 
     let client = null;
     const clients = [];
@@ -1357,11 +1393,19 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     const connectClient = async (index) => {
         if (clients[index]) return clients[index];
         
+        accountStats[index].status = 'ulanmoqda...';
+        await bot.editMessageText(buildReklamaStatusText(), {
+            chat_id: chatId,
+            message_id: statusMsg.message_id,
+            parse_mode: 'Markdown',
+            ...getReklamaButtons(reklamaStates[chatId].status)
+        }).catch(() => {});
+        
         try {
             const newClient = new TelegramClient(new StringSession(sessions[index]), config.apiId, config.apiHash, {
-                connectionRetries: 5, // Kamroq retry (tezroq skip qilish uchun)
+                connectionRetries: 5,
                 requestRetries: 3,
-                timeout: 30000, // 30 soniya (120s emas)
+                timeout: 30000,
                 autoReconnect: true,
                 floodSleepThreshold: 120,
                 useWSS: false,
@@ -1378,11 +1422,12 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
             connectedIndexes.push(index);
             reklamaStates[chatId].sessionIndex = index;
             client = newClient;
+            accountStats[index].status = 'ishlayapti';
             console.log(`[Reklama] Akkaunt ${index + 1}/${sessions.length} muvaffaqiyatli ulandi`);
             return newClient;
         } catch (err) {
             console.error(`[Reklama] Akkaunt ${index + 1} ulanishda xato:`, err.message);
-            // null qaytaramiz, keyingi akkauntga o'tish uchun
+            accountStats[index].status = 'ulanmadi';
             return null;
         }
     };
@@ -1390,17 +1435,11 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     // Birinchi ishlaydigan akkauntni topish
     let initialConnected = false;
     for (let i = 0; i < sessions.length; i++) {
-        try {
-            const result = await connectClient(i);
-            if (result) {
-                currentSessionIndex = i;
-                initialConnected = true;
-                break;
-            } else {
-                bot.sendMessage(chatId, `⚠️ Akkaunt ${i + 1}/${sessions.length} ulanmadi, keyingisiga o'tilmoqda...`);
-            }
-        } catch (err) {
-            bot.sendMessage(chatId, `❌ Akkaunt ${i + 1}/${sessions.length} xato: ${err.message}`);
+        const result = await connectClient(i);
+        if (result) {
+            currentSessionIndex = i;
+            initialConnected = true;
+            break;
         }
     }
 
@@ -1408,7 +1447,12 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
         throw new Error("Hech bir akkaunt ulanmadi. Iltimos, akkauntlarni qayta ulang.");
     }
 
-    bot.sendMessage(chatId, `✅ ${connectedIndexes.length}/${sessions.length} ta akkaunt tayyor!`);
+    await bot.editMessageText(buildReklamaStatusText(), {
+        chat_id: chatId,
+        message_id: statusMsg.message_id,
+        parse_mode: 'Markdown',
+        ...getReklamaButtons(reklamaStates[chatId].status)
+    }).catch(() => {});
 
     // Keyingi ishlaydigan akkauntga KETMA-KET o'tish (1→2→3→4 tartibida)
     const switchToNextAccount = async () => {
@@ -1416,6 +1460,7 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
             // Agar akkaunt allaqachon ulangan bo'lsa - shunga o'tamiz
             if (clients[idx]) {
                 currentSessionIndex = idx;
+                accountStats[idx].status = 'ishlayapti';
                 console.log(`[Reklama] Akkaunt ${currentSessionIndex + 1} ga o'tildi`);
                 return true;
             }
@@ -1424,11 +1469,11 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
             const result = await connectClient(idx);
             if (result) {
                 currentSessionIndex = idx;
-                bot.sendMessage(chatId, `✅ Akkaunt ${currentSessionIndex + 1} ulandi va ishga tushdi!`).catch(() => {});
+                accountStats[idx].status = 'ishlayapti';
+                console.log(`[Reklama] Akkaunt ${currentSessionIndex + 1} ulandi va ishga tushdi`);
                 return true;
             } else {
-                bot.sendMessage(chatId, `⚠️ Akkaunt ${idx + 1}/${sessions.length} ulanmadi, o'tkazib yuborildi.`).catch(() => {});
-                // Keyingisini sinashda davom etamiz (ketma-ketlik buzilmaydi)
+                console.log(`[Reklama] Akkaunt ${idx + 1}/${sessions.length} ulanmadi, o'tkazib yuborildi`);
             }
         }
         return false;
@@ -1450,7 +1495,7 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
             }
         } catch (downloadErr) {
             console.error(`[Media Download Error] ${chatId}:`, downloadErr.message);
-            bot.sendMessage(chatId, `⚠️ Media yuklashda xatolik: ${downloadErr.message}. Reklama faqat matn ko'rinishida davom etadi.`);
+            // Faqat console'da loglab, foydalanuvchiga xabar yubormaymiz
             reklamaMsg.photo = null;
             reklamaMsg.video = null;
             reklamaMsg.sticker = null;
@@ -1473,7 +1518,6 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                     console.log(`[Reklama] Akkaunt ${currentSessionIndex + 1} ulanmagan, keyingisiga o'tilmoqda...`);
                     currentSessionIndex++;
                     if (currentSessionIndex >= sessions.length || connectedIndexes.length === 0) {
-                        bot.sendMessage(chatId, "❌ Barcha akkauntlar ishlatildi yoki ulanmagan.");
                         reklamaStates[chatId].status = 'stopped';
                         success = true;
                         break;
@@ -1506,13 +1550,16 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
 
                     success = true;
                     count++;
+                    accountStats[currentSessionIndex].sent++;
                     reklamaStates[chatId].count = count;
                     console.log(`[Reklama] ✅ Yuborildi: ${targetUser}, Jami: ${count}`);
 
-                    if (count % 5 === 0 || count === users.length) {
-                        await bot.editMessageText(`🚀 **Reklama jarayoni...**\nProgress: ${count}/${users.length}\nAkkaunt: ${currentSessionIndex + 1}/${sessions.length}`, {
+                    // Har 3 ta xabar yuborilgandan keyin yoki oxirgi xabar yuborilganda status yangilash
+                    if (count % 3 === 0 || count === users.length) {
+                        await bot.editMessageText(buildReklamaStatusText(), {
                             chat_id: chatId,
                             message_id: statusMsg.message_id,
+                            parse_mode: 'Markdown',
                             ...getReklamaButtons(reklamaStates[chatId].status)
                         }).catch(() => {});
                     }
@@ -1535,9 +1582,17 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
 
                     // 2. FLOOD_WAIT yoki SPAM - foydalanuvchidan keyingi akkauntga o'tishni so'rash
                     if (isFlood || isSpam) {
+                        // Joriy akkaunt statusini o'zgartirish
+                        accountStats[currentSessionIndex].status = isFlood ? 'flood' : 'spam';
+                        await bot.editMessageText(buildReklamaStatusText(), {
+                            chat_id: chatId,
+                            message_id: statusMsg.message_id,
+                            parse_mode: 'Markdown',
+                            ...getReklamaButtons(reklamaStates[chatId].status)
+                        }).catch(() => {});
+                        
                         const nextAcc = currentSessionIndex + 1;
                         if (nextAcc >= sessions.length) {
-                            bot.sendMessage(chatId, "❌ Barcha akkauntlar spamga tushdi yoki tugadi.").catch(() => {});
                             reklamaStates[chatId].status = 'stopped';
                             success = true;
                             break;
@@ -1552,7 +1607,7 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                             const waitHours = Math.floor(waitMinutes / 60);
                             const waitText = waitHours > 0 ? `${waitHours} soat` : `${waitMinutes} daqiqa`;
                             console.log(`[Reklama] ⚠️ FLOOD_WAIT: Akkaunt ${currentSessionIndex + 1} - ${waitSeconds}s`);
-                            askInfo = `⚠️ **Akkaunt spam oldi!**\n\n` +
+                            askInfo = `⚠️ **Akkaunt flood oldi!**\n\n` +
                                 `Akkaunt: ${currentSessionIndex + 1}/${sessions.length}\n` +
                                 `Kutish vaqti: ${waitText}\n` +
                                 `Progress: ${count}/${users.length}\n\n` +
@@ -1578,7 +1633,6 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                         });
 
                         if (!userDecision) {
-                            bot.sendMessage(chatId, "⏹ Reklama foydalanuvchi tomonidan to'xtatildi.").catch(() => {});
                             reklamaStates[chatId].status = 'stopped';
                             success = true;
                             break;
@@ -1587,11 +1641,15 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                         // Keyingi ishlaydigan akkauntga o'tish
                         const switched = await switchToNextAccount();
                         if (switched) {
-                            bot.sendMessage(chatId, `🔄 Akkaunt ${currentSessionIndex + 1}/${sessions.length} ga o'tildi. Davom etmoqda...`).catch(() => {});
+                            await bot.editMessageText(buildReklamaStatusText(), {
+                                chat_id: chatId,
+                                message_id: statusMsg.message_id,
+                                parse_mode: 'Markdown',
+                                ...getReklamaButtons(reklamaStates[chatId].status)
+                            }).catch(() => {});
                             // success = false -> while loop shu userni qayta urinadi
                             continue;
                         } else {
-                            bot.sendMessage(chatId, "❌ Boshqa ishlaydigan akkaunt yo'q.").catch(() => {});
                             reklamaStates[chatId].status = 'stopped';
                             success = true;
                             break;
@@ -1632,7 +1690,23 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     await PremiumAd.destroy({ where: { chatId } });
 
     await User.increment({ adsCount: count }, { where: { chatId } });
-    bot.sendMessage(chatId, `✅ Reklama yakunlandi. Jami yuborildi: ${count} ta.`, getMainMenu(chatId));
+    
+    // Final statistikani yaratish
+    let finalText = `✅ **Reklama ${finalStatus}**\n\n`;
+    finalText += `📊 Jami yuborildi: ${count}/${users.length}\n\n`;
+    finalText += `📱 **Akkauntlar statistikasi:**\n`;
+    accountStats.forEach((acc, idx) => {
+        const statusEmoji = acc.status === 'ishlayapti' ? '✅' : 
+                           acc.status === 'spam' ? '🚫' :
+                           acc.status === 'flood' ? '⏳' :
+                           acc.status === 'ulanmadi' ? '❌' : '⏸';
+        finalText += `${idx + 1}. ${acc.phone}\n`;
+        finalText += `   ├ Yuborildi: ${acc.sent} ta\n`;
+        finalText += `   └ Holat: ${statusEmoji} ${acc.status}\n\n`;
+    });
+    
+    // Final xabar (tugma'siz)
+    bot.sendMessage(chatId, finalText, { parse_mode: 'Markdown', ...getMainMenu(chatId) });
     
     // 10 daqiqadan keyin cleanup avtomatik o'chiradi
     // delete reklamaStates[chatId]; - buni olib tashladik

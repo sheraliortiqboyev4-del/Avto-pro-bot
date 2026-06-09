@@ -484,11 +484,13 @@ module.exports = (bot) => {
 
             if (action === "pause") {
                 reklamaStates[chatId].status = 'paused';
-                return await safeEdit(chatId, messageId, `⏸ **Avto Reklama to'xtatib turilibdi...**\nProgress: ${reklamaStates[chatId].count}/${reklamaStates[chatId].total}`, getReklamaButtons('paused'));
+                // Status xabarini o'zgartirmaslik (faqat buttonlarni yangilash)
+                return await safeEdit(chatId, messageId, `⏸ **Reklama to'xtatib turildi**\n\nProgress: ${reklamaStates[chatId].count}/${reklamaStates[chatId].total}\n\n▶️ tugmasini bosib davom eting yoki ⏹ to'xtatib qo'ying.`, getReklamaButtons('paused'));
             }
             if (action === "resume") {
                 reklamaStates[chatId].status = 'running';
-                return await safeEdit(chatId, messageId, `🚀 **Reklama jarayoni...**\nProgress: ${reklamaStates[chatId].count}/${reklamaStates[chatId].total}`, getReklamaButtons('running'));
+                // Status xabarini o'zgartirmaslik (faqat buttonlarni yangilash)
+                return await safeEdit(chatId, messageId, `▶️ **Reklama davom etmoqda...**\n\nProgress: ${reklamaStates[chatId].count}/${reklamaStates[chatId].total}`, getReklamaButtons('running'));
             }
             if (action === "stop") {
                 reklamaStates[chatId].status = 'stopped';
