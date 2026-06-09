@@ -14,9 +14,15 @@ const SETTING_KEY = 'bonus_system_enabled';
 
 const getReferralBotUsername = () => {
     const fromEnv = process.env.REFERRAL_BOT_USERNAME;
-    if (fromEnv) return fromEnv.replace(/^@/, '').trim();
+    if (fromEnv) {
+        // Faqat @ belgisini olib tashlash, _ ni saqlab qolish
+        return fromEnv.replace(/^@/, '');
+    }
     const fromConfig = config.botPromoUsername;
-    if (fromConfig) return fromConfig.replace(/^@/, '').trim();
+    if (fromConfig) {
+        // Faqat @ belgisini olib tashlash, _ ni saqlab qolish
+        return fromConfig.replace(/^@/, '');
+    }
     return 'Foydasizku_bot';
 };
 
@@ -50,21 +56,30 @@ const isTokenValid = (user) => {
 
 const refreshReferralToken = async (chatId) => {
     const token = generateToken();
-    const expiresAt = new Date(Date.now() + REFERRAL_LINK_MS);
+    // Token cheksiz vaqt turadi (muddatsiz)
     await User.update(
-        { referralToken: token, referralTokenExpiresAt: expiresAt },
+        { referralToken: token, referralTokenExpiresAt: null },
         { where: { chatId } }
     );
-    return { token, expiresAt };
+    return { token, expiresAt: null };
 };
 
 const ensureReferralToken = async (chatId) => {
     const user = await User.findOne({ where: { chatId } });
     if (!user) return null;
-    if (isTokenValid(user)) {
-        return { token: user.referralToken, expiresAt: user.referralTokenExpiresAt };
+    
+    // Agar token mavjud bo'lsa - shuni qaytarish (muddatni tekshirmaslik)
+    if (user.referralToken) {
+        return { token: user.referralToken, expiresAt: null };
     }
-    return refreshReferralToken(chatId);
+    
+    // Agar token yo'q bo'lsa - yangi yaratish (muddatsiz)
+    const token = generateToken();
+    await User.update(
+        { referralToken: token, referralTokenExpiresAt: null },
+        { where: { chatId } }
+    );
+    return { token, expiresAt: null };
 };
 
 const buildReferralLink = async (bot, chatId) => {
@@ -92,10 +107,10 @@ const handleStartWithReferral = async (bot, chatId, name, username, payloadToken
     if (!await isBonusEnabled()) return null;
     if (!payloadToken || !isNewUser) return null;
 
+    // Token muddatini tekshirmaslik - faqat token mavjudligini tekshirish
     const referrer = await User.findOne({
         where: {
-            referralToken: payloadToken,
-            referralTokenExpiresAt: { [Op.gt]: new Date() }
+            referralToken: payloadToken
         }
     });
 
@@ -216,10 +231,6 @@ const buildBonusMessage = async (bot, chatId) => {
 
     const stats = await getUserReferralStats(chatId);
     const link = await buildReferralLink(bot, chatId);
-    const user = await User.findOne({ where: { chatId } });
-    const expires = user?.referralTokenExpiresAt
-        ? new Date(user.referralTokenExpiresAt).toLocaleDateString('uz-UZ')
-        : '—';
 
     const shareText = encodeURIComponent("Menga bu bot juda yoqdi! Siz ham bu havola orqali kirib, 50 coin bilan 1 oylik obuna olishingiz mumkin!");
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link || '')}&text=${shareText}`;
@@ -229,7 +240,7 @@ const buildBonusMessage = async (bot, chatId) => {
         `🪙 **Coinlar:** ${stats.coins} ta\n` +
         `👥 **Taklif qilganlar:** ${stats.invited} ta\n` +
         `⏳ **Kutilmoqda (obuna):** ${stats.pending} ta\n\n` +
-        `🔗 **Havola** (5 kun amal qiladi, muddati: ${expires}):\n` +
+        `🔗 **Sizning havolangiz:**\n` +
         `\`${link || 'Havola yaratilmadi'}\`\n\n` +
         `**Faqat yangi** foydalanuvchi havolangiz bilan kirsa va kanallarga obuna bo'lsa — **+1 coin**.\n` +
         `💰 1 oylik obuna **${COINS_PER_MONTH} coin**`;

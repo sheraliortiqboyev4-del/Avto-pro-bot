@@ -148,6 +148,7 @@ module.exports = (bot) => {
             if (!(await isBonusEnabled())) {
                 return await safeAnswer({ text: "Bonus tizimi o'chirilgan", show_alert: true });
             }
+            // Eski tokenni o'chirish va yangi yaratish (to'g'ri username bilan)
             await refreshReferralToken(chatId);
             const { text, keyboard, parseMode } = await buildBonusMessage(bot, chatId);
             await safeEdit(chatId, messageId, text, {
@@ -155,7 +156,7 @@ module.exports = (bot) => {
                 reply_markup: keyboard,
                 skipEmojiWrap: true
             });
-            return await safeAnswer({ text: "Yangi havola yaratildi (5 kun)", show_alert: false });
+            return await safeAnswer({ text: "✅ Yangi havola yaratildi! Eski havola o'chib ketdi.", show_alert: true });
         }
 
         if (data.startsWith('admin_coins_') && chatId.toString() === config.adminId.toString()) {

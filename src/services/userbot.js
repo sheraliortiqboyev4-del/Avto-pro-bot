@@ -1705,8 +1705,15 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
         finalText += `   └ Holat: ${statusEmoji} ${acc.status}\n\n`;
     });
     
-    // Final xabar (tugma'siz)
-    bot.sendMessage(chatId, finalText, { parse_mode: 'Markdown', ...getMainMenu(chatId) });
+    // Status xabarini yakuniy natijaga o'zgartirish (tugmasiz)
+    await bot.editMessageText(finalText, {
+        chat_id: chatId,
+        message_id: statusMsg.message_id,
+        parse_mode: 'Markdown'
+    }).catch(() => {});
+    
+    // Asosiy menuni alohida yuborish
+    bot.sendMessage(chatId, "🏠 Asosiy menu:", getMainMenu(chatId));
     
     // 10 daqiqadan keyin cleanup avtomatik o'chiradi
     // delete reklamaStates[chatId]; - buni olib tashladik
