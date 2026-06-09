@@ -241,7 +241,7 @@ const buildBonusMessage = async (bot, chatId) => {
         `👥 **Taklif qilganlar:** ${stats.invited} ta\n` +
         `⏳ **Kutilmoqda (obuna):** ${stats.pending} ta\n\n` +
         `🔗 **Sizning havolangiz:**\n` +
-        `\`${link || 'Havola yaratilmadi'}\`\n\n` +
+        `${link || 'Havola yaratilmadi'}\n\n` +
         `**Faqat yangi** foydalanuvchi havolangiz bilan kirsa va kanallarga obuna bo'lsa — **+1 coin**.\n` +
         `💰 1 oylik obuna **${COINS_PER_MONTH} coin**`;
 

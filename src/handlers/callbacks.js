@@ -117,7 +117,12 @@ module.exports = (bot) => {
                 });
             }
             const { text, keyboard, parseMode } = await buildBonusMessage(bot, chatId);
-            const bonusOpts = { parse_mode: parseMode || 'HTML', reply_markup: keyboard, skipEmojiWrap: true };
+            const bonusOpts = { 
+                parse_mode: parseMode || 'HTML', 
+                reply_markup: keyboard, 
+                disable_web_page_preview: true,
+                skipEmojiWrap: true 
+            };
             try {
                 await safeEdit(chatId, messageId, text, bonusOpts);
             } catch (e) {
@@ -154,6 +159,7 @@ module.exports = (bot) => {
             await safeEdit(chatId, messageId, text, {
                 parse_mode: parseMode || 'HTML',
                 reply_markup: keyboard,
+                disable_web_page_preview: true,
                 skipEmojiWrap: true
             });
             return await safeAnswer({ text: "✅ Yangi havola yaratildi! Eski havola o'chib ketdi.", show_alert: true });
