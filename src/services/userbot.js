@@ -2042,6 +2042,20 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
 
         const participants = await fetchUtagParticipants(mainClient, mainEntity, memberFilter, parseInt(limit, 10) || 0);
 
+        // Har bir qo'shimcha client uchun participants'ni cache qilish (access_hash uchun)
+        // Bu username'siz foydalanuvchilar mention'i har bir akkauntda ham link bo'lib ishlashi uchun zarur
+        if (clients.length > 1) {
+            for (let i = 1; i < clients.length; i++) {
+                const cl = clients[i];
+                try {
+                    await fetchUtagParticipants(cl, clientEntities.get(cl) || mainEntity, memberFilter, parseInt(limit, 10) || 0);
+                    console.log(`[UTag] Akkaunt #${i + 1} participants cache qilindi ✅`);
+                } catch (e) {
+                    console.error(`[UTag] Akkaunt #${i + 1} participants cache xato:`, e.message);
+                }
+            }
+        }
+
         const groupId = normalizeUtagGroupId(mainEntity.id?.toString() || groupLink);
         const groupTitle = presetTitle || mainEntity.title || mainEntity.username || "Guruh";
         const historyLink = /^-?\d+$/.test(String(groupLink).trim())

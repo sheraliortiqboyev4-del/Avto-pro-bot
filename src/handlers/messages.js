@@ -314,7 +314,7 @@ module.exports = (bot) => {
             }
             
             // "Tayyor" tugmasini tekshirish - FAQAT aniq tugma matni
-            if (text && text === '✅ Tayyor (Davom etish)') {
+            if (text && text === '✅ Tayyor') {
                 console.log('[Reaction] Tayyor bosildi');
                 if (!state.usersList || state.usersList.trim() === '') {
                     console.log('[Reaction] Userlar yo\'q - error reaksiya');

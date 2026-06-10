@@ -326,6 +326,7 @@ module.exports = (bot) => {
 
         if (data === "reyd_clear_acc") {
             await User.update({ reydAccounts: [] }, { where: { chatId } });
+            triggerBackup('reyd_akkaunt_tozalash', true);
             return await safeAnswer({ text: "🗑 Reyd akkauntlari tozalandi.", show_alert: true });
         }
 
@@ -342,7 +343,7 @@ module.exports = (bot) => {
             const { getReklamaMenu } = require('../utils/helpers');
             const accCount = user.reklamaAccounts ? user.reklamaAccounts.length : 0;
             
-            await safeEdit(chatId, messageId, "🚀 **Reklama bo'limi**\n\nSiz bir nechta akkaunt ulab, reklamani yanada ko'proq odamga yuborishingiz mumkin. Akkaunt spamga tushsa, bot avtomatik keyingisiga o'tadi.", {
+            await safeEdit(chatId, messageId, "🚀 **Reklama bo'limi**\n\nSiz bir nechta akkaunt ulab, reklamani yanada ko'proq odamga yuborishingiz mumkin. ", {
                 parse_mode: "Markdown",
                 ...getReklamaMenu(accCount)
             });
@@ -379,19 +380,22 @@ module.exports = (bot) => {
                 const phone = acc.phoneNumber || `Akkaunt ${idx + 1}`;
                 text += `${idx + 1}. ${phone}\n`;
                 buttons.push([{ 
-                    text: `❌ ${phone}`, 
-                    callback_data: `reklama_remove_${idx}` 
+                    text: ` ${phone}`, 
+                    callback_data: `reklama_remove_${idx}`,
+                    icon_custom_emoji_id: '5269501757783819821',
+                    style: BUTTON_STYLES.success
                 }]);
             });
 
             buttons.push([
-                { text: "🗑 Barchasini tozalash", callback_data: "reklama_clear_all" }
+                { text: " Barchasini tozalash", callback_data: "reklama_clear_all" , icon_custom_emoji_id: '5445267414562389170', style: BUTTON_STYLES.danger }
             ]);
             buttons.push([
                 { 
                     text: "Orqaga", 
                     callback_data: "menu_reklama", 
-                    icon_custom_emoji_id: '5467666648528750330'
+                    icon_custom_emoji_id: '5467666648528750330',
+                    style: BUTTON_STYLES.primary
                 }
             ]);
 
@@ -404,10 +408,11 @@ module.exports = (bot) => {
 
         if (data === "reklama_clear_all") {
             await User.update({ reklamaAccounts: [] }, { where: { chatId } });
+            triggerBackup('qoshimcha_akkaunt_tozalash', true);
             await safeAnswer({ text: "🗑 Barcha reklama akkauntlari tozalandi.", show_alert: true });
             
             const { getReklamaMenu } = require('../utils/helpers');
-            await safeEdit(chatId, messageId, "🚀 **Reklama bo'limi**\n\nSiz bir nechta akkaunt ulab, reklamani yanada ko'proq odamga yuborishingiz mumkin. Akkaunt spamga tushsa, bot avtomatik keyingisiga o'tadi.", {
+            await safeEdit(chatId, messageId, "🚀 **Reklama bo'limi**\n\nSiz bir nechta akkaunt ulab, reklamani yanada ko'proq odamga yuborishingiz mumkin. ", {
                 parse_mode: "Markdown",
                 ...getReklamaMenu(0)
             });
@@ -426,10 +431,11 @@ module.exports = (bot) => {
             rekAccounts.splice(idx, 1);
             
             await User.update({ reklamaAccounts: rekAccounts }, { where: { chatId } });
+            triggerBackup('qoshimcha_akkaunt_ochirildi', true);
             await safeAnswer({ text: `✅ ${removedPhone} o'chirildi.`, show_alert: true });
             
             const { getReklamaMenu } = require('../utils/helpers');
-            await safeEdit(chatId, messageId, "🚀 **Reklama bo'limi**\n\nSiz bir nechta akkaunt ulab, reklamani yanada ko'proq odamga yuborishingiz mumkin. Akkaunt spamga tushsa, bot avtomatik keyingisiga o'tadi.", {
+            await safeEdit(chatId, messageId, "🚀 **Reklama bo'limi**\n\nSiz bir nechta akkaunt ulab, reklamani yanada ko'proq odamga yuborishingiz mumkin. ", {
                 parse_mode: "Markdown",
                 ...getReklamaMenu(rekAccounts.length)
             });
@@ -440,14 +446,14 @@ module.exports = (bot) => {
             global.userStates[chatId] = { step: 'WAITING_REK_USERS', usersList: '' };
             bot.sendMessage(chatId, 
                 "🚀 **Foydalanuvchilarning username ro'yxatini yuboring:**\n\n" +
-                "📝 Ko'p xabar yuborishingiz mumkin (har birida 100 tagacha).\n" +
+                "📝 Ko'proq user yubormoqchi bolsangiz 1 tadan ketma ket yuboring.\n" +
                 "✅ Tayyor bo'lgach \"Tayyor\" tugmasini bosing.\n" +
                 "⚠️ Maksimal: 1000 ta user",
                 {
                     parse_mode: 'Markdown',
                     reply_markup: {
                         keyboard: [
-                            [{ text: '✅ Tayyor (Davom etish)' }],
+                            [{ text: '✅ Tayyor' }],
                             [{ text: '❌ Bekor qilish' }]
                         ],
                         resize_keyboard: true,
@@ -489,7 +495,8 @@ module.exports = (bot) => {
                     inline_keyboard: [[{ 
                         text: "Orqaga", 
                         callback_data: "menu_reklama", 
-                        icon_custom_emoji_id: '5467666648528750330'
+                        icon_custom_emoji_id: '5467666648528750330',
+                        style: BUTTON_STYLES.primary
                     }]] 
                 } 
             });
@@ -613,7 +620,8 @@ module.exports = (bot) => {
                     inline_keyboard: [[{ 
                         text: "Orqaga", 
                         callback_data: "menu_reyd", 
-                        icon_custom_emoji_id: '5467666648528750330'
+                        icon_custom_emoji_id: '5467666648528750330',
+                        style: BUTTON_STYLES.primary
                     }]] 
                 } 
             });
@@ -908,7 +916,7 @@ module.exports = (bot) => {
         if (data === "logout_cancel") {
             await safeAnswer({ text: "Bekor qilindi" });
             try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
-            return bot.sendMessage(chatId, "📋 **Asosiy menyu:**", { parse_mode: "Markdown", ...getMainMenu(chatId) });
+            // return bot.sendMessage(chatId, "📋 **Asosiy menyu:**", { parse_mode: "Markdown", ...getMainMenu(chatId) });
         }
 
         if (data === "logout_confirm") {
@@ -1124,10 +1132,10 @@ module.exports = (bot) => {
             triggerBackup('admin_blok', true);
             bot.sendMessage(chatId, `🚫 User ${targetId} bloklandi.`);
             
-            const blockedText = `⚠ Sizning foydalanish muddatingiz tugagan. \nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring va botni qayta ishga tushiring. \n\n👨‍💼 Admin: @ortiqov_x7`;
+            const blockedText = `⚠ Sizning foydalanish muddatingiz tugagan. \nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring va botni qayta ishga tushiring. \n\n👨‍💼 Admin: @id_uzzz`;
             bot.sendMessage(targetId, blockedText, {
                 reply_markup: {
-                    inline_keyboard: [[{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]]
+                    inline_keyboard: [[{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/id_uzzz" , style: BUTTON_STYLES.success }]]
                 }
             });
             return await safeAnswer();
