@@ -768,7 +768,7 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                 text: 'SMS qayta yuborish', 
                 callback_data: 'auth_resend_sms', 
                 icon_custom_emoji_id: '5264727218734524899',
-                button_color: 'primary'
+                style: 'primary'
             }]] 
         }
         : {
@@ -777,13 +777,13 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                     text: 'SMS orqali yuborish', 
                     callback_data: 'auth_resend_sms', 
                     icon_custom_emoji_id: '5471960722206366390',
-                    button_color: 'primary'
+                    style: 'primary'
                 }],
                 [{ 
                     text: 'Kodni qayta so\'rash', 
                     callback_data: 'auth_resend_app', 
                     icon_custom_emoji_id: '5264727218734524899',
-                    button_color: 'primary'
+                    style: 'primary'
                 }]
             ]
         };
