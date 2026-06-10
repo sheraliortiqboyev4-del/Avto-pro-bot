@@ -160,7 +160,8 @@ const EMOJI_MAP = {
     '✈':'5305338582649545744',
     '📜':'5305444432118555890',
     '💰': '5305517270468928539',
-    '🪙': '5395536520817947330'
+    '🪙': '5395536520817947330',
+    '🗂': '5445221832074483553',
 };
 
 // Bot reaksiyalari uchun standart emojilar (Bot API qo'llab-quvvatlaydi)
@@ -410,13 +411,13 @@ function getMainMenu(chatId) {
                     { text: "Avto Utag", callback_data: "menu_utag", icon_custom_emoji_id: BUTTON_EMOJI_IDS.utag, button_color: BUTTON_COLORS.default }
                 ],
                 [
-                    { text: "AvtoUser", callback_data: "menu_avtouser", icon_custom_emoji_id: BUTTON_EMOJI_IDS.user, button_color: BUTTON_COLORS.default }, 
+                    { text: "Avto User", callback_data: "menu_avtouser", icon_custom_emoji_id: BUTTON_EMOJI_IDS.user, button_color: BUTTON_COLORS.default }, 
                     { text: "Avto Reyd", callback_data: "menu_reyd", icon_custom_emoji_id: BUTTON_EMOJI_IDS.reyd, button_color: BUTTON_COLORS.default }
                 ],
                 [{ text: "Avto Reklama", callback_data: "menu_reklama", icon_custom_emoji_id: BUTTON_EMOJI_IDS.reklama, button_color: BUTTON_COLORS.default }],
                 [{ text: "Bonus", callback_data: "menu_bonus", icon_custom_emoji_id: BUTTON_EMOJI_IDS.bonus, button_color: BUTTON_COLORS.primary }],
                 [
-                    { text: "Xisobdan chiqish", callback_data: "menu_logout", icon_custom_emoji_id: BUTTON_EMOJI_IDS.logout, button_color: BUTTON_COLORS.destructive }, 
+                    { text: "Logout", callback_data: "menu_logout", icon_custom_emoji_id: BUTTON_EMOJI_IDS.logout, button_color: BUTTON_COLORS.destructive }, 
                     { text: "Profil", callback_data: "menu_profile", icon_custom_emoji_id: BUTTON_EMOJI_IDS.profile, button_color: BUTTON_COLORS.secondary }
                 ],
                 lastRow
