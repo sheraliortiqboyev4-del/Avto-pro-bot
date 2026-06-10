@@ -64,14 +64,18 @@ const BUTTON_EMOJI_IDS = {
     remove: '5445267414562389170',   // 🗑
     history: '5197269100878907942',  // 📜
     random: '5305784520513954243',  //
-    custom: '5305557136355370145',
+    custom: '5305557136355370145',   // ✍️
     
     // Rejim/status
     on: '5416081784641168838',       // 🟢
     off: '5411225014148014586',      // 🔴
     pause: '5359543311897998264',    // ⏸
     play: '5348125953090403204',     // ▶️
-    stop: '5472030751648127392'      // ⏹
+    stop: '5472030751648127392',     // ⏹
+    
+    // Admin
+    crown: '5217822164362739968',    // 👑
+    block: '5472267631979405211'     // 🚫
 };
 
 
@@ -385,8 +389,8 @@ async function sendSubscriptionAsk(bot, chatId) {
 function getMainMenu(chatId) {
     const isAdmin = config.adminId && chatId.toString() === config.adminId.toString();
     const lastRow = isAdmin 
-        ? [{ text: "Admin Panel", callback_data: "admin_panel", icon_custom_emoji_id: BUTTON_EMOJI_IDS.admin , style: BUTTON_STYLES.success  }]
-        : [{ text: "Yordam", callback_data: "menu_help", icon_custom_emoji_id: BUTTON_EMOJI_IDS.help , style: BUTTON_STYLES.success }];
+        ? [{ text: "Admin Panel", callback_data: "admin_panel", icon_custom_emoji_id: BUTTON_EMOJI_IDS.admin , style: BUTTON_STYLES.primary  }]
+        : [{ text: "Yordam", callback_data: "menu_help", icon_custom_emoji_id: BUTTON_EMOJI_IDS.help , style: BUTTON_STYLES.primary }];
 
     return {
         reply_markup: {

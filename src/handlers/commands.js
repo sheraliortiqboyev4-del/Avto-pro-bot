@@ -11,7 +11,9 @@ const {
     getMainMenu,
     getBonusCoinRow,
     getPendingPaymentKeyboard,
-    getAdminCoinKeyboard
+    getAdminCoinKeyboard,
+    BUTTON_EMOJI_IDS,
+    BUTTON_STYLES
 } = require('../utils/helpers');
 const {
     COINS_PER_MONTH,
@@ -225,10 +227,10 @@ module.exports = (bot) => {
                 parse_mode: "HTML",
                 reply_markup: { 
                     inline_keyboard: [
-                        [{ text: "✅ 1 Oy", callback_data: `admin_approve_1month_${targetId}` }],
-                        [{ text: "👑 VIP", callback_data: `admin_approve_vip_${targetId}` }],
-                        [{ text: "✍️ Ixtiyoriy", callback_data: `admin_approve_${targetId}` }],
-                        [{ text: "🚫 Bloklash", callback_data: `admin_block_${targetId}` }],
+                        [{ text: "1 Oy", callback_data: `admin_approve_1month_${targetId}`, icon_custom_emoji_id: BUTTON_EMOJI_IDS.check, style: BUTTON_STYLES.success }],
+                        [{ text: "VIP", callback_data: `admin_approve_vip_${targetId}`, icon_custom_emoji_id: BUTTON_EMOJI_IDS.crown, style: BUTTON_STYLES.success }],
+                        [{ text: "Ixtiyoriy", callback_data: `admin_approve_${targetId}`, icon_custom_emoji_id: BUTTON_EMOJI_IDS.custom, style: BUTTON_STYLES.primary }],
+                        [{ text: "Bloklash", callback_data: `admin_block_${targetId}`, icon_custom_emoji_id: BUTTON_EMOJI_IDS.block, style: BUTTON_STYLES.danger }],
                         ...getAdminCoinKeyboard(targetId)
                     ] 
                 } 

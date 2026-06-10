@@ -557,9 +557,9 @@ module.exports = (bot) => {
 
             const getReklamaButtons = (status) => {
                 const buttons = [];
-                if (status === 'running') buttons.push({ text: "⏸ Pauza", callback_data: "reklama_pause" });
-                if (status === 'paused') buttons.push({ text: "▶️ Davom etish", callback_data: "reklama_resume" });
-                buttons.push({ text: "⏹ To'xtatish", callback_data: "reklama_stop" });
+                if (status === 'running') buttons.push({ text: "Pauza", callback_data: "reklama_pause", icon_custom_emoji_id: BUTTON_EMOJI_IDS.pause, style: BUTTON_STYLES.primary });
+                if (status === 'paused') buttons.push({ text: "Davom etish", callback_data: "reklama_resume", icon_custom_emoji_id: BUTTON_EMOJI_IDS.play, style: BUTTON_STYLES.success });
+                buttons.push({ text: "To'xtatish", callback_data: "reklama_stop", icon_custom_emoji_id: BUTTON_EMOJI_IDS.stop, style: BUTTON_STYLES.danger });
                 return { reply_markup: { inline_keyboard: [buttons] } };
             };
 
@@ -628,9 +628,9 @@ module.exports = (bot) => {
 
             const getReydButtons = (status) => {
                 const buttons = [];
-                if (status === 'running') buttons.push({ text: "⏸ Pauza", callback_data: "reyd_pause" });
-                if (status === 'paused') buttons.push({ text: "▶️ Davom etish", callback_data: "reyd_resume" });
-                buttons.push({ text: "⏹ To'xtatish", callback_data: "reyd_stop" });
+                if (status === 'running') buttons.push({ text: "Pauza", callback_data: "reyd_pause", icon_custom_emoji_id: BUTTON_EMOJI_IDS.pause, style: BUTTON_STYLES.primary });
+                if (status === 'paused') buttons.push({ text: "Davom etish", callback_data: "reyd_resume", icon_custom_emoji_id: BUTTON_EMOJI_IDS.play, style: BUTTON_STYLES.success });
+                buttons.push({ text: "To'xtatish", callback_data: "reyd_stop", icon_custom_emoji_id: BUTTON_EMOJI_IDS.stop, style: BUTTON_STYLES.danger });
                 return { reply_markup: { inline_keyboard: [buttons] } };
             };
 
@@ -794,12 +794,13 @@ module.exports = (bot) => {
             let text = "📜 **Utag Tarixi:**\n\nQayta ishlatish uchun guruhni tanlang:\n";
             const buttons = [];
             user.utagHistory.forEach((h, index) => {
-                buttons.push([{ text: `📍 ${h.title}`, callback_data: `utag_re_${index}` }]);
+                buttons.push([{ text: `${h.title}`, callback_data: `utag_re_${index}`, icon_custom_emoji_id: BUTTON_EMOJI_IDS.history, style: BUTTON_STYLES.primary }]);
             });
             buttons.push([{ 
                 text: "Orqaga", 
                 callback_data: "menu_utag", 
-                icon_custom_emoji_id: '5467666648528750330'
+                icon_custom_emoji_id: BUTTON_EMOJI_IDS.back,
+                style: BUTTON_STYLES.primary
             }]);
 
             await safeEdit(chatId, messageId, text, {
@@ -854,9 +855,9 @@ module.exports = (bot) => {
 
             const getUtagButtons = (status) => {
                 const buttons = [];
-                if (status === 'running') buttons.push({ text: "⏸ Pauza", callback_data: "utag_pause" });
-                if (status === 'paused') buttons.push({ text: "▶️ Davom etish", callback_data: "utag_resume" });
-                buttons.push({ text: "⏹ To'xtatish", callback_data: "utag_stop" });
+                if (status === 'running') buttons.push({ text: "Pauza", callback_data: "utag_pause", icon_custom_emoji_id: BUTTON_EMOJI_IDS.pause, style: BUTTON_STYLES.primary });
+                if (status === 'paused') buttons.push({ text: "Davom etish", callback_data: "utag_resume", icon_custom_emoji_id: BUTTON_EMOJI_IDS.play, style: BUTTON_STYLES.success });
+                buttons.push({ text: "To'xtatish", callback_data: "utag_stop", icon_custom_emoji_id: BUTTON_EMOJI_IDS.stop, style: BUTTON_STYLES.danger });
                 return { reply_markup: { inline_keyboard: [buttons] } };
             };
 

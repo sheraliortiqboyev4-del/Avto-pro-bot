@@ -1119,9 +1119,9 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
 
     const getReydButtons = (status) => {
         const buttons = [];
-        if (status === 'running') buttons.push({ text: "⏸ Pauza", callback_data: "reyd_pause" });
-        if (status === 'paused') buttons.push({ text: "▶️ Davom etish", callback_data: "reyd_resume" });
-        buttons.push({ text: "⏹ To'xtatish", callback_data: "reyd_stop" });
+        if (status === 'running') buttons.push({ text: "Pauza", callback_data: "reyd_pause", icon_custom_emoji_id: BUTTON_EMOJI_IDS.pause, style: BUTTON_STYLES.primary });
+        if (status === 'paused') buttons.push({ text: "Davom etish", callback_data: "reyd_resume", icon_custom_emoji_id: BUTTON_EMOJI_IDS.play, style: BUTTON_STYLES.success });
+        buttons.push({ text: "To'xtatish", callback_data: "reyd_stop", icon_custom_emoji_id: BUTTON_EMOJI_IDS.stop, style: BUTTON_STYLES.danger });
         return { reply_markup: { inline_keyboard: [buttons] } };
     };
 
@@ -1415,9 +1415,9 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
 
     const getReklamaButtons = (status) => {
         const buttons = [];
-        if (status === 'running') buttons.push({ text: "⏸ Pauza", callback_data: "reklama_pause" });
-        if (status === 'paused') buttons.push({ text: "▶️ Davom etish", callback_data: "reklama_resume" });
-        buttons.push({ text: "⏹ To'xtatish", callback_data: "reklama_stop" });
+        if (status === 'running') buttons.push({ text: "Pauza", callback_data: "reklama_pause", icon_custom_emoji_id: BUTTON_EMOJI_IDS.pause, style: BUTTON_STYLES.primary });
+        if (status === 'paused') buttons.push({ text: "Davom etish", callback_data: "reklama_resume", icon_custom_emoji_id: BUTTON_EMOJI_IDS.play, style: BUTTON_STYLES.success });
+        buttons.push({ text: "To'xtatish", callback_data: "reklama_stop", icon_custom_emoji_id: BUTTON_EMOJI_IDS.stop, style: BUTTON_STYLES.danger });
         return { reply_markup: { inline_keyboard: [buttons] } };
     };
 
@@ -1681,8 +1681,8 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                             parse_mode: 'Markdown',
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{ text: "▶️ Davom etish", callback_data: "reklama_spam_continue" }],
-                                    [{ text: "⏹ To'xtatish", callback_data: "reklama_spam_stop" }]
+                                    [{ text: "Davom etish", callback_data: "reklama_spam_continue", icon_custom_emoji_id: BUTTON_EMOJI_IDS.play, style: BUTTON_STYLES.success }],
+                                    [{ text: "To'xtatish", callback_data: "reklama_spam_stop", icon_custom_emoji_id: BUTTON_EMOJI_IDS.stop, style: BUTTON_STYLES.danger }]
                                 ]
                             }
                         });
@@ -2064,9 +2064,9 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
 
         const getUtagButtons = (status) => {
             const buttons = [];
-            if (status === 'running') buttons.push({ text: "⏸ Pauza", callback_data: "utag_pause" });
-            if (status === 'paused') buttons.push({ text: "▶️ Davom etish", callback_data: "utag_resume" });
-            buttons.push({ text: "⏹ To'xtatish", callback_data: "utag_stop" });
+            if (status === 'running') buttons.push({ text: "Pauza", callback_data: "utag_pause", icon_custom_emoji_id: BUTTON_EMOJI_IDS.pause, style: BUTTON_STYLES.primary });
+            if (status === 'paused') buttons.push({ text: "Davom etish", callback_data: "utag_resume", icon_custom_emoji_id: BUTTON_EMOJI_IDS.play, style: BUTTON_STYLES.success });
+            buttons.push({ text: "To'xtatish", callback_data: "utag_stop", icon_custom_emoji_id: BUTTON_EMOJI_IDS.stop, style: BUTTON_STYLES.danger });
             return { reply_markup: { inline_keyboard: [buttons] } };
         };
 

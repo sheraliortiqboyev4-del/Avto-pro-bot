@@ -3,6 +3,8 @@
  * Bu faylda barcha foydalanuvchi va admin uchun xabarlar joylashgan
  */
 
+const { BUTTON_EMOJI_IDS, BUTTON_STYLES } = require('../utils/helpers');
+
 module.exports = {
     // ============================================
     // ADMIN MA'LUMOTLARI
@@ -77,15 +79,36 @@ module.exports = {
     // ADMIN TUGMALARI
     // ============================================
     adminButtons: {
-        approve1Month: (chatId) => ({ text: "✅ 1 Oy", callback_data: `admin_approve_1month_${chatId}` }),
-        approveVIP: (chatId) => ({ text: "👑 VIP", callback_data: `admin_approve_vip_${chatId}` }),
-        approveCustom: (chatId) => ({ text: "✍️ Ixtiyoriy", callback_data: `admin_approve_${chatId}` }),
-        block: (chatId) => ({ text: "🚫 Bloklash", callback_data: `admin_block_${chatId}` }),
+        approve1Month: (chatId) => ({ 
+            text: "1 Oy", 
+            callback_data: `admin_approve_1month_${chatId}`,
+            icon_custom_emoji_id: BUTTON_EMOJI_IDS.check,
+            style: BUTTON_STYLES.success
+        }),
+        approveVIP: (chatId) => ({ 
+            text: "VIP", 
+            callback_data: `admin_approve_vip_${chatId}`,
+            icon_custom_emoji_id: BUTTON_EMOJI_IDS.crown,
+            style: BUTTON_STYLES.success
+        }),
+        approveCustom: (chatId) => ({ 
+            text: "Ixtiyoriy", 
+            callback_data: `admin_approve_${chatId}`,
+            icon_custom_emoji_id: BUTTON_EMOJI_IDS.custom,
+            style: BUTTON_STYLES.primary
+        }),
+        block: (chatId) => ({ 
+            text: "Bloklash", 
+            callback_data: `admin_block_${chatId}`,
+            icon_custom_emoji_id: BUTTON_EMOJI_IDS.block,
+            style: BUTTON_STYLES.danger
+        }),
         
         // Payment tugmalari
         contactAdmin: (adminUsername) => ({ 
-            text: "👨‍💼 Admin bilan bog'lanish", 
-            url: `https://t.me/${adminUsername.replace('@', '')}` 
+            text: "Admin bilan bog'lanish", 
+            url: `https://t.me/${adminUsername.replace('@', '')}`,
+            icon_custom_emoji_id: BUTTON_EMOJI_IDS.admin
         })
     },
 
