@@ -390,7 +390,6 @@ module.exports = (bot) => {
                     text: "Orqaga", 
                     callback_data: "menu_reklama", 
                     icon_custom_emoji_id: '5467666648528750330',
-                    style: 'secondary'
                 }
             ]);
 
@@ -489,7 +488,6 @@ module.exports = (bot) => {
                         text: "Orqaga", 
                         callback_data: "menu_reklama", 
                         icon_custom_emoji_id: '5467666648528750330',
-                        style: 'secondary'
                     }]] 
                 } 
             });
@@ -614,7 +612,6 @@ module.exports = (bot) => {
                         text: "Orqaga", 
                         callback_data: "menu_reyd", 
                         icon_custom_emoji_id: '5467666648528750330',
-                        style: 'secondary'
                     }]] 
                 } 
             });
@@ -690,19 +687,16 @@ module.exports = (bot) => {
                         text: "Faqat asosiy akkaunt", 
                         callback_data: "utag_set_mode_main", 
                         icon_custom_emoji_id: '5255883984151276991',
-                        style: 'default'
                     }],
                     [{ 
                         text: "Barcha akkauntlar", 
                         callback_data: "utag_set_mode_all", 
                         icon_custom_emoji_id: '5471952088544950134',
-                        style: 'default'
                     }],
                     [{ 
                         text: "Orqaga", 
                         callback_data: "menu_utag", 
                         icon_custom_emoji_id: '5467666648528750330',
-                        style: 'secondary'
                     }]
                 ];
                 await safeEdit(chatId, messageId, text, {
@@ -806,7 +800,6 @@ module.exports = (bot) => {
                 text: "Orqaga", 
                 callback_data: "menu_utag", 
                 icon_custom_emoji_id: '5467666648528750330',
-                style: 'secondary'
             }]);
 
             await safeEdit(chatId, messageId, text, {
@@ -895,13 +888,11 @@ module.exports = (bot) => {
                                 text: "Tasdiqlash", 
                                 callback_data: "logout_confirm", 
                                 icon_custom_emoji_id: '5462919317832082236',
-                                style: 'primary'
                             }],
                             [{ 
                                 text: "Bekor qilish", 
                                 callback_data: "logout_cancel", 
                                 icon_custom_emoji_id: '5210952531676504517',
-                                style: 'destructive'
                             }]
                         ]
                     }
@@ -967,7 +958,6 @@ module.exports = (bot) => {
                         text: "Orqaga", 
                         callback_data: "menu_back_main", 
                         icon_custom_emoji_id: '5467666648528750330',
-                        style: 'secondary'
                     }]]
                 }
             });
@@ -1018,7 +1008,6 @@ module.exports = (bot) => {
                         text: "Orqaga", 
                         callback_data: "admin_panel", 
                         icon_custom_emoji_id: '5467666648528750330',
-                        style: 'secondary'
                     }]] 
                 }
             });
@@ -1085,7 +1074,6 @@ module.exports = (bot) => {
                             text: "Orqaga", 
                             callback_data: "admin_panel", 
                             icon_custom_emoji_id: '5467666648528750330',
-                            style: 'secondary'
                         }]
                     ] 
                 } 
@@ -1267,10 +1255,9 @@ module.exports = (bot) => {
                 parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: toggleLabel, callback_data: 'admin_bonus_toggle', icon_custom_emoji_id: toggleIcon, style: toggleColor }],
-                        [{ text: 'Top 10 referrer', callback_data: 'admin_bonus_top10', icon_custom_emoji_id: '5217822164362739968', style: 'default' }],
-                        [{ text: 'Coin bilan olganlar', callback_data: 'admin_bonus_redeemed', icon_custom_emoji_id: '5462919317832082236', style: 'primary' }],
-                        [{ text: 'Admin panel', callback_data: 'admin_panel', icon_custom_emoji_id: '5467666648528750330', style: 'secondary' }]
+                        [{ text: 'Top 10 referrer', callback_data: 'admin_bonus_top10', icon_custom_emoji_id: '5217822164362739968' }],
+                        [{ text: 'Coin bilan olganlar', callback_data: 'admin_bonus_redeemed', icon_custom_emoji_id: '5462919317832082236' }],
+                        [{ text: 'Admin panel', callback_data: 'admin_panel', icon_custom_emoji_id: '5467666648528750330' }]
                     ]
                 }
             });
@@ -1297,7 +1284,6 @@ module.exports = (bot) => {
                         text: 'Bonus', 
                         callback_data: 'admin_bonus', 
                         icon_custom_emoji_id: '5305687351173849819',
-                        style: 'secondary'
                     }]]
                 }
             });
@@ -1324,7 +1310,6 @@ module.exports = (bot) => {
                         text: 'Bonus', 
                         callback_data: 'admin_bonus', 
                         icon_custom_emoji_id: '5305687351173849819',
-                        style: 'secondary'
                     }]]
                 }
             });
