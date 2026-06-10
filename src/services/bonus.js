@@ -229,6 +229,7 @@ const buildBonusMessage = async (bot, chatId) => {
                     text: 'Orqaga', 
                     callback_data: 'menu_back_main', 
                     icon_custom_emoji_id: '5467666648528750330',
+                    button_color: 'secondary'
                 }]] 
             },
             parseMode
@@ -257,16 +258,19 @@ const buildBonusMessage = async (bot, chatId) => {
                 text: 'Yangi havola yaratish', 
                 callback_data: 'bonus_new_link', 
                 icon_custom_emoji_id: '5264727218734524899',
+                button_color: 'primary'
             }],
             [{ 
                 text: 'Do\'stlarga ulashish', 
                 url: shareUrl, 
                 icon_custom_emoji_id: '5305733135525224451',
+                button_color: 'default'
             }],
             [{ 
                 text: 'Orqaga', 
                 callback_data: 'menu_back_main', 
                 icon_custom_emoji_id: '5467666648528750330',
+                button_color: 'secondary'
             }]
         ]
     };
@@ -288,6 +292,7 @@ const buildCoinMessage = async (chatId) => {
                     text: 'Orqaga', 
                     callback_data: 'menu_back_main', 
                     icon_custom_emoji_id: '5467666648528750330',
+                    button_color: 'secondary'
                 }]] 
             }
         };
@@ -306,12 +311,14 @@ const buildCoinMessage = async (chatId) => {
             text: `1 oylik obunani sotib olish (${COINS_PER_MONTH} coin)`, 
             callback_data: 'coin_redeem_month', 
             icon_custom_emoji_id: '5462919317832082236',
+            button_color: 'primary'
         }]);
     }
     buttons.push([{ 
         text: 'Orqaga', 
         callback_data: 'menu_back_main', 
         icon_custom_emoji_id: '5467666648528750330',
+        button_color: 'secondary'
     }]);
 
     return { text, keyboard: { inline_keyboard: buttons } };
