@@ -13,6 +13,8 @@ const {
     REYD_CHAT_REQUEST_ID,
     UTAG_CHAT_REQUEST_ID,
     parseSharedGroup,
+    BUTTON_EMOJI_IDS,
+    BUTTON_STYLES,
     normalizePhoneInput,
     removeKeyboardMarkup,
     getPhoneShareKeyboard,
@@ -292,8 +294,8 @@ module.exports = (bot) => {
                 parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "🚀 Boshlash", callback_data: "reyd_start_confirm" }],
-                        [{ text: "❌ Bekor qilish", callback_data: "reyd_cancel" }]
+                        [{ text: "Boshlash", callback_data: "reyd_start_confirm", icon_custom_emoji_id: BUTTON_EMOJI_IDS.start, style: BUTTON_STYLES.success }],
+                        [{ text: "Bekor qilish", callback_data: "reyd_cancel", icon_custom_emoji_id: BUTTON_EMOJI_IDS.cancel, style: BUTTON_STYLES.danger }]
                     ]
                 }
             });
@@ -391,8 +393,8 @@ module.exports = (bot) => {
                 parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "🚀 Boshlash", callback_data: "reklama_start_confirm" }],
-                        [{ text: "❌ Bekor qilish", callback_data: "reklama_cancel" }]
+                        [{ text: "Boshlash", callback_data: "reklama_start_confirm", icon_custom_emoji_id: BUTTON_EMOJI_IDS.start, style: BUTTON_STYLES.success }],
+                        [{ text: "Bekor qilish", callback_data: "reklama_cancel", icon_custom_emoji_id: BUTTON_EMOJI_IDS.cancel, style: BUTTON_STYLES.danger }]
                     ]
                 }
             });

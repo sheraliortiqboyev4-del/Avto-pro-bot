@@ -753,5 +753,7 @@ module.exports = {
     REYD_CHAT_REQUEST_ID,
     UTAG_CHAT_REQUEST_ID,
     isUserAdmin,
-    EMOJI_MAP
+    EMOJI_MAP,
+    BUTTON_EMOJI_IDS,
+    BUTTON_STYLES
 };
