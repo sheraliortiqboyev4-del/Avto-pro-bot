@@ -65,6 +65,7 @@ const BUTTON_EMOJI_IDS = {
     history: '5197269100878907942',  // 📜
     random: '5305784520513954243',  //
     custom: '5305557136355370145',   // ✍️
+    share: '5305733135525224451',    // 👥 (Do'stlarga ulashish)
     
     // Rejim/status
     on: '5416081784641168838',       // 🟢
@@ -389,8 +390,8 @@ async function sendSubscriptionAsk(bot, chatId) {
 function getMainMenu(chatId) {
     const isAdmin = config.adminId && chatId.toString() === config.adminId.toString();
     const lastRow = isAdmin 
-        ? [{ text: "Admin Panel", callback_data: "admin_panel", icon_custom_emoji_id: BUTTON_EMOJI_IDS.admin , style: BUTTON_STYLES.primary  }]
-        : [{ text: "Yordam", callback_data: "menu_help", icon_custom_emoji_id: BUTTON_EMOJI_IDS.help , style: BUTTON_STYLES.primary }];
+        ? [{ text: "Admin Panel", callback_data: "admin_panel", icon_custom_emoji_id: BUTTON_EMOJI_IDS.admin , style: BUTTON_STYLES.success  }]
+        : [{ text: "Yordam", callback_data: "menu_help", icon_custom_emoji_id: BUTTON_EMOJI_IDS.help , style: BUTTON_STYLES.success }];
 
     return {
         reply_markup: {
@@ -407,7 +408,7 @@ function getMainMenu(chatId) {
                 [{ text: "Bonus", callback_data: "menu_bonus", icon_custom_emoji_id: BUTTON_EMOJI_IDS.bonus, style: BUTTON_STYLES.primary }],
                 [
                     { text: "Logout", callback_data: "menu_logout", icon_custom_emoji_id: BUTTON_EMOJI_IDS.logout, style: BUTTON_STYLES.danger }, 
-                    { text: "Profil", callback_data: "menu_profile", icon_custom_emoji_id: BUTTON_EMOJI_IDS.profile , style: BUTTON_STYLES.success }
+                    { text: "Profil", callback_data: "menu_profile", icon_custom_emoji_id: BUTTON_EMOJI_IDS.profile , style: BUTTON_STYLES.danger }
                 ],
                 lastRow
             ]
@@ -534,18 +535,21 @@ function getAdminMenu() {
             inline_keyboard: [
                 [
                     { text: "Statistika", callback_data: "admin_stats", icon_custom_emoji_id: '5231200819986047254' , style: BUTTON_STYLES.primary  }, 
-                    { text: "Barcha A'zolar", callback_data: "admin_all_users", icon_custom_emoji_id: '5305733135525224451' , style: BUTTON_STYLES.primary  }
                 ],
                 [
                     { text: "Kutilayotganlar", callback_data: "admin_pending", icon_custom_emoji_id: '5451732530048802485' , style: BUTTON_STYLES.primary }, 
-                    { text: "Tasdiqlanganlar", callback_data: "admin_approved", icon_custom_emoji_id: BUTTON_EMOJI_IDS.check, style: BUTTON_STYLES.success }
+                    { text: "Barcha A'zolar", callback_data: "admin_all_users", icon_custom_emoji_id: '5305733135525224451' , style: BUTTON_STYLES.primary  }
                 ],
                 [
                     { text: "Bloklanganlar", callback_data: "admin_blocked", icon_custom_emoji_id: '5472267631979405211', style: BUTTON_STYLES.danger }, 
-                    { text: "Barchaga Xabar", callback_data: "admin_broadcast", icon_custom_emoji_id: BUTTON_EMOJI_IDS.reklama, style: BUTTON_STYLES.primary }
+                    { text: "Tasdiqlanganlar", callback_data: "admin_approved", icon_custom_emoji_id: BUTTON_EMOJI_IDS.check, style: BUTTON_STYLES.success }
                 ],
                 [{ text: "Kanallar sozlamasi", callback_data: "admin_channels", icon_custom_emoji_id: BUTTON_EMOJI_IDS.settings , style: BUTTON_STYLES.primary }],
-                [{ text: "Bonus tizimi", callback_data: "admin_bonus", icon_custom_emoji_id: BUTTON_EMOJI_IDS.bonus, style: BUTTON_STYLES.primary }],
+                [
+                    { text: "Bonus tizimi", callback_data: "admin_bonus", icon_custom_emoji_id: BUTTON_EMOJI_IDS.bonus, style: BUTTON_STYLES.primary },
+                    { text: "Barchaga Xabar", callback_data: "admin_broadcast", icon_custom_emoji_id: BUTTON_EMOJI_IDS.reklama, style: BUTTON_STYLES.primary }
+
+                ],
                 [{ text: "Orqaga", callback_data: "menu_back_main", icon_custom_emoji_id: BUTTON_EMOJI_IDS.back , style: BUTTON_STYLES.primary }]
             ]
         }

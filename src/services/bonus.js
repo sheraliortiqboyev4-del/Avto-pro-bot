@@ -5,7 +5,7 @@ const Referral = require('../models/Referral');
 const BotSetting = require('../models/BotSetting');
 const CoinTransaction = require('../models/CoinTransaction');
 const { triggerBackup } = require('../utils/dbBackup');
-const { escapeHTML } = require('../utils/helpers');
+const { escapeHTML, BUTTON_EMOJI_IDS, BUTTON_STYLES } = require('../utils/helpers');
 const config = require('../config');
 
 const COINS_PER_MONTH = 50;
@@ -256,18 +256,18 @@ const buildBonusMessage = async (bot, chatId) => {
             [{ 
                 text: 'Yangi havola yaratish', 
                 callback_data: 'bonus_new_link', 
-                icon_custom_emoji_id: '5264727218734524899',
-                style: 'primary'
+                icon_custom_emoji_id: BUTTON_EMOJI_IDS.logout,
+                style: BUTTON_STYLES.primary
             }],
             [{ 
                 text: 'Do\'stlarga ulashish', 
                 url: shareUrl, 
-                icon_custom_emoji_id: '5305733135525224451'
+                icon_custom_emoji_id: BUTTON_EMOJI_IDS.share
             }],
             [{ 
                 text: 'Orqaga', 
                 callback_data: 'menu_back_main', 
-                icon_custom_emoji_id: '5467666648528750330'
+                icon_custom_emoji_id: BUTTON_EMOJI_IDS.back
             }]
         ]
     };
