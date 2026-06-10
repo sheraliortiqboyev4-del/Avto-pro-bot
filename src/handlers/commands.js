@@ -133,10 +133,7 @@ module.exports = (bot) => {
             avtoAlmazStates[chatId] = user.avtoAlmaz;
 
             // Agar sessiya bo'lsa, menyuni ko'rsatamiz va userbotni ulaymiz
-            bot.sendMessage(chatId, texts.welcome.withSession(name), { 
-                parse_mode: 'Markdown',
-                ...getMainMenu(chatId) 
-            }); 
+            bot.sendMessage(chatId, texts.welcome.withSession(name), getMainMenu(chatId)); 
             
             startUserbot(chatId, user.session, bot); 
         } else {
@@ -156,10 +153,7 @@ module.exports = (bot) => {
         if (!user || !user.session) {
             return bot.sendMessage(chatId, texts.errors.needLogin);
         }
-        bot.sendMessage(chatId, "📊 **Asosiy menyu:**", { 
-            parse_mode: 'Markdown',
-            ...getMainMenu(chatId) 
-        });
+        bot.sendMessage(chatId, "📊 **Asosiy menyu:**", getMainMenu(chatId));
     });
 
     bot.onText(/\/help/, async (msg) => {

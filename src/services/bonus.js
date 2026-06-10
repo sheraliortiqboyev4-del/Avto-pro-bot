@@ -228,8 +228,7 @@ const buildBonusMessage = async (bot, chatId) => {
                 inline_keyboard: [[{ 
                     text: 'Orqaga', 
                     callback_data: 'menu_back_main', 
-                    icon_custom_emoji_id: '5467666648528750330',
-                    style: 'secondary'
+                    icon_custom_emoji_id: '5467666648528750330'
                 }]] 
             },
             parseMode
@@ -263,14 +262,12 @@ const buildBonusMessage = async (bot, chatId) => {
             [{ 
                 text: 'Do\'stlarga ulashish', 
                 url: shareUrl, 
-                icon_custom_emoji_id: '5305733135525224451',
-                style: 'default'
+                icon_custom_emoji_id: '5305733135525224451'
             }],
             [{ 
                 text: 'Orqaga', 
                 callback_data: 'menu_back_main', 
-                icon_custom_emoji_id: '5467666648528750330',
-                style: 'secondary'
+                icon_custom_emoji_id: '5467666648528750330'
             }]
         ]
     };
@@ -291,8 +288,7 @@ const buildCoinMessage = async (chatId) => {
                 inline_keyboard: [[{ 
                     text: 'Orqaga', 
                     callback_data: 'menu_back_main', 
-                    icon_custom_emoji_id: '5467666648528750330',
-                    style: 'secondary'
+                    icon_custom_emoji_id: '5467666648528750330'
                 }]] 
             }
         };
@@ -317,8 +313,7 @@ const buildCoinMessage = async (chatId) => {
     buttons.push([{ 
         text: 'Orqaga', 
         callback_data: 'menu_back_main', 
-        icon_custom_emoji_id: '5467666648528750330',
-        style: 'secondary'
+        icon_custom_emoji_id: '5467666648528750330'
     }]);
 
     return { text, keyboard: { inline_keyboard: buttons } };
