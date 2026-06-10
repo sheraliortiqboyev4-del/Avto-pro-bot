@@ -308,7 +308,10 @@ module.exports = (bot) => {
                 sendBotReaction(bot, chatId, msg.message_id, 'error');
                 
                 delete global.userStates[chatId];
-                return bot.sendMessage(chatId, '❌ Reklama bekor qilindi.', getMainMenu(chatId));
+                return bot.sendMessage(chatId, '❌ Reklama bekor qilindi.', { 
+                    parse_mode: 'Markdown',
+                    ...getMainMenu(chatId) 
+                });
             }
             
             // "Tayyor" tugmasini tekshirish - FAQAT aniq tugma matni

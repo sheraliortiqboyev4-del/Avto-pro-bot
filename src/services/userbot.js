@@ -697,7 +697,10 @@ const finalizeAuthLogin = async (client, chatId, bot, isAdditional, isReyd, phon
         triggerBackup('login_sessiya', true);
         attachAlmazHandlers(client, chatId, bot);
         userClients[chatId] = client;
-        await bot.sendMessage(chatId, "✅ Raqam muvaffaqiyatli kiritildi! Endi bot funksiyalaridan foydalanishingiz mumkin.", getMainMenu(chatId));
+        await bot.sendMessage(chatId, "✅ Raqam muvaffaqiyatli kiritildi! Endi bot funksiyalaridan foydalanishingiz mumkin.", { 
+            parse_mode: 'Markdown',
+            ...getMainMenu(chatId) 
+        });
     }
 
     delete global.authClients[chatId];
@@ -768,7 +771,7 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                 text: 'SMS qayta yuborish', 
                 callback_data: 'auth_resend_sms', 
                 icon_custom_emoji_id: '5264727218734524899',
-                button_color: 'primary'
+                style: 'primary'
             }]] 
         }
         : {
@@ -777,13 +780,13 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
                     text: 'SMS orqali yuborish', 
                     callback_data: 'auth_resend_sms', 
                     icon_custom_emoji_id: '5471960722206366390',
-                    button_color: 'primary'
+                    style: 'primary'
                 }],
                 [{ 
                     text: 'Kodni qayta so\'rash', 
                     callback_data: 'auth_resend_app', 
                     icon_custom_emoji_id: '5264727218734524899',
-                    button_color: 'primary'
+                    style: 'primary'
                 }]
             ]
         };
@@ -1303,7 +1306,10 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
         
     if (reydSessions[chatId]?.status === 'stopped' || reydSessions[chatId]?.status === 'finished') {
         const finalStatus = reydSessions[chatId]?.status === 'stopped' ? "to'xtatildi" : "tugadi";
-        bot.sendMessage(chatId, `🏁 **Avto Reyd ${finalStatus}!**\nJami yuborildi: ${reydSessions[chatId]?.count || 0} ta.`, getMainMenu(chatId));
+        bot.sendMessage(chatId, `🏁 **Avto Reyd ${finalStatus}!**\nJami yuborildi: ${reydSessions[chatId]?.count || 0} ta.`, { 
+            parse_mode: 'Markdown',
+            ...getMainMenu(chatId) 
+        });
         
         // finishedAt timestamp qo'shish (cleanup uchun)
         if (reydSessions[chatId]) {
@@ -1773,7 +1779,10 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     }).catch(() => {});
     
     // Asosiy menuni alohida yuborish
-    bot.sendMessage(chatId, "🏠 Asosiy menu:", getMainMenu(chatId));
+    bot.sendMessage(chatId, "🏠 Asosiy menu:", { 
+        parse_mode: 'Markdown',
+        ...getMainMenu(chatId) 
+    });
     
     // 10 daqiqadan keyin cleanup avtomatik o'chiradi
     // delete reklamaStates[chatId]; - buni olib tashladik
@@ -2193,7 +2202,10 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
         }
         
         // Asosiy menuni alohida yuborish
-        bot.sendMessage(chatId, "🏠 Asosiy menu:", getMainMenu(chatId));
+        bot.sendMessage(chatId, "🏠 Asosiy menu:", { 
+            parse_mode: 'Markdown',
+            ...getMainMenu(chatId) 
+        });
         
         await User.increment({ utagCount: 1 }, { where: { chatId } });
         
