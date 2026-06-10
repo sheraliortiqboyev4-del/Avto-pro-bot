@@ -40,7 +40,21 @@ const convertToGramJsEntities = (entities) => {
     }).filter(Boolean);
 };
 
-// Premium Emojilar xaritasi
+// Premium Emojilar xaritasi (inline tugmalar uchun)
+const BUTTON_EMOJI_IDS = {
+    almaz: '5427168083074628963', // 💎
+    utag: '5471901288448924312',   // 🏷
+    user: '5255883984151276991',   // 👤
+    reyd: '5377725257081696849',   // ⚔️
+    reklama: '5305548297312675223', // 📣
+    bonus: '5305687351173849819',  // 🎁
+    logout: '5305737159909581647',  // 🔄
+    profile: '5305587785241992785', // 📊
+    admin: '5472187029756332585',   // 👨‍💻
+    help: '5472248119942979457'     // 🧾
+};
+
+// Premium Emojilar xaritasi (matn uchun)
 const EMOJI_MAP = {
     '💎': '5427168083074628963',
     '❌': '5210952531676504517',
@@ -338,17 +352,26 @@ async function sendSubscriptionAsk(bot, chatId) {
 function getMainMenu(chatId) {
     const isAdmin = config.adminId && chatId.toString() === config.adminId.toString();
     const lastRow = isAdmin 
-        ? [{ text: "👨‍💻 Admin Panel", callback_data: "admin_panel" }]
-        : [{ text: "🧾 Yordam", callback_data: "menu_help" }];
+        ? [{ text: "👨‍💻 Admin Panel", callback_data: "admin_panel", icon_custom_emoji_id: BUTTON_EMOJI_IDS.admin }]
+        : [{ text: "🧾 Yordam", callback_data: "menu_help", icon_custom_emoji_id: BUTTON_EMOJI_IDS.help }];
 
     return {
         reply_markup: {
             inline_keyboard: [
-                [{ text: "💎 Avto Almaz", callback_data: "menu_almaz" }, { text: "🏷 Avto Utag", callback_data: "menu_utag" }],
-                [{ text: "👤 AvtoUser", callback_data: "menu_avtouser" }, { text: "⚔️ Avto Reyd", callback_data: "menu_reyd" }],
-                [{ text: "📣 Avto Reklama", callback_data: "menu_reklama" }],
-                [{ text: "🎁 Bonus", callback_data: "menu_bonus" }],
-                [{ text: "🔄 Xisobdan chiqish", callback_data: "menu_logout" }, { text: "📊 Profil", callback_data: "menu_profile" }],
+                [
+                    { text: "💎 Avto Almaz", callback_data: "menu_almaz", icon_custom_emoji_id: BUTTON_EMOJI_IDS.almaz }, 
+                    { text: "🏷 Avto Utag", callback_data: "menu_utag", icon_custom_emoji_id: BUTTON_EMOJI_IDS.utag }
+                ],
+                [
+                    { text: "👤 AvtoUser", callback_data: "menu_avtouser", icon_custom_emoji_id: BUTTON_EMOJI_IDS.user }, 
+                    { text: "⚔️ Avto Reyd", callback_data: "menu_reyd", icon_custom_emoji_id: BUTTON_EMOJI_IDS.reyd }
+                ],
+                [{ text: "📣 Avto Reklama", callback_data: "menu_reklama", icon_custom_emoji_id: BUTTON_EMOJI_IDS.reklama }],
+                [{ text: "🎁 Bonus", callback_data: "menu_bonus", icon_custom_emoji_id: BUTTON_EMOJI_IDS.bonus }],
+                [
+                    { text: "🔄 Xisobdan chiqish", callback_data: "menu_logout", icon_custom_emoji_id: BUTTON_EMOJI_IDS.logout }, 
+                    { text: "📊 Profil", callback_data: "menu_profile", icon_custom_emoji_id: BUTTON_EMOJI_IDS.profile }
+                ],
                 lastRow
             ]
         }
