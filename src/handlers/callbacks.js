@@ -1259,9 +1259,9 @@ module.exports = (bot) => {
                 `🪙 Jami coinlar: ${stats.totalCoins}\n` +
                 `👥 Referrallar: ${stats.totalReferrals}\n` +
                 `✅ Coin bilan 1 oy: ${stats.totalRedemptions} marta`;
-            const toggleLabel = !enabled ? 'Bonusni o\'chirish' : 'Bonusni yoqish';
-            const toggleColor = !enabled ? 'destructive' : 'primary';
-            const toggleIcon = !enabled ? '5411225014148014586' : '5416081784641168838';
+            const toggleLabel = enabled ? 'Bonusni o\'chirish' : 'Bonusni yoqish';
+            const toggleColor = enabled ? 'destructive' : 'primary';
+            const toggleIcon = enabled ? '5411225014148014586' : '5416081784641168838';
             
             await safeEdit(chatId, messageId, text, {
                 parse_mode: 'Markdown',
