@@ -763,11 +763,28 @@ const initAuth = async (chatId, phoneNumber, bot, isAdditional = false, isReyd =
     const hint = getCodeDeliveryHint(isCodeViaApp);
     const isSms = isCodeViaApp === false;
     const keyboard = isSms
-        ? { inline_keyboard: [[{ text: '🔄 SMS qayta yuborish', callback_data: 'auth_resend_sms' }]] }
+        ? { 
+            inline_keyboard: [[{ 
+                text: 'SMS qayta yuborish', 
+                callback_data: 'auth_resend_sms', 
+                icon_custom_emoji_id: '5264727218734524899',
+                button_color: 'primary'
+            }]] 
+        }
         : {
             inline_keyboard: [
-                [{ text: '📱 SMS orqali yuborish', callback_data: 'auth_resend_sms' }],
-                [{ text: '🔄 Kodni qayta so\'rash', callback_data: 'auth_resend_app' }]
+                [{ 
+                    text: 'SMS orqali yuborish', 
+                    callback_data: 'auth_resend_sms', 
+                    icon_custom_emoji_id: '5471960722206366390',
+                    button_color: 'primary'
+                }],
+                [{ 
+                    text: 'Kodni qayta so\'rash', 
+                    callback_data: 'auth_resend_app', 
+                    icon_custom_emoji_id: '5264727218734524899',
+                    button_color: 'primary'
+                }]
             ]
         };
 

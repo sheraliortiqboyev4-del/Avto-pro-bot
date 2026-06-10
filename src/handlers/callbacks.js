@@ -386,7 +386,12 @@ module.exports = (bot) => {
                 { text: "🗑 Barchasini tozalash", callback_data: "reklama_clear_all" }
             ]);
             buttons.push([
-                { text: "🔙 Orqaga", callback_data: "menu_reklama" }
+                { 
+                    text: "Orqaga", 
+                    callback_data: "menu_reklama", 
+                    icon_custom_emoji_id: '5467666648528750330',
+                    button_color: 'secondary'
+                }
             ]);
 
             await safeEdit(chatId, messageId, text, {
@@ -478,7 +483,16 @@ module.exports = (bot) => {
         if (data === "reklama_cancel") {
             await safeAnswer();
             delete global.userStates[chatId];
-            return await safeEdit(chatId, messageId, "❌ Reklama bekor qilindi.", { reply_markup: { inline_keyboard: [[{ text: "🔙 Orqaga", callback_data: "menu_reklama" }]] } });
+            return await safeEdit(chatId, messageId, "❌ Reklama bekor qilindi.", { 
+                reply_markup: { 
+                    inline_keyboard: [[{ 
+                        text: "Orqaga", 
+                        callback_data: "menu_reklama", 
+                        icon_custom_emoji_id: '5467666648528750330',
+                        button_color: 'secondary'
+                    }]] 
+                } 
+            });
         }
 
         if (data === "reklama_spam_continue") {
@@ -594,7 +608,16 @@ module.exports = (bot) => {
         if (data === "reyd_cancel") {
             await safeAnswer();
             delete global.userStates[chatId];
-            return await safeEdit(chatId, messageId, "❌ Reyd bekor qilindi.", { reply_markup: { inline_keyboard: [[{ text: "🔙 Orqaga", callback_data: "menu_reyd" }]] } });
+            return await safeEdit(chatId, messageId, "❌ Reyd bekor qilindi.", { 
+                reply_markup: { 
+                    inline_keyboard: [[{ 
+                        text: "Orqaga", 
+                        callback_data: "menu_reyd", 
+                        icon_custom_emoji_id: '5467666648528750330',
+                        button_color: 'secondary'
+                    }]] 
+                } 
+            });
         }
 
         if (data.startsWith("reyd_")) {
@@ -663,9 +686,24 @@ module.exports = (bot) => {
             if (!user.utagAccountMode) {
                 const text = "🛠 **Utag rejimini tanlang:**\n\nSiz bir marta rejimni tanlasangiz, bot uni eslab qoladi. Keyinchalik uni sozlamalar orqali o'zgartirishingiz mumkin.";
                 const buttons = [
-                    [{ text: "👤 Faqat asosiy akkaunt", callback_data: "utag_set_mode_main" }],
-                    [{ text: "🌐 Barcha akkauntlar", callback_data: "utag_set_mode_all" }],
-                    [{ text: "🔙 Orqaga", callback_data: "menu_utag" }]
+                    [{ 
+                        text: "Faqat asosiy akkaunt", 
+                        callback_data: "utag_set_mode_main", 
+                        icon_custom_emoji_id: '5255883984151276991',
+                        button_color: 'default'
+                    }],
+                    [{ 
+                        text: "Barcha akkauntlar", 
+                        callback_data: "utag_set_mode_all", 
+                        icon_custom_emoji_id: '5471952088544950134',
+                        button_color: 'default'
+                    }],
+                    [{ 
+                        text: "Orqaga", 
+                        callback_data: "menu_utag", 
+                        icon_custom_emoji_id: '5467666648528750330',
+                        button_color: 'secondary'
+                    }]
                 ];
                 await safeEdit(chatId, messageId, text, {
                     parse_mode: "Markdown",
@@ -764,7 +802,12 @@ module.exports = (bot) => {
             user.utagHistory.forEach((h, index) => {
                 buttons.push([{ text: `📍 ${h.title}`, callback_data: `utag_re_${index}` }]);
             });
-            buttons.push([{ text: "🔙 Orqaga", callback_data: "menu_utag" }]);
+            buttons.push([{ 
+                text: "Orqaga", 
+                callback_data: "menu_utag", 
+                icon_custom_emoji_id: '5467666648528750330',
+                button_color: 'secondary'
+            }]);
 
             await safeEdit(chatId, messageId, text, {
                 parse_mode: "Markdown",
@@ -848,8 +891,18 @@ module.exports = (bot) => {
                     parse_mode: "Markdown",
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: "✅ Tasdiqlash", callback_data: "logout_confirm" }],
-                            [{ text: "❌ Bekor qilish", callback_data: "logout_cancel" }]
+                            [{ 
+                                text: "Tasdiqlash", 
+                                callback_data: "logout_confirm", 
+                                icon_custom_emoji_id: '5462919317832082236',
+                                button_color: 'primary'
+                            }],
+                            [{ 
+                                text: "Bekor qilish", 
+                                callback_data: "logout_cancel", 
+                                icon_custom_emoji_id: '5210952531676504517',
+                                button_color: 'destructive'
+                            }]
                         ]
                     }
                 }
@@ -910,7 +963,12 @@ module.exports = (bot) => {
                 parse_mode: "Markdown",
                 entities: entities,
                 reply_markup: {
-                    inline_keyboard: [[{ text: "🔙 Orqaga", callback_data: "menu_back_main" }]]
+                    inline_keyboard: [[{ 
+                        text: "Orqaga", 
+                        callback_data: "menu_back_main", 
+                        icon_custom_emoji_id: '5467666648528750330',
+                        button_color: 'secondary'
+                    }]]
                 }
             });
             return await safeAnswer();
@@ -955,7 +1013,14 @@ module.exports = (bot) => {
 
             await safeEdit(chatId, messageId, statsText, {
                 parse_mode: "Markdown",
-                reply_markup: { inline_keyboard: [[{ text: "🔙 Orqaga", callback_data: "admin_panel" }]] }
+                reply_markup: { 
+                    inline_keyboard: [[{ 
+                        text: "Orqaga", 
+                        callback_data: "admin_panel", 
+                        icon_custom_emoji_id: '5467666648528750330',
+                        button_color: 'secondary'
+                    }]] 
+                }
             });
             return await safeAnswer();
         }
@@ -1016,7 +1081,12 @@ module.exports = (bot) => {
                 reply_markup: { 
                     inline_keyboard: [
                         nav, 
-                        [{ text: "🔙 Orqaga", callback_data: "admin_panel" }]
+                        [{ 
+                            text: "Orqaga", 
+                            callback_data: "admin_panel", 
+                            icon_custom_emoji_id: '5467666648528750330',
+                            button_color: 'secondary'
+                        }]
                     ] 
                 } 
             }); 
@@ -1189,15 +1259,18 @@ module.exports = (bot) => {
                 `🪙 Jami coinlar: ${stats.totalCoins}\n` +
                 `👥 Referrallar: ${stats.totalReferrals}\n` +
                 `✅ Coin bilan 1 oy: ${stats.totalRedemptions} marta`;
-            const toggleLabel = !enabled ? '🔴 Bonusni o\'chirish' : '🟢 Bonusni yoqish';
+            const toggleLabel = !enabled ? 'Bonusni o\'chirish' : 'Bonusni yoqish';
+            const toggleColor = !enabled ? 'destructive' : 'primary';
+            const toggleIcon = !enabled ? '5411225014148014586' : '5416081784641168838';
+            
             await safeEdit(chatId, messageId, text, {
                 parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: toggleLabel, callback_data: 'admin_bonus_toggle' }],
-                        [{ text: '🏆 Top 10 referrer', callback_data: 'admin_bonus_top10' }],
-                        [{ text: '✅ Coin bilan olganlar', callback_data: 'admin_bonus_redeemed' }],
-                        [{ text: '🔙 Admin panel', callback_data: 'admin_panel' }]
+                        [{ text: toggleLabel, callback_data: 'admin_bonus_toggle', icon_custom_emoji_id: toggleIcon, button_color: toggleColor }],
+                        [{ text: 'Top 10 referrer', callback_data: 'admin_bonus_top10', icon_custom_emoji_id: '5217822164362739968', button_color: 'default' }],
+                        [{ text: 'Coin bilan olganlar', callback_data: 'admin_bonus_redeemed', icon_custom_emoji_id: '5462919317832082236', button_color: 'primary' }],
+                        [{ text: 'Admin panel', callback_data: 'admin_panel', icon_custom_emoji_id: '5467666648528750330', button_color: 'secondary' }]
                     ]
                 }
             });
@@ -1220,7 +1293,12 @@ module.exports = (bot) => {
             await safeEdit(chatId, messageId, text, {
                 parse_mode: 'Markdown',
                 reply_markup: {
-                    inline_keyboard: [[{ text: '🔙 Bonus', callback_data: 'admin_bonus' }]]
+                    inline_keyboard: [[{ 
+                        text: 'Bonus', 
+                        callback_data: 'admin_bonus', 
+                        icon_custom_emoji_id: '5305687351173849819',
+                        button_color: 'secondary'
+                    }]]
                 }
             });
             return await safeAnswer();
@@ -1242,7 +1320,12 @@ module.exports = (bot) => {
             await safeEdit(chatId, messageId, text, {
                 parse_mode: 'Markdown',
                 reply_markup: {
-                    inline_keyboard: [[{ text: '🔙 Bonus', callback_data: 'admin_bonus' }]]
+                    inline_keyboard: [[{ 
+                        text: 'Bonus', 
+                        callback_data: 'admin_bonus', 
+                        icon_custom_emoji_id: '5305687351173849819',
+                        button_color: 'secondary'
+                    }]]
                 }
             });
             return await safeAnswer();

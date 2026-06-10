@@ -42,16 +42,57 @@ const convertToGramJsEntities = (entities) => {
 
 // Premium Emojilar xaritasi (inline tugmalar uchun)
 const BUTTON_EMOJI_IDS = {
-    almaz: '5427168083074628963', // 💎
-    utag: '5471901288448924312',   // 🏷
-    user: '5255883984151276991',   // 👤
-    reyd: '5377725257081696849',   // ⚔️
-    reklama: '5305548297312675223', // 📣
-    bonus: '5305687351173849819',  // 🎁
-    logout: '5305737159909581647',  // 🔄
-    profile: '5305587785241992785', // 📊
-    admin: '5472187029756332585',   // 👨‍💻
-    help: '5472248119942979457'     // 🧾
+    // Asosiy menu
+    almaz: '5427168083074628963',   // 💎
+    utag: '5471901288448924312',     // 🏷
+    user: '5255883984151276991',     // 👤
+    reyd: '5377725257081696849',     // ⚔️
+    reklama: '5305548297312675223',  // 📣
+    bonus: '5305687351173849819',    // 🎁
+    logout: '5305737159909581647',   // 🔄
+    profile: '5305587785241992785',  // 📊
+    admin: '5472187029756332585',    // 👨‍💻
+    help: '5472248119942979457',     // 🧾
+    
+    // Umumiy
+    back: '5352759161945867747',     // ◀️
+    check: '5269481695991580059',    // ✅
+    cancel: '5269501757783819821',   // ❌
+    settings: '5341715473882955310', // ⚙️
+    start: '5372917041193828849',    // 🚀
+    add: '5397916757333654639',      // ➕
+    remove: '5445267414562389170',   // 🗑
+    
+    // Rejim/status
+    on: '5416081784641168838',       // 🟢
+    off: '5411225014148014586',      // 🔴
+    pause: '5359543311897998264',    // ⏸
+    play: '5348125953090403204',     // ▶️
+    stop: '5472030751648127392'      // ⏹
+};
+
+/**
+ * Telegram Bot API Button Colors
+ * 
+ * Mavjud ranglar:
+ * - default: Kulrang (standart) - oddiy tugmalar
+ * - primary: Ko'k - asosiy harakatlar (boshlash, qo'shish, tasdiqlash)
+ * - destructive: Qizil - xavfli harakatlar (o'chirish, tozalash, logout)
+ * - secondary: Och kulrang - ikkilamchi harakatlar (orqaga, bekor, sozlamalar)
+ * 
+ * Qo'llash misoli:
+ * {
+ *   text: "O'chirish",
+ *   callback_data: "action_off",
+ *   icon_custom_emoji_id: BUTTON_EMOJI_IDS.off,
+ *   button_color: BUTTON_COLORS.destructive  // Qizil rang
+ * }
+ */
+const BUTTON_COLORS = {
+    default: 'default',         // Kulrang (standart)
+    primary: 'primary',         // Ko'k
+    destructive: 'destructive', // Qizil
+    secondary: 'secondary'      // Och kulrang
 };
 
 // Premium Emojilar xaritasi (matn uchun)
@@ -326,7 +367,7 @@ async function sendSubscriptionAsk(bot, chatId) {
         buttons.push([{ text: `📢 ${channel.name} ga a'zo bo'lish`, url }]);
     }
 
-    buttons.push([{ text: "✅ Tekshirish", callback_data: "check_subscription" }]);
+    buttons.push([{ text: "✅ Tekshirish", callback_data: "check_subscription", icon_custom_emoji_id: '5269481695991580059', button_color: 'primary' }]);
 
     const text = buttons.length > 1
         ? "⚠️ **Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:**\n\nA'zo bo'lgandan so'ng \"✅ Tekshirish\" tugmasini bosing."
@@ -342,7 +383,12 @@ async function sendSubscriptionAsk(bot, chatId) {
         await bot.sendMessage(chatId, text, {
             parse_mode: "Markdown",
             reply_markup: {
-                inline_keyboard: [[{ text: "✅ Tekshirish", callback_data: "check_subscription" }]]
+                inline_keyboard: [[{ 
+                    text: "✅ Tekshirish", 
+                    callback_data: "check_subscription", 
+                    icon_custom_emoji_id: '5269481695991580059',
+                    button_color: 'primary'
+                }]]
             }
         }).catch(() => {});
     }
@@ -352,25 +398,25 @@ async function sendSubscriptionAsk(bot, chatId) {
 function getMainMenu(chatId) {
     const isAdmin = config.adminId && chatId.toString() === config.adminId.toString();
     const lastRow = isAdmin 
-        ? [{ text: "👨‍💻 Admin Panel", callback_data: "admin_panel", icon_custom_emoji_id: BUTTON_EMOJI_IDS.admin }]
-        : [{ text: "🧾 Yordam", callback_data: "menu_help", icon_custom_emoji_id: BUTTON_EMOJI_IDS.help }];
+        ? [{ text: "Admin Panel", callback_data: "admin_panel", icon_custom_emoji_id: BUTTON_EMOJI_IDS.admin, button_color: BUTTON_COLORS.default }]
+        : [{ text: "Yordam", callback_data: "menu_help", icon_custom_emoji_id: BUTTON_EMOJI_IDS.help, button_color: BUTTON_COLORS.secondary }];
 
     return {
         reply_markup: {
             inline_keyboard: [
                 [
-                    { text: "💎 Avto Almaz", callback_data: "menu_almaz", icon_custom_emoji_id: BUTTON_EMOJI_IDS.almaz }, 
-                    { text: "🏷 Avto Utag", callback_data: "menu_utag", icon_custom_emoji_id: BUTTON_EMOJI_IDS.utag }
+                    { text: "Avto Almaz", callback_data: "menu_almaz", icon_custom_emoji_id: BUTTON_EMOJI_IDS.almaz, button_color: BUTTON_COLORS.default }, 
+                    { text: "Avto Utag", callback_data: "menu_utag", icon_custom_emoji_id: BUTTON_EMOJI_IDS.utag, button_color: BUTTON_COLORS.default }
                 ],
                 [
-                    { text: "👤 AvtoUser", callback_data: "menu_avtouser", icon_custom_emoji_id: BUTTON_EMOJI_IDS.user }, 
-                    { text: "⚔️ Avto Reyd", callback_data: "menu_reyd", icon_custom_emoji_id: BUTTON_EMOJI_IDS.reyd }
+                    { text: "AvtoUser", callback_data: "menu_avtouser", icon_custom_emoji_id: BUTTON_EMOJI_IDS.user, button_color: BUTTON_COLORS.default }, 
+                    { text: "Avto Reyd", callback_data: "menu_reyd", icon_custom_emoji_id: BUTTON_EMOJI_IDS.reyd, button_color: BUTTON_COLORS.default }
                 ],
-                [{ text: "📣 Avto Reklama", callback_data: "menu_reklama", icon_custom_emoji_id: BUTTON_EMOJI_IDS.reklama }],
-                [{ text: "🎁 Bonus", callback_data: "menu_bonus", icon_custom_emoji_id: BUTTON_EMOJI_IDS.bonus }],
+                [{ text: "Avto Reklama", callback_data: "menu_reklama", icon_custom_emoji_id: BUTTON_EMOJI_IDS.reklama, button_color: BUTTON_COLORS.default }],
+                [{ text: "Bonus", callback_data: "menu_bonus", icon_custom_emoji_id: BUTTON_EMOJI_IDS.bonus, button_color: BUTTON_COLORS.primary }],
                 [
-                    { text: "🔄 Xisobdan chiqish", callback_data: "menu_logout", icon_custom_emoji_id: BUTTON_EMOJI_IDS.logout }, 
-                    { text: "📊 Profil", callback_data: "menu_profile", icon_custom_emoji_id: BUTTON_EMOJI_IDS.profile }
+                    { text: "Xisobdan chiqish", callback_data: "menu_logout", icon_custom_emoji_id: BUTTON_EMOJI_IDS.logout, button_color: BUTTON_COLORS.destructive }, 
+                    { text: "Profil", callback_data: "menu_profile", icon_custom_emoji_id: BUTTON_EMOJI_IDS.profile, button_color: BUTTON_COLORS.secondary }
                 ],
                 lastRow
             ]
@@ -380,14 +426,16 @@ function getMainMenu(chatId) {
 
 // Helper: Avto Almaz Menyu
 const getAlmazMenu = (isEnabled) => {
-    const buttonText = isEnabled ? "🔴 O'chirish" : "🟢 Yoqish";
+    const buttonText = isEnabled ? "O'chirish" : "Yoqish";
     const buttonAction = isEnabled ? "almaz_off" : "almaz_on";
+    const emojiId = isEnabled ? BUTTON_EMOJI_IDS.off : BUTTON_EMOJI_IDS.on;
+    const buttonColorType = isEnabled ? BUTTON_COLORS.destructive : BUTTON_COLORS.primary;
 
     return {
         reply_markup: {
             inline_keyboard: [
-                [{ text: buttonText, callback_data: buttonAction }],
-                [{ text: "◀️ Orqaga", callback_data: "menu_back_main" }]
+                [{ text: buttonText, callback_data: buttonAction, icon_custom_emoji_id: emojiId, button_color: buttonColorType }],
+                [{ text: "Orqaga", callback_data: "menu_back_main", icon_custom_emoji_id: BUTTON_EMOJI_IDS.back, button_color: BUTTON_COLORS.secondary }]
             ]
         }
     };
@@ -421,10 +469,10 @@ function getUtagSetupKeyboard() {
         reply_markup: {
             inline_keyboard: [
                 [
-                    { text: '🟢 Faqat online', callback_data: 'utag_filter_online' },
-                    { text: '👥 Hammani', callback_data: 'utag_filter_all' }
+                    { text: 'Faqat online', callback_data: 'utag_filter_online', icon_custom_emoji_id: BUTTON_EMOJI_IDS.on, button_color: BUTTON_COLORS.primary },
+                    { text: 'Hammani', callback_data: 'utag_filter_all', icon_custom_emoji_id: BUTTON_EMOJI_IDS.user, button_color: BUTTON_COLORS.default }
                 ],
-                [{ text: '❌ Bekor', callback_data: 'menu_utag' }]
+                [{ text: 'Bekor', callback_data: 'menu_utag', icon_custom_emoji_id: BUTTON_EMOJI_IDS.cancel, button_color: BUTTON_COLORS.destructive }]
             ]
         }
     };
@@ -434,28 +482,29 @@ function getUtagModeKeyboard() {
     return {
         reply_markup: {
             inline_keyboard: [
-                [{ text: "👤 @ Foydalanuvchi o'zi", callback_data: 'utag_mode_only_mention' }],
-                [{ text: "💬 Tasodifiy so'zlar (bot)", callback_data: 'utag_mode_random_words' }],
-                [{ text: "✍️ O'z matnim bilan", callback_data: 'utag_mode_custom' }]
+                [{ text: "@ Foydalanuvchi o'zi", callback_data: 'utag_mode_only_mention', icon_custom_emoji_id: BUTTON_EMOJI_IDS.user, button_color: BUTTON_COLORS.default }],
+                [{ text: "Tasodifiy so'zlar (bot)", callback_data: 'utag_mode_random_words', icon_custom_emoji_id: '5471984591321389198', button_color: BUTTON_COLORS.default }],
+                [{ text: "O'z matnim bilan", callback_data: 'utag_mode_custom', icon_custom_emoji_id: '5469930908312374505', button_color: BUTTON_COLORS.default }]
             ]
         }
     };
 }
 
 function getUtagMenu(accountMode = 'main', rekCount = 0) {
-    const modeText = accountMode === 'all' ? "🌐 Barcha akkauntlar" : "👤 Faqat asosiy";
+    const modeText = accountMode === 'all' ? "Barcha akkauntlar" : "Faqat asosiy";
+    const modeIcon = accountMode === 'all' ? '5471952088544950134' : BUTTON_EMOJI_IDS.user;
     return {
         reply_markup: {
             inline_keyboard: [
-                [{ text: "🚀 Yangi boshlash", callback_data: "utag_start_new" }],
-                [{ text: `⚙️ Rejim: ${modeText}`, callback_data: "utag_change_mode" }],
+                [{ text: "Yangi boshlash", callback_data: "utag_start_new", icon_custom_emoji_id: BUTTON_EMOJI_IDS.start, button_color: BUTTON_COLORS.primary }],
+                [{ text: `Rejim: ${modeText}`, callback_data: "utag_change_mode", icon_custom_emoji_id: modeIcon, button_color: BUTTON_COLORS.default }],
                 [
-                    { text: `➕ Akkaunt qo'shish (${rekCount}/10)`, callback_data: "reklama_add_acc" },
-                    { text: "🗑 Tozalash", callback_data: "reklama_clear_accs" }
+                    { text: `Akkaunt qo'shish (${rekCount}/10)`, callback_data: "reklama_add_acc", icon_custom_emoji_id: BUTTON_EMOJI_IDS.add, button_color: BUTTON_COLORS.primary },
+                    { text: "Tozalash", callback_data: "reklama_clear_accs", icon_custom_emoji_id: BUTTON_EMOJI_IDS.remove, button_color: BUTTON_COLORS.destructive }
                 ],
-                [{ text: "📂 Tarix", callback_data: "utag_history" }],
-                [{ text: "🗑 Tarixni tozalash", callback_data: "utag_clear_history" }],
-                [{ text: "🔙 Orqaga", callback_data: "menu_back_main" }]
+                [{ text: "Tarix", callback_data: "utag_history", icon_custom_emoji_id: '5471866582399885227', button_color: BUTTON_COLORS.secondary }],
+                [{ text: "Tarixni tozalash", callback_data: "utag_clear_history", icon_custom_emoji_id: BUTTON_EMOJI_IDS.remove, button_color: BUTTON_COLORS.destructive }],
+                [{ text: "Orqaga", callback_data: "menu_back_main", icon_custom_emoji_id: BUTTON_EMOJI_IDS.back, button_color: BUTTON_COLORS.secondary }]
             ]
         }
     };
@@ -465,10 +514,10 @@ function getReklamaMenu(accountsCount = 0) {
     return {
         reply_markup: {
             inline_keyboard: [
-                [{ text: "🚀 Reklama boshlash", callback_data: "reklama_start" }],
-                [{ text: `➕ Akkaunt qo'shish (${accountsCount}/10)`, callback_data: "reklama_add_acc" }],
-                [{ text: "🗑 Akkauntlarni tozalash", callback_data: "reklama_clear_acc" }],
-                [{ text: "🔙 Orqaga", callback_data: "menu_back_main" }]
+                [{ text: "Reklama boshlash", callback_data: "reklama_start", icon_custom_emoji_id: BUTTON_EMOJI_IDS.start, button_color: BUTTON_COLORS.primary }],
+                [{ text: `Akkaunt qo'shish (${accountsCount}/10)`, callback_data: "reklama_add_acc", icon_custom_emoji_id: BUTTON_EMOJI_IDS.add, button_color: BUTTON_COLORS.primary }],
+                [{ text: "Akkauntlarni tozalash", callback_data: "reklama_clear_acc", icon_custom_emoji_id: BUTTON_EMOJI_IDS.remove, button_color: BUTTON_COLORS.destructive }],
+                [{ text: "Orqaga", callback_data: "menu_back_main", icon_custom_emoji_id: BUTTON_EMOJI_IDS.back, button_color: BUTTON_COLORS.secondary }]
             ]
         }
     };
@@ -478,10 +527,10 @@ function getReydMenu(accountsCount = 0) {
     return {
         reply_markup: {
             inline_keyboard: [
-                [{ text: "🚀 Reyd boshlash", callback_data: "reyd_start" }],
-                [{ text: `➕ Akkaunt qo'shish (${accountsCount}/10)`, callback_data: "reyd_add_acc" }],
-                [{ text: "🗑 Akkauntlarni tozalash", callback_data: "reyd_clear_acc" }],
-                [{ text: "🔙 Orqaga", callback_data: "menu_back_main" }]
+                [{ text: "Reyd boshlash", callback_data: "reyd_start", icon_custom_emoji_id: BUTTON_EMOJI_IDS.start, button_color: BUTTON_COLORS.primary }],
+                [{ text: `Akkaunt qo'shish (${accountsCount}/10)`, callback_data: "reyd_add_acc", icon_custom_emoji_id: BUTTON_EMOJI_IDS.add, button_color: BUTTON_COLORS.primary }],
+                [{ text: "Akkauntlarni tozalash", callback_data: "reyd_clear_acc", icon_custom_emoji_id: BUTTON_EMOJI_IDS.remove, button_color: BUTTON_COLORS.destructive }],
+                [{ text: "Orqaga", callback_data: "menu_back_main", icon_custom_emoji_id: BUTTON_EMOJI_IDS.back, button_color: BUTTON_COLORS.secondary }]
             ]
         }
     };
@@ -492,12 +541,21 @@ function getAdminMenu() {
     return {
         reply_markup: {
             inline_keyboard: [
-                [{ text: "📊 Statistika", callback_data: "admin_stats" }, { text: "👥 Barcha A'zolar", callback_data: "admin_all_users" }],
-                [{ text: "⏳ Kutilayotganlar", callback_data: "admin_pending" }, { text: "✅ Tasdiqlanganlar", callback_data: "admin_approved" }],
-                [{ text: "🚫 Bloklanganlar", callback_data: "admin_blocked" }, { text: "📣 Barchaga Xabar", callback_data: "admin_broadcast" }],
-                [{ text: "📢 Kanallar sozlamasi", callback_data: "admin_channels" }],
-                [{ text: "🎁 Bonus tizimi", callback_data: "admin_bonus" }],
-                [{ text: "🔙 Orqaga", callback_data: "menu_back_main" }]
+                [
+                    { text: "Statistika", callback_data: "admin_stats", icon_custom_emoji_id: '5231200819986047254', button_color: BUTTON_COLORS.default }, 
+                    { text: "Barcha A'zolar", callback_data: "admin_all_users", icon_custom_emoji_id: '5305733135525224451', button_color: BUTTON_COLORS.default }
+                ],
+                [
+                    { text: "Kutilayotganlar", callback_data: "admin_pending", icon_custom_emoji_id: '5451732530048802485', button_color: BUTTON_COLORS.default }, 
+                    { text: "Tasdiqlanganlar", callback_data: "admin_approved", icon_custom_emoji_id: BUTTON_EMOJI_IDS.check, button_color: BUTTON_COLORS.primary }
+                ],
+                [
+                    { text: "Bloklanganlar", callback_data: "admin_blocked", icon_custom_emoji_id: '5472267631979405211', button_color: BUTTON_COLORS.destructive }, 
+                    { text: "Barchaga Xabar", callback_data: "admin_broadcast", icon_custom_emoji_id: BUTTON_EMOJI_IDS.reklama, button_color: BUTTON_COLORS.primary }
+                ],
+                [{ text: "Kanallar sozlamasi", callback_data: "admin_channels", icon_custom_emoji_id: BUTTON_EMOJI_IDS.settings, button_color: BUTTON_COLORS.secondary }],
+                [{ text: "Bonus tizimi", callback_data: "admin_bonus", icon_custom_emoji_id: BUTTON_EMOJI_IDS.bonus, button_color: BUTTON_COLORS.primary }],
+                [{ text: "Orqaga", callback_data: "menu_back_main", icon_custom_emoji_id: BUTTON_EMOJI_IDS.back, button_color: BUTTON_COLORS.secondary }]
             ]
         }
     };
@@ -516,13 +574,23 @@ const isUserAdmin = async (bot, chatId, userId) => {
 };
 
 function getBonusCoinRow() {
-    return [{ text: "🎁 Bonus", callback_data: "menu_bonus" }];
+    return [{ 
+        text: "Bonus", 
+        callback_data: "menu_bonus", 
+        icon_custom_emoji_id: '5305687351173849819',
+        button_color: 'primary'
+    }];
 }
 
 function getPendingPaymentKeyboard() {
     return {
         inline_keyboard: [
-            [{ text: "🎁 Bonus Olish", callback_data: "menu_bonus" }],
+            [{ 
+                text: "Bonus Olish", 
+                callback_data: "menu_bonus", 
+                icon_custom_emoji_id: '5305687351173849819',
+                button_color: 'primary'
+            }],
             [texts.adminButtons.contactAdmin(texts.admin.username)]
         ]
     };
@@ -545,7 +613,8 @@ function getGroupPickerKeyboard(requestId) {
     return {
         keyboard: [
             [{
-                text: '👥 Guruh',
+                text: 'Guruh',
+                icon_custom_emoji_id: '5305733135525224451',
                 request_chat: {
                     request_id: requestId,
                     chat_is_channel: false,
@@ -566,7 +635,11 @@ function getAvtoUserGroupPickerKeyboard() {
 
 function getPhoneShareKeyboard() {
     return {
-        keyboard: [[{ text: '📱 Telefon raqamni ulashish', request_contact: true }]],
+        keyboard: [[{ 
+            text: 'Telefon raqamni ulashish', 
+            icon_custom_emoji_id: '5471960722206366390',
+            request_contact: true 
+        }]],
         resize_keyboard: true,
         one_time_keyboard: true,
         is_persistent: false
