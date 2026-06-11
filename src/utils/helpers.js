@@ -154,6 +154,27 @@ const EMOJI_MAP = {
     '🗂': '5445221832074483553',
 };
 
+// Utag uchun alohida emoji xaritasi (DEFAULT_TAG_MESSAGES ichidagi emojilar)
+const UTAG_EMOJI_MAP = {
+    '💎': '5427168083074628963',
+    '🦦': '5215290868660193057',
+    '🤨': '5384547500780176510',
+    '🧐': '5384389552577924673',
+    '🫂': '5377675240752926614',
+    '👀': '5396348377963589663',
+    '👊': '5377637926958868701',
+    '😁': '5377590870628106691',
+    '🥱': '5377564889623186510',
+    '😾': '5418107220629353248',
+    '😆': '5377512388301351619',
+    '🫣': '5384422322847048893',
+    '😅': '5377498825754430544',
+    '😎': '5377466364045904013',
+    '😂': '5377414456789450470',
+    '💥': '5354132205609396421',
+    '💬': '5188377234221450271',
+};
+
 // Bot reaksiyalari uchun standart emojilar (Bot API qo'llab-quvvatlaydi)
 // Premium emoji'lar faqat GramJS orqali ishlaydi, Bot API uchun standart emoji kerak
 const REACTION_EMOJIS = {
@@ -252,6 +273,65 @@ function withPremiumEmojis(text) {
     entities.sort((a, b) => a.offset - b.offset);
 
     return { cleanText, entities };
+}
+
+/**
+ * Utag uchun maxsus funksiya:
+ * - UTAG_EMOJI_MAP'dan emojilarni custom_emoji entitylariga o'tkazadi
+ * - Username yo'q foydalanuvchi uchun text_mention entity yaratadi
+ * - Username bor foydalanuvchi uchun mention entity yaratadi (@username)
+ *
+ * @param {string} mentionText - "@username" yoki "Foydalanuvchi ismi"
+ * @param {string} extraText - Tag matni (DEFAULT_TAG_MESSAGES yoki tagText)
+ * @param {object|null} mentionUser - {id} agar text_mention bo'lsa (username yo'q user)
+ * @returns {{ cleanText: string, entities: Array }}
+ */
+function buildUtagMessage(mentionText, extraText, mentionUser = null) {
+    const fullText = `${mentionText}${extraText || ''}`;
+    const entities = [];
+
+    // 1. Mention qismi (boshda)
+    if (mentionUser && mentionUser.id) {
+        // Username yo'q: text_mention (ism bosiladigan link bo'ladi)
+        entities.push({
+            type: 'text_mention',
+            offset: 0,
+            length: mentionText.length,
+            user: { id: mentionUser.id }
+        });
+    } else if (mentionText.startsWith('@')) {
+        // Username bor: @username mention
+        entities.push({
+            type: 'mention',
+            offset: 0,
+            length: mentionText.length
+        });
+    }
+
+    // 2. Premium emojilar (UTAG_EMOJI_MAP)
+    const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+    let eMatch;
+    while ((eMatch = emojiRegex.exec(fullText)) !== null) {
+        const emoji = eMatch[0];
+        let mappedId = UTAG_EMOJI_MAP[emoji];
+
+        if (!mappedId && UTAG_EMOJI_MAP[emoji + '\uFE0F']) mappedId = UTAG_EMOJI_MAP[emoji + '\uFE0F'];
+        else if (!mappedId && emoji.endsWith('\uFE0F') && UTAG_EMOJI_MAP[emoji.slice(0, -1)]) mappedId = UTAG_EMOJI_MAP[emoji.slice(0, -1)];
+
+        if (mappedId) {
+            entities.push({
+                type: 'custom_emoji',
+                offset: eMatch.index,
+                length: emoji.length,
+                custom_emoji_id: mappedId
+            });
+        }
+    }
+
+    // Entitylarni offset bo'yicha saralash (Telegram talabi)
+    entities.sort((a, b) => a.offset - b.offset);
+
+    return { cleanText: fullText, entities };
 }
 
 const escapeMarkdown = (text) => text ? text.replace(/[_*[\]()~`>#+-=|{}.!]/g, '\\$&') : ""; 
@@ -754,6 +834,8 @@ module.exports = {
     UTAG_CHAT_REQUEST_ID,
     isUserAdmin,
     EMOJI_MAP,
+    UTAG_EMOJI_MAP,
+    buildUtagMessage,
     BUTTON_EMOJI_IDS,
     BUTTON_STYLES
 };

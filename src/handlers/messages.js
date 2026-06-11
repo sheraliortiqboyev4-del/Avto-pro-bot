@@ -304,32 +304,6 @@ module.exports = (bot) => {
         if (state.step === 'WAITING_REK_USERS') {
             console.log(`[WAITING_REK_USERS] Xabar keldi: "${text}"`);
             
-            // "Bekor qilish" tugmasini tekshirish - FAQAT aniq tugma matni
-            if (text && text === '❌ Bekor qilish') {
-                console.log('[Reaction] Bekor qilish bosildi, error reaksiya qo\'yilmoqda...');
-                sendBotReaction(bot, chatId, msg.message_id, 'error');
-                
-                delete global.userStates[chatId];
-                return bot.sendMessage(chatId, '❌ Reklama bekor qilindi.', getMainMenu(chatId));
-            }
-            
-            // "Tayyor" tugmasini tekshirish - FAQAT aniq tugma matni
-            if (text && text === '✅ Tayyor') {
-                console.log('[Reaction] Tayyor bosildi');
-                if (!state.usersList || state.usersList.trim() === '') {
-                    console.log('[Reaction] Userlar yo\'q - error reaksiya');
-                    sendBotReaction(bot, chatId, msg.message_id, 'error');
-                    return bot.sendMessage(chatId, '❌ Avval userlar ro\'yxatini yuboring!');
-                }
-                
-                console.log('[Reaction] Userlar mavjud - success reaksiya');
-                sendBotReaction(bot, chatId, msg.message_id, 'success');
-                
-                global.userStates[chatId] = { step: 'WAITING_REK_TEXT', usersList: state.usersList };
-                bot.sendMessage(chatId, "✍️ Reklama xabarini yuboring (Matn, rasm, stiker va h.k.):", removeKeyboardMarkup());
-                return;
-            }
-            
             if (!text) return;
             
             console.log('[Reaction] Userlar ro\'yxati yuborildi, tekshirilmoqda...');
@@ -367,17 +341,15 @@ module.exports = (bot) => {
                 `✅ Qabul qilindi!\n\n` +
                 `📊 Jami userlar: **${totalUsers}** ta\n` +
                 (duplicates > 0 ? `♻️ Duplicate: **${duplicates}** ta olib tashlandi\n` : '') +
-                `\n▶️ Yana userlar yuboring yoki **"Tayyor"** tugmasini bosing.\n` +
+                `\n▶️ Yana userlar yuboring yoki **"Tayyor (Davom etish)"** tugmasini bosing.\n` +
                 `⚠️ Maksimal: 1000 ta`,
                 { 
                     parse_mode: 'Markdown',
                     reply_markup: {
-                        keyboard: [
-                            [{ text: '✅ Tayyor (Davom etish)' }],
-                            [{ text: '❌ Bekor qilish' }]
-                        ],
-                        resize_keyboard: true,
-                        one_time_keyboard: false
+                        inline_keyboard: [
+                            [{ text: 'Tayyor (Davom etish)', callback_data: 'reklama_users_done', icon_custom_emoji_id: BUTTON_EMOJI_IDS.check, style: BUTTON_STYLES.success }],
+                            [{ text: 'Bekor qilish', callback_data: 'reklama_users_cancel', icon_custom_emoji_id: BUTTON_EMOJI_IDS.cancel, style: BUTTON_STYLES.danger }]
+                        ]
                     }
                 }
             );

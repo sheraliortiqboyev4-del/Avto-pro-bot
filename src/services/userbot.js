@@ -22,7 +22,8 @@ const {
     upsertUtagHistory,
     normalizeUtagGroupId,
     BUTTON_EMOJI_IDS,
-    BUTTON_STYLES
+    BUTTON_STYLES,
+    buildUtagMessage
 } = require('../utils/helpers');
 
 const userClients = {}; 
@@ -1626,8 +1627,8 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
                         }).catch(() => {});
                     }
                     
-                    // Sekundiga 2 ta xabar (500ms kechikish)
-                    await new Promise(r => setTimeout(r, 500)); 
+                    // Sekundiga 1 ta xabar (1000ms kechikish)
+                    await new Promise(r => setTimeout(r, 1000)); 
                 } catch (err) {
                     console.error(`[Reklama Error] ${targetUser} -> Akkaunt ${currentSessionIndex + 1}:`, err.message);
 
@@ -1821,15 +1822,24 @@ const sendUtagToParticipant = async (client, groupEntity, participant, extraText
 
     const send = async (activeClient, activeEntity) => {
         if (participant.username) {
-            await activeClient.sendMessage(activeEntity, { message: `@${participant.username}${extraText}` });
+            // Username bor: @username + emojilar premium
+            const { cleanText, entities } = buildUtagMessage(`@${participant.username}`, extraText || '');
+            const gramEntities = convertToGramJsEntities(entities);
+            await activeClient.sendMessage(activeEntity, {
+                message: cleanText,
+                formattingEntities: gramEntities && gramEntities.length > 0 ? gramEntities : undefined
+            });
             return;
         }
+        // Username yo'q: text_mention bilan ism bosiladigan link bo'ladi + emojilar premium
         await cacheUtagParticipant(activeClient, participant).catch(() => {});
         const name = participant.firstName || 'Foydalanuvchi';
         const userId = participant.id?.toString?.() || String(participant.id);
+        const { cleanText, entities } = buildUtagMessage(name, extraText || '', { id: userId });
+        const gramEntities = convertToGramJsEntities(entities);
         await activeClient.sendMessage(activeEntity, {
-            message: `<a href="tg://user?id=${userId}">${escapeHTML(name)}</a>${extraText}`,
-            parseMode: 'html'
+            message: cleanText,
+            formattingEntities: gramEntities && gramEntities.length > 0 ? gramEntities : undefined
         });
     };
 

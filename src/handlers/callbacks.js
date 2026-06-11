@@ -452,16 +452,37 @@ module.exports = (bot) => {
                 {
                     parse_mode: 'Markdown',
                     reply_markup: {
-                        keyboard: [
-                            [{ text: '✅ Tayyor' }],
-                            [{ text: '❌ Bekor qilish' }]
-                        ],
-                        resize_keyboard: true,
-                        one_time_keyboard: false
+                        inline_keyboard: [
+                            [{ text: 'Tayyor', callback_data: 'reklama_users_done', icon_custom_emoji_id: BUTTON_EMOJI_IDS.check, style: BUTTON_STYLES.success }],
+                            [{ text: 'Bekor qilish', callback_data: 'reklama_users_cancel', icon_custom_emoji_id: BUTTON_EMOJI_IDS.cancel, style: BUTTON_STYLES.danger }]
+                        ]
                     }
                 }
             );
             return await safeAnswer();
+        }
+
+        if (data === "reklama_users_done") {
+            const state = global.userStates[chatId];
+            if (!state || state.step !== 'WAITING_REK_USERS') {
+                return await safeAnswer({ text: "❌ Reklama jarayoni topilmadi.", show_alert: true });
+            }
+
+            if (!state.usersList || state.usersList.trim() === '') {
+                return await safeAnswer({ text: "❌ Avval userlar ro'yxatini yuboring!", show_alert: true });
+            }
+
+            global.userStates[chatId] = { step: 'WAITING_REK_TEXT', usersList: state.usersList };
+            await safeAnswer({ text: "✅ Tayyor!" });
+            try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: messageId }); } catch (e) {}
+            return bot.sendMessage(chatId, "✍️ Reklama xabarini yuboring (Matn, rasm, stiker va h.k.):");
+        }
+
+        if (data === "reklama_users_cancel") {
+            delete global.userStates[chatId];
+            await safeAnswer({ text: "❌ Bekor qilindi" });
+            try { await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: messageId }); } catch (e) {}
+            return bot.sendMessage(chatId, '❌ Reklama bekor qilindi.', { parse_mode: 'Markdown', ...getMainMenu(chatId) });
         }
 
         if (data === "reklama_start_confirm") {
