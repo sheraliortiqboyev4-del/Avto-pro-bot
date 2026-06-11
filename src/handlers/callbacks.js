@@ -853,7 +853,8 @@ module.exports = (bot) => {
                 limit: group.limit ?? 0,
                 memberFilter: group.memberFilter || 'all',
                 mode: group.mode || 'only_mention',
-                tagText: group.tagText || null
+                tagText: group.tagText || null,
+                tagEntities: group.tagEntities || null
             };
 
             if (saved.mode === 'custom' && !saved.tagText) {
@@ -869,6 +870,7 @@ module.exports = (bot) => {
                 limit: saved.limit,
                 mode: saved.mode,
                 tagText: saved.tagText,
+                tagEntities: saved.tagEntities,
                 memberFilter: saved.memberFilter,
                 groupTitle: saved.groupTitle
             }).catch((err) => bot.sendMessage(chatId, `❌ Xatolik: ${err.message}`));

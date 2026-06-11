@@ -1840,13 +1840,14 @@ const cacheUtagParticipant = async (client, participant) => {
     }
 };
 
-const sendUtagToParticipant = async (client, groupEntity, participant, extraText, fallbackClient = null, fallbackEntity = null) => {
+const sendUtagToParticipant = async (client, groupEntity, participant, extraText, fallbackClient = null, fallbackEntity = null, opts = {}) => {
     if (participant.bot || participant.deleted) return false;
+    const { useEmojiMap = false, customEntities = null } = opts;
 
     const send = async (activeClient, activeEntity) => {
         if (participant.username) {
-            // Username bor: @username + emojilar premium
-            const { cleanText, entities } = buildUtagMessage(`@${participant.username}`, extraText || '');
+            // Username bor: @username + emojilar
+            const { cleanText, entities } = buildUtagMessage(`@${participant.username}`, extraText || '', { useEmojiMap, customEntities });
             const gramEntities = convertToGramJsEntities(entities);
             await activeClient.sendMessage(activeEntity, {
                 message: cleanText,
@@ -1854,12 +1855,12 @@ const sendUtagToParticipant = async (client, groupEntity, participant, extraText
             });
             return;
         }
-        // Username yo'q: text_mention bilan ism bosiladigan link bo'ladi + emojilar premium
+        // Username yo'q: text_mention bilan ism bosiladigan link bo'ladi + emojilar
         await cacheUtagParticipant(activeClient, participant).catch(() => {});
         const name = participant.firstName || 'Foydalanuvchi';
         const userId = participant.id?.toString?.() || String(participant.id);
         const accessHash = participant.accessHash != null ? participant.accessHash.toString() : null;
-        const { cleanText, entities } = buildUtagMessage(name, extraText || '', { id: userId, accessHash });
+        const { cleanText, entities } = buildUtagMessage(name, extraText || '', { mentionUser: { id: userId, accessHash }, useEmojiMap, customEntities });
         const gramEntities = convertToGramJsEntities(entities);
         await activeClient.sendMessage(activeEntity, {
             message: cleanText,
@@ -1916,6 +1917,7 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
     const {
         limit = 0,
         tagText = null,
+        tagEntities = null,
         mode = 'only_mention',
         memberFilter = 'all',
         isCommand = false,
@@ -2103,6 +2105,7 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
             mode,
             limit: parseInt(limit, 10) || 0,
             tagText: mode === 'custom' ? tagText : null,
+            tagEntities: mode === 'custom' ? tagEntities : null,
             memberFilter
         });
         await User.update({ utagHistory: history }, { where: { chatId } });
@@ -2168,7 +2171,15 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                     extraText += ` ${PROMO_UTAG()}`;
                 }
 
-                await sendUtagToParticipant(currentClient, clientEntities.get(currentClient) || mainEntity, p, extraText, mainClient, mainEntity);
+                // Mode'ga qarab emoji map yoki user entitylarini ishlatamiz
+                const sendOpts = {};
+                if (mode === 'random_words') {
+                    sendOpts.useEmojiMap = true;  // DEFAULT_TAG_MESSAGES uchun premium emoji
+                } else if (mode === 'custom' && tagEntities && tagEntities.length > 0) {
+                    sendOpts.customEntities = tagEntities;  // Foydalanuvchi yuborgan entitylar (emoji, formatting)
+                }
+
+                await sendUtagToParticipant(currentClient, clientEntities.get(currentClient) || mainEntity, p, extraText, mainClient, mainEntity, sendOpts);
 
                 count++;
                 accountStats[currentClientIndex].sent++;

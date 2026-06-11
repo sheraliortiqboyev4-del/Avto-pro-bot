@@ -297,22 +297,26 @@ function withPremiumEmojis(text) {
 
 /**
  * Utag uchun maxsus funksiya:
- * - UTAG_EMOJI_MAP'dan emojilarni custom_emoji entitylariga o'tkazadi
+ * - DEFAULT_TAG_MESSAGES (random_words mode) uchun UTAG_EMOJI_MAP'dan emojilarni custom_emoji entitylariga o'tkazadi
+ * - Custom mode (foydalanuvchi o'z matni) uchun foydalanuvchi entity'larini saqlab qoladi (qo'shilmaydi)
  * - Username yo'q foydalanuvchi uchun text_mention entity yaratadi
  * - Username bor foydalanuvchi uchun mention entity yaratadi (@username)
  *
  * @param {string} mentionText - "@username" yoki "Foydalanuvchi ismi"
  * @param {string} extraText - Tag matni (DEFAULT_TAG_MESSAGES yoki tagText)
- * @param {object|null} mentionUser - {id, accessHash} agar text_mention bo'lsa (username yo'q user)
+ * @param {object} opts - { mentionUser, useEmojiMap, customEntities }
+ *   - mentionUser: {id, accessHash} agar text_mention bo'lsa
+ *   - useEmojiMap: true bo'lsa UTAG_EMOJI_MAP'dan custom_emoji qo'shadi (random_words uchun)
+ *   - customEntities: foydalanuvchi yuborgan entitylar (custom mode uchun)
  * @returns {{ cleanText: string, entities: Array }}
  */
-function buildUtagMessage(mentionText, extraText, mentionUser = null) {
+function buildUtagMessage(mentionText, extraText, opts = {}) {
+    const { mentionUser = null, useEmojiMap = false, customEntities = null } = opts;
     const fullText = `${mentionText}${extraText || ''}`;
     const entities = [];
 
     // 1. Mention qismi (boshda)
     if (mentionUser && mentionUser.id) {
-        // Username yo'q: text_mention (ism bosiladigan link bo'ladi)
         entities.push({
             type: 'text_mention',
             offset: 0,
@@ -320,7 +324,6 @@ function buildUtagMessage(mentionText, extraText, mentionUser = null) {
             user: { id: mentionUser.id, accessHash: mentionUser.accessHash || null }
         });
     } else if (mentionText.startsWith('@')) {
-        // Username bor: @username mention
         entities.push({
             type: 'mention',
             offset: 0,
@@ -328,23 +331,39 @@ function buildUtagMessage(mentionText, extraText, mentionUser = null) {
         });
     }
 
-    // 2. Premium emojilar (UTAG_EMOJI_MAP)
-    const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
-    let eMatch;
-    while ((eMatch = emojiRegex.exec(fullText)) !== null) {
-        const emoji = eMatch[0];
-        let mappedId = UTAG_EMOJI_MAP[emoji];
-
-        if (!mappedId && UTAG_EMOJI_MAP[emoji + '\uFE0F']) mappedId = UTAG_EMOJI_MAP[emoji + '\uFE0F'];
-        else if (!mappedId && emoji.endsWith('\uFE0F') && UTAG_EMOJI_MAP[emoji.slice(0, -1)]) mappedId = UTAG_EMOJI_MAP[emoji.slice(0, -1)];
-
-        if (mappedId) {
+    // 2. Custom mode: foydalanuvchining yuborgan entitylarini saqlaymiz
+    // (offset'larni mentionText uzunligi bo'yicha to'g'rilaymiz)
+    if (customEntities && Array.isArray(customEntities) && customEntities.length > 0) {
+        const offsetShift = mentionText.length + (extraText && extraText.startsWith(' ') ? 1 : 0);
+        // extraText odatda " <text>" - boshlanish bo'shligi bilan
+        // Foydalanuvchi xabari boshidan offset hisoblangan, biz uni mentionText.length + bo'shliq qadar surishimiz kerak
+        const baseOffset = mentionText.length + (extraText && extraText.length > 0 ? (extraText[0] === ' ' ? 1 : 0) : 0);
+        for (const ent of customEntities) {
             entities.push({
-                type: 'custom_emoji',
-                offset: eMatch.index,
-                length: emoji.length,
-                custom_emoji_id: mappedId
+                ...ent,
+                offset: ent.offset + baseOffset
             });
+        }
+    }
+    // 3. Random words / default messages: UTAG_EMOJI_MAP'dan emojilar
+    else if (useEmojiMap) {
+        const emojiRegex = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+        let eMatch;
+        while ((eMatch = emojiRegex.exec(fullText)) !== null) {
+            const emoji = eMatch[0];
+            let mappedId = UTAG_EMOJI_MAP[emoji];
+
+            if (!mappedId && UTAG_EMOJI_MAP[emoji + '\uFE0F']) mappedId = UTAG_EMOJI_MAP[emoji + '\uFE0F'];
+            else if (!mappedId && emoji.endsWith('\uFE0F') && UTAG_EMOJI_MAP[emoji.slice(0, -1)]) mappedId = UTAG_EMOJI_MAP[emoji.slice(0, -1)];
+
+            if (mappedId) {
+                entities.push({
+                    type: 'custom_emoji',
+                    offset: eMatch.index,
+                    length: emoji.length,
+                    custom_emoji_id: mappedId
+                });
+            }
         }
     }
 
@@ -550,6 +569,7 @@ function upsertUtagHistory(history, entry) {
         mode: entry.mode || 'only_mention',
         limit: entry.limit ?? 0,
         tagText: entry.tagText || null,
+        tagEntities: entry.tagEntities || null,
         memberFilter: entry.memberFilter || 'all',
         updatedAt: new Date().toISOString()
     });
