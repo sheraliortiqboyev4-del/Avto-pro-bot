@@ -141,11 +141,17 @@ const loadAllStates = async (bot) => {
         
         // Faqat Avto Almaz yoqilgan userlar uchun userbot ishga tushiramiz
         for (const user of almazUsers) {
-            startUserbot(user.chatId, user.session, bot).catch(e => {
+            try {
+                await startUserbot(user.chatId, user.session, bot);
+            } catch (e) {
                 console.error(`[AutoStart Error] ${user.chatId}:`, e.message);
-            });
+            }
             // Render free: parallel ulanishlar TIMEOUT beradi — kutish
-            await new Promise(r => setTimeout(r, 3000)); 
+            await new Promise(r => setTimeout(r, 5000)); 
+            // Har 3 ta clientdan keyin GC
+            if (global.gc && almazUsers.indexOf(user) % 3 === 2) {
+                try { global.gc(); } catch (e) {}
+            }
         }
         console.log(`✅ [States] ${almazUsers.length} ta Avto Almaz client ishga tushirildi (qolganlari kerak bo'lganda ulanadi).`);
     } catch (e) {
@@ -917,10 +923,21 @@ const handleAuthStep = async (chatId, input, bot) => {
 };
 
 // --- FEATURE FUNCTIONS ---
+// Scrape state (har chatId uchun) - bot uzilib qolsa qayta boshlash uchun
+const scrapingStates = {};
+
 const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
     const client = await ensureClient(chatId, bot);
     const me = await client.getMe();
     const myId = me.id;
+    
+    // Scraping state o'rnatish
+    scrapingStates[chatId] = { 
+        status: 'running', 
+        groupLink, 
+        limit, 
+        startedAt: Date.now() 
+    };
     
     try {
         let entity;
@@ -952,7 +969,18 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
 
         if (!entity) throw new Error("Guruh topilmadi.");
 
-        const statusMsg = await bot.sendMessage(chatId, "⏳ **Userlarni yig'ish boshlandi...**\nIltimos, jarayon tugashini kuting.", { parse_mode: "Markdown" });
+        // Dinamik progress xabari
+        const groupTitle = entity.title || entity.username || 'Guruh';
+        const buildProgressText = (gathered, scanned, status = 'davom etmoqda') => {
+            return `🔍 **User yig'ish jarayoni**\n\n` +
+                `📍 Guruh: ${groupTitle}\n` +
+                `🎯 Status: ${status}\n\n` +
+                `👥 Topildi: **${gathered}** / ${limit} ta\n` +
+                `📜 Skan qilindi: **${scanned.toLocaleString()}** ta xabar`;
+        };
+        
+        const statusMsg = await bot.sendMessage(chatId, buildProgressText(0, 0, 'boshlandi'), { parse_mode: "Markdown" });
+        scrapingStates[chatId].statusMsgId = statusMsg.message_id;
 
         const gatheredUserIds = new Set();
         const members = [];
@@ -960,6 +988,24 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
         let adminParts = 1; // Adminlar qismlari soni
         let memberCount = 0; // A'zolar soni
         let memberParts = 1; // A'zolar qismlari soni
+        let lastUpdateAt = 0;
+        
+        // Progress yangilash funksiyasi (rate-limited)
+        const updateProgress = async (gathered, scanned, status = 'davom etmoqda') => {
+            const now = Date.now();
+            // Telegram rate limit: 1 sekundda 1 marta edit
+            if (now - lastUpdateAt < 1000) return;
+            lastUpdateAt = now;
+            try {
+                await bot.editMessageText(buildProgressText(gathered, scanned, status), {
+                    chat_id: chatId,
+                    message_id: statusMsg.message_id,
+                    parse_mode: 'Markdown'
+                });
+            } catch (e) {
+                // message not modified yoki boshqa xatolar - e'tiborsiz
+            }
+        };
 
         // 2. Adminlarni yig'ish
         try {
@@ -974,6 +1020,11 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
                     currentAdmins.push({ id: p.id.toString(), username: p.username });
                     gatheredUserIds.add(p.id.toString());
                     adminCount++; // Adminlar sonini oshirish
+                    
+                    // Har 10 ta yig'ilganda progress yangilash
+                    if (gatheredUserIds.size % 10 === 0) {
+                        await updateProgress(gatheredUserIds.size, 0, 'adminlar yig\'ilmoqda');
+                    }
                     
                     // Har 100 ta yig'ilganda yuborish
                     if (currentAdmins.length >= 100) {
@@ -1000,10 +1051,12 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
         // 3. Tarixdan qidirish (History Scan) - faqat bu ishlaydi, admin huquqi yo'q bo'lsa
         let scannedMessages = 0;
         try {
-            // 2 MLN xabargacha skan qilish
+            // 3 MLN xabargacha skan qilish
             const scanLimit = 3000000;
             
             for await (const message of client.iterMessages(entity, { limit: scanLimit })) {
+                // To'xtatish so'rovi tekshiruvi
+                if (!scrapingStates[chatId] || scrapingStates[chatId].status === 'stopped') break;
                 if (gatheredUserIds.size >= limit) break;
                 scannedMessages++;
 
@@ -1015,6 +1068,11 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
                         members.push({ id: senderIdStr, username: sender.username });
                         gatheredUserIds.add(senderIdStr);
                         memberCount++; // A'zolar sonini oshirish
+
+                        // Har 10 ta topilganda progress yangilash
+                        if (gatheredUserIds.size % 10 === 0) {
+                            await updateProgress(gatheredUserIds.size, scannedMessages);
+                        }
 
                         // Har 100 ta yig'ilganda darhol yuborish
                         if (members.length >= 100) {
@@ -1028,8 +1086,9 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
                     }
                 }
                 
-                // Har 500 ta xabardan keyin kichik tanaffus (Flood protection)
+                // Har 500 ta xabardan keyin progress yangilash + tanaffus (Flood protection)
                 if (scannedMessages % 500 === 0) {
+                    await updateProgress(gatheredUserIds.size, scannedMessages);
                     await new Promise(r => setTimeout(r, 1500));
                 }
             }
@@ -1039,9 +1098,11 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
 
         // 5. Yakuniy natija
         const summaryText = `🏁 **NATIJA:**\n\n` +
+            `📍 Guruh: ${groupTitle}\n` +
             `👑 **Adminlar:** ${adminCount} ta, ${adminParts} qism\n` +
             `👥 **A'zolar:** ${memberCount} ta, ${memberParts} qism\n` +
-            `📊 **Jami:** ${gatheredUserIds.size} ta`;
+            `📊 **Jami:** ${gatheredUserIds.size} ta\n` +
+            `📜 Skan qilindi: ${scannedMessages.toLocaleString()} ta xabar`;
         
         await bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
         
@@ -1061,10 +1122,14 @@ const scrapeUsers = async (chatId, groupLink, limit = 1000, bot) => {
 
         // Bazani yangilash
         await User.increment({ usersGathered: gatheredUserIds.size }, { where: { chatId } });
+        
+        // State tozalash
+        delete scrapingStates[chatId];
 
         return true;
     } catch (error) { 
         console.error("Scrape error:", error);
+        delete scrapingStates[chatId];
         throw error; 
     }
 };

@@ -245,8 +245,7 @@ module.exports = (bot) => {
             
             delete global.userStates[chatId];
             
-            bot.sendMessage(chatId, "⏳ **Userlarni yig'ish boshlanmoqda...**\nBiroz vaqt olishi mumkin **Iltimos** sabirli bo'ling .");
-            
+            // scrapeUsers o'zi dinamik progress xabarini yuboradi
             scrapeUsers(chatId, groupLink, limit, bot).catch(e => {
                 bot.sendMessage(chatId, `❌ Xatolik: Guruh linki eskirgan bo'lishi mumkin.\nGuruha borligingizni tekshiring.`);
             });

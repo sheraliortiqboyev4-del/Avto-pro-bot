@@ -313,22 +313,27 @@ const initBot = async () => {
 
         setTimeout(() => triggerBackup('ishga_tushish', true), 15000);
 
-        // Memory monitoring - har 5 daqiqada GC va memory log
+        // Memory monitoring - har 1 daqiqada GC va memory log
         setInterval(() => {
             const mem = process.memoryUsage();
             const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
             const rssMB = Math.round(mem.rss / 1024 / 1024);
             console.log(`💾 Memory: heap ${heapUsedMB}MB | rss ${rssMB}MB`);
             
-            // Agar heap 300MB dan oshsa, GC majburiy
-            if (heapUsedMB > 300 && global.gc) {
+            // Agar heap 200MB dan oshsa, GC majburiy (chegara 400MB)
+            if (heapUsedMB > 200 && global.gc) {
                 try {
                     global.gc();
                     const after = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
                     console.log(`🧹 GC: ${heapUsedMB}MB → ${after}MB`);
                 } catch (e) {}
             }
-        }, 5 * 60 * 1000);
+            
+            // Agar RSS 450MB dan oshsa - kritik holat, log ogohlantirish
+            if (rssMB > 450) {
+                console.error(`⚠️ KRITIK: RSS ${rssMB}MB - 512MB limitiga yaqin!`);
+            }
+        }, 60 * 1000);
     } catch (err) {
         console.error("Critical error in initBot chain:", err);
         setDbReady(false);
