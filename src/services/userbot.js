@@ -126,17 +126,28 @@ const loadAllStates = async (bot) => {
         );
         const now = new Date();
         const activeUsers = users.filter((u) => !u.expireAt || new Date(u.expireAt) >= now);
-        console.log(`🔄 [Init] ${activeUsers.length} ta foydalanuvchi botlarini ishga tushirish...`);
+        
+        // Faqat Avto Almaz YOQILGAN userlar uchun client ulaymiz
+        // Qolganlari kerak bo'lganda (utag, reklama, reyd) ensureClient orqali ulanadi
+        const almazUsers = activeUsers.filter((u) => u.avtoAlmaz !== false);
+        const lazyUsers = activeUsers.filter((u) => u.avtoAlmaz === false);
+        
+        console.log(`🔄 [Init] Avto Almaz: ${almazUsers.length} ta | Lazy: ${lazyUsers.length} ta`);
+        
+        // Avto Almaz state'larini hammaga o'rnatamiz (lazy bo'lsa ham state kerak)
         for (const user of activeUsers) {
             avtoAlmazStates[user.chatId] = user.avtoAlmaz !== false;
-            // Har bir foydalanuvchi uchun userbotni ishga tushiramiz
+        }
+        
+        // Faqat Avto Almaz yoqilgan userlar uchun userbot ishga tushiramiz
+        for (const user of almazUsers) {
             startUserbot(user.chatId, user.session, bot).catch(e => {
                 console.error(`[AutoStart Error] ${user.chatId}:`, e.message);
             });
             // Render free: parallel ulanishlar TIMEOUT beradi — kutish
             await new Promise(r => setTimeout(r, 3000)); 
         }
-        console.log(`✅ [States] ${activeUsers.length} ta foydalanuvchi holati yuklandi va botlar ishga tushirildi.`);
+        console.log(`✅ [States] ${almazUsers.length} ta Avto Almaz client ishga tushirildi (qolganlari kerak bo'lganda ulanadi).`);
     } catch (e) {
         console.error('loadAllStates error:', e.message);
     }
@@ -516,12 +527,11 @@ const blockExpiredUser = async (user, bot, options = {}) => {
         try { await userClients[chatId].disconnect(); delete userClients[chatId]; } catch (e) {}
     }
 
+    const { getPendingPaymentKeyboard } = require('../utils/helpers');
     bot.sendMessage(chatId, texts.payment.expired(texts.admin.username), {
         parse_mode: "Markdown",
         skipEmojiWrap: true,
-        reply_markup: {
-            inline_keyboard: [[texts.adminButtons.contactAdmin(texts.admin.username)]]
-        }
+        reply_markup: getPendingPaymentKeyboard()
     }).catch(() => {});
 
     if (!skipBackup) {
@@ -1331,6 +1341,13 @@ const startReyd = async (chatId, target, reydMsg, limit, bot, savedPath = null) 
             }
         }
     }
+        
+        // Memory tozalash - mediaBuffer va GC
+        mediaBuffer = null;
+        uploadedFile = null;
+        if (global.gc) {
+            try { global.gc(); } catch (e) {}
+        }
     }
 };
 
@@ -1778,6 +1795,12 @@ const startReklama = async (chatId, usersList, reklamaMsg, bot) => {
     // Asosiy menuni alohida yuborish
     bot.sendMessage(chatId, "🏠 Asosiy menu:", getMainMenu(chatId));
     
+    // Memory tozalash - mediaBuffer va boshqa katta o'zgaruvchilarni bo'shatish
+    mediaBuffer = null;
+    if (global.gc) {
+        try { global.gc(); } catch (e) {}
+    }
+    
     // 10 daqiqadan keyin cleanup avtomatik o'chiradi
     // delete reklamaStates[chatId]; - buni olib tashladik
     
@@ -1835,7 +1858,8 @@ const sendUtagToParticipant = async (client, groupEntity, participant, extraText
         await cacheUtagParticipant(activeClient, participant).catch(() => {});
         const name = participant.firstName || 'Foydalanuvchi';
         const userId = participant.id?.toString?.() || String(participant.id);
-        const { cleanText, entities } = buildUtagMessage(name, extraText || '', { id: userId });
+        const accessHash = participant.accessHash != null ? participant.accessHash.toString() : null;
+        const { cleanText, entities } = buildUtagMessage(name, extraText || '', { id: userId, accessHash });
         const gramEntities = convertToGramJsEntities(entities);
         await activeClient.sendMessage(activeEntity, {
             message: cleanText,
@@ -2235,6 +2259,11 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
                     console.error('[Utag] Client disconnect error:', e.message);
                 }
             }
+        }
+        
+        // Memory tozalash - participants va GC
+        if (global.gc) {
+            try { global.gc(); } catch (e) {}
         }
     }
 };

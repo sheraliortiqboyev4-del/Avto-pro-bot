@@ -27,7 +27,27 @@ const convertToGramJsEntities = (entities) => {
             case 'code': return new Api.MessageEntityCode(args);
             case 'pre': return new Api.MessageEntityPre({ ...args, language: e.language || '' });
             case 'text_link': return new Api.MessageEntityTextUrl({ ...args, url: e.url });
-            case 'text_mention': return e.user ? new Api.MessageEntityMentionName({ ...args, userId: BigInt(e.user.id) }) : null;
+            case 'text_mention': {
+                if (!e.user) return null;
+                const userId = BigInt(e.user.id);
+                // Agar accessHash bo'lsa, InputMessageEntityMentionName ishlatamiz (link bo'ladi)
+                if (e.user.accessHash != null) {
+                    try {
+                        return new Api.InputMessageEntityMentionName({
+                            ...args,
+                            userId: new Api.InputUser({
+                                userId,
+                                accessHash: BigInt(e.user.accessHash)
+                            })
+                        });
+                    } catch (err) {
+                        // Fallback - oddiy MessageEntityMentionName
+                        return new Api.MessageEntityMentionName({ ...args, userId });
+                    }
+                }
+                // accessHash yo'q bo'lsa - MessageEntityMentionName (ba'zan ishlamaydi)
+                return new Api.MessageEntityMentionName({ ...args, userId });
+            }
             case 'mention': return new Api.MessageEntityMention(args);
             case 'hashtag': return new Api.MessageEntityHashtag(args);
             case 'bot_command': return new Api.MessageEntityBotCommand(args);
@@ -157,22 +177,22 @@ const EMOJI_MAP = {
 // Utag uchun alohida emoji xaritasi (DEFAULT_TAG_MESSAGES ichidagi emojilar)
 const UTAG_EMOJI_MAP = {
     '💎': '5427168083074628963',
-    '🦦': '5215290868660193057',
-    '🤨': '5384547500780176510',
-    '🧐': '5384389552577924673',
-    '🫂': '5377675240752926614',
-    '👀': '5396348377963589663',
-    '👊': '5377637926958868701',
-    '😁': '5377590870628106691',
-    '🥱': '5377564889623186510',
-    '😾': '5418107220629353248',
-    '😆': '5377512388301351619',
-    '🫣': '5384422322847048893',
-    '😅': '5377498825754430544',
-    '😎': '5377466364045904013',
-    '😂': '5377414456789450470',
-    '💥': '5354132205609396421',
-    '💬': '5188377234221450271',
+    '🦦': '5933844391436230115',
+    '🤨': '5933614739534913978',
+    '🧐': '5406669204898201943',
+    '🫂': '5933554975064988681',
+    '👀': '5949637815112310049',
+    '👊': '5936118327511358849',
+    '😁': '5953846402026052829',
+    '🥱': '5954011711022308464',
+    '😾': '5947074570040121675',
+    '😆': '5949701170174892761',
+    '🫣': '5935918362423991077',
+    '😅': '5953942824041848229',
+    '😎': '5933513893702802685',
+    '😂': '5933896970425868228',
+    '💥': '5933582802158100579',
+    '💬': '5944815322753145500',
 };
 
 // Bot reaksiyalari uchun standart emojilar (Bot API qo'llab-quvvatlaydi)
@@ -283,7 +303,7 @@ function withPremiumEmojis(text) {
  *
  * @param {string} mentionText - "@username" yoki "Foydalanuvchi ismi"
  * @param {string} extraText - Tag matni (DEFAULT_TAG_MESSAGES yoki tagText)
- * @param {object|null} mentionUser - {id} agar text_mention bo'lsa (username yo'q user)
+ * @param {object|null} mentionUser - {id, accessHash} agar text_mention bo'lsa (username yo'q user)
  * @returns {{ cleanText: string, entities: Array }}
  */
 function buildUtagMessage(mentionText, extraText, mentionUser = null) {
@@ -297,7 +317,7 @@ function buildUtagMessage(mentionText, extraText, mentionUser = null) {
             type: 'text_mention',
             offset: 0,
             length: mentionText.length,
-            user: { id: mentionUser.id }
+            user: { id: mentionUser.id, accessHash: mentionUser.accessHash || null }
         });
     } else if (mentionText.startsWith('@')) {
         // Username bor: @username mention

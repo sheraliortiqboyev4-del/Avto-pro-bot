@@ -30,7 +30,8 @@ const config = require('./config');
 const User = require('./models/User'); 
 const { blockExpiredUser, loadAllStates } = require('./services/userbot');
 const { runExpirySweep } = require('./services/expiry'); 
-const { withPremiumEmojis } = require('./utils/helpers');
+const { withPremiumEmojis, getPendingPaymentKeyboard } = require('./utils/helpers');
+const texts = require('./config/texts');
 const { restoreDB, backupDB, triggerBackup, verifyDatabaseAfterConnect, startBackupScheduler } = require('./utils/dbBackup');
 
 // --- 1. SERVER & DNS SETUP ---
@@ -311,6 +312,23 @@ const initBot = async () => {
         startBackupScheduler();
 
         setTimeout(() => triggerBackup('ishga_tushish', true), 15000);
+
+        // Memory monitoring - har 5 daqiqada GC va memory log
+        setInterval(() => {
+            const mem = process.memoryUsage();
+            const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
+            const rssMB = Math.round(mem.rss / 1024 / 1024);
+            console.log(`💾 Memory: heap ${heapUsedMB}MB | rss ${rssMB}MB`);
+            
+            // Agar heap 300MB dan oshsa, GC majburiy
+            if (heapUsedMB > 300 && global.gc) {
+                try {
+                    global.gc();
+                    const after = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+                    console.log(`🧹 GC: ${heapUsedMB}MB → ${after}MB`);
+                } catch (e) {}
+            }
+        }, 5 * 60 * 1000);
     } catch (err) {
         console.error("Critical error in initBot chain:", err);
         setDbReady(false);
@@ -370,10 +388,28 @@ const startExpiryChecker = () => {
                     expiryWarningSent: false
                 }
             });
+            
+            if (warningUsers.length > 0) {
+                console.log(`[ExpiryWarning] ${warningUsers.length} ta foydalanuvchiga 1 kunlik eslatma yuborilmoqda...`);
+            }
+            
             for (const u of warningUsers) {
-                const warningText = `⚠️ **Diqqat!**\n\nSizning botdan foydalanish muddatingiz tugashiga **1 kun** qoldi. Botdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n👨‍💼 Admin: @ortiqov_x7`;
-                bot.sendMessage(u.chatId, warningText, { parse_mode: "Markdown", skipEmojiWrap: true });
-                await User.update({ expiryWarningSent: true }, { where: { chatId: u.chatId } });
+                try {
+                    const warningText = 
+                        `⚠️ **Diqqat!**\n\n` +
+                        `Sizning botdan foydalanish muddatingiz tugashiga **1 kun** qoldi.\n` +
+                        `Botdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n` +
+                        `👨‍💼 Admin: ${texts.admin.username}`;
+                    await bot.sendMessage(u.chatId, warningText, { 
+                        parse_mode: "Markdown", 
+                        skipEmojiWrap: true,
+                        reply_markup: getPendingPaymentKeyboard()
+                    });
+                    await User.update({ expiryWarningSent: true }, { where: { chatId: u.chatId } });
+                    console.log(`[ExpiryWarning] User ${u.chatId} ga eslatma yuborildi.`);
+                } catch (notifyErr) {
+                    console.error(`[ExpiryWarning] User ${u.chatId} ga xabar yuborilmadi:`, notifyErr.message);
+                }
             }
         } catch (error) {
             const msg = error.message || String(error);
