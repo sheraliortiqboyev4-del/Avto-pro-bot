@@ -1,5 +1,4 @@
 const config = require('../config');
-const texts = require('../config/texts');
 const Channel = require('../models/Channel');
 
 const { Api } = require("telegram");
@@ -698,6 +697,8 @@ function getBonusCoinRow() {
 }
 
 function getPendingPaymentKeyboard() {
+    // Lazy require - circular dependency oldini olish uchun
+    const texts = require('../config/texts');
     return {
         inline_keyboard: [
             [{ 
