@@ -701,15 +701,40 @@ function getPendingPaymentKeyboard() {
     const texts = require('../config/texts');
     return {
         inline_keyboard: [
-            [{ 
-                text: "Bonus Olish", 
-                callback_data: "menu_bonus", 
-                icon_custom_emoji_id: '5305687351173849819',
-                style: 'primary'
+            [{
+                text: "Stars orqali to'lov",
+                callback_data: "stars_buy",
+                icon_custom_emoji_id: BUTTON_EMOJI_IDS.start,
+                style: BUTTON_STYLES.success
             }],
             [texts.adminButtons.contactAdmin(texts.admin.username)]
         ]
     };
+}
+
+function getStarsTariffKeyboard() {
+    // Lazy require - circular dependency oldini olish uchun
+    const texts = require('../config/texts');
+    const buttons = texts.tariffs.map(t => ([{
+        text: `${t.label} — ${t.stars} ⭐`,
+        callback_data: `stars_pay_${t.id}`,
+        style: BUTTON_STYLES.primary
+    }]));
+    // Bonus tugmasi (Do'stlarni taklif qilish)
+    buttons.push([{
+        text: "Bonus",
+        callback_data: "menu_bonus",
+        icon_custom_emoji_id: BUTTON_EMOJI_IDS.bonus,
+        style: BUTTON_STYLES.success
+    }]);
+    // Orqaga
+    buttons.push([{
+        text: "Orqaga",
+        callback_data: "stars_back",
+        icon_custom_emoji_id: BUTTON_EMOJI_IDS.back,
+        style: BUTTON_STYLES.danger
+    }]);
+    return { inline_keyboard: buttons };
 }
 
 function getAdminCoinKeyboard(targetId) {
@@ -863,6 +888,7 @@ module.exports = {
     getAdminMenu,
     getBonusCoinRow,
     getPendingPaymentKeyboard,
+    getStarsTariffKeyboard,
     getAdminCoinKeyboard,
     getAvtoUserGroupPickerKeyboard,
     getGroupPickerKeyboard,

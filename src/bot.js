@@ -286,6 +286,85 @@ bot.on('message', (msg) => {
     console.log(`📩 Xabar keldi [${msg.chat.id}]: ${msg.text || '[Media/Other]'}`);
 });
 
+// --- TELEGRAM STARS PAYMENT HANDLERS ---
+// Pre-checkout: Telegram to'lov oldidan tasdiqlash so'raydi
+bot.on('pre_checkout_query', async (query) => {
+    try {
+        await bot.answerPreCheckoutQuery(query.id, true);
+    } catch (e) {
+        console.error('[PreCheckout Error]:', e.message);
+        try {
+            await bot.answerPreCheckoutQuery(query.id, false, { 
+                error_message: 'To\'lov tasdiqlanmadi. Iltimos, qayta urinib ko\'ring.' 
+            });
+        } catch (e2) {}
+    }
+});
+
+// Successful payment: To'lov muvaffaqiyatli amalga oshganda
+bot.on('successful_payment', async (msg) => {
+    try {
+        const chatId = msg.chat.id;
+        const payment = msg.successful_payment;
+        const payload = JSON.parse(payment.invoice_payload || '{}');
+        const days = parseInt(payload.days) || 30;
+        const stars = parseInt(payload.stars) || 0;
+        
+        const user = await User.findOne({ where: { chatId } });
+        if (!user) {
+            console.error(`[Stars Payment] User ${chatId} topilmadi`);
+            return;
+        }
+        
+        // Muddat hisoblash:
+        // Agar mavjud muddat bo'lsa va hali tugamagan bo'lsa - qo'shamiz
+        // Aks holda hozirgi vaqtdan boshlaymiz
+        const now = new Date();
+        let baseDate = now;
+        if (user.expireAt && new Date(user.expireAt) > now) {
+            baseDate = new Date(user.expireAt);
+        }
+        const newExpireAt = new Date(baseDate.getTime() + days * 24 * 60 * 60 * 1000);
+        
+        await User.update({
+            status: 'approved',
+            subscriptionType: 'Stars',
+            expireAt: newExpireAt,
+            expiryWarningSent: false
+        }, { where: { chatId } });
+        
+        triggerBackup('stars_tolov', true);
+        
+        // Foydalanuvchiga tasdiq xabari
+        const successText = 
+            `✅ **To'lov muvaffaqiyatli!**\n\n` +
+            `💎 To'lov: ${stars} ⭐ Stars\n` +
+            `📅 Qo'shildi: ${days} kun\n` +
+            `⏰ Muddat: ${newExpireAt.toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent' })}\n\n` +
+            `🎉 Bot funksiyalaridan foydalanishingiz mumkin!`;
+        
+        await bot.sendMessage(chatId, successText, { parse_mode: 'Markdown' });
+        
+        // Asosiy menu yuborish
+        const { getMainMenu } = require('./utils/helpers');
+        await bot.sendMessage(chatId, "🏠 Asosiy menu:", getMainMenu(chatId));
+        
+        // Adminga xabar
+        const adminMsg = 
+            `💳 **Stars to'lov!**\n\n` +
+            `👤 User: ${user.name || 'Noma\'lum'} (\`${chatId}\`)\n` +
+            `💎 Miqdor: ${stars} ⭐\n` +
+            `📅 Tarif: ${days} kun\n` +
+            `⏰ Muddati: ${newExpireAt.toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent' })}`;
+        
+        await bot.sendMessage(config.adminId, adminMsg, { parse_mode: 'Markdown' }).catch(() => {});
+        
+        console.log(`[Stars Payment] User ${chatId} - ${stars}⭐ - ${days} kun, expire: ${newExpireAt}`);
+    } catch (e) {
+        console.error('[Successful Payment Error]:', e.message);
+    }
+});
+
 // --- 3. DATABASE CONNECTION & RESTORE ---
 const initBot = async () => {
     try {
@@ -400,10 +479,11 @@ const startExpiryChecker = () => {
             
             for (const u of warningUsers) {
                 try {
+                    const userName = u.name || 'Foydalanuvchi';
                     const warningText = 
-                        `⚠️ **Diqqat!**\n\n` +
-                        `Sizning botdan foydalanish muddatingiz tugashiga **1 kun** qoldi.\n` +
-                        `Botdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n` +
+                        `👋 Assalomu alaykum, Hurmatli ${userName}!\n\n` +
+                        `⚠️ Sizning botdan foydalanish muddatingiz tugashiga **1 kun** qoldi.\n` +
+                        `⚠️ Botdan foydalanish uchun admin yoki Stars orqali to'lov qiling !!!\n\n` +
                         `👨‍💼 Admin: ${texts.admin.username}`;
                     await bot.sendMessage(u.chatId, warningText, { 
                         parse_mode: "Markdown", 

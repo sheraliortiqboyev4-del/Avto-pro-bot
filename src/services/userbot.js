@@ -127,33 +127,25 @@ const loadAllStates = async (bot) => {
         const now = new Date();
         const activeUsers = users.filter((u) => !u.expireAt || new Date(u.expireAt) >= now);
         
-        // Faqat Avto Almaz YOQILGAN userlar uchun client ulaymiz
-        // Qolganlari kerak bo'lganda (utag, reklama, reyd) ensureClient orqali ulanadi
-        const almazUsers = activeUsers.filter((u) => u.avtoAlmaz !== false);
-        const lazyUsers = activeUsers.filter((u) => u.avtoAlmaz === false);
+        console.log(`🔄 [Init] ${activeUsers.length} ta foydalanuvchi botlarini ishga tushirish...`);
         
-        console.log(`🔄 [Init] Avto Almaz: ${almazUsers.length} ta | Lazy: ${lazyUsers.length} ta`);
-        
-        // Avto Almaz state'larini hammaga o'rnatamiz (lazy bo'lsa ham state kerak)
+        // Barcha approved userlar uchun client ulaymiz
+        // Avto Almaz o'chirilgan bo'lsa ham client ulanadi - foydalanuvchi yoqsa darhol ishga tushadi
         for (const user of activeUsers) {
             avtoAlmazStates[user.chatId] = user.avtoAlmaz !== false;
-        }
-        
-        // Faqat Avto Almaz yoqilgan userlar uchun userbot ishga tushiramiz
-        for (const user of almazUsers) {
             try {
                 await startUserbot(user.chatId, user.session, bot);
             } catch (e) {
                 console.error(`[AutoStart Error] ${user.chatId}:`, e.message);
             }
-            // Render free: parallel ulanishlar TIMEOUT beradi — kutish
-            await new Promise(r => setTimeout(r, 5000)); 
-            // Har 3 ta clientdan keyin GC
-            if (global.gc && almazUsers.indexOf(user) % 3 === 2) {
+            // Parallel ulanishlar TIMEOUT beradi - har akkaunt orasida kutish
+            await new Promise(r => setTimeout(r, 3000)); 
+            // Har 5 ta clientdan keyin GC (memory tejash)
+            if (global.gc && activeUsers.indexOf(user) % 5 === 4) {
                 try { global.gc(); } catch (e) {}
             }
         }
-        console.log(`✅ [States] ${almazUsers.length} ta Avto Almaz client ishga tushirildi (qolganlari kerak bo'lganda ulanadi).`);
+        console.log(`✅ [States] ${activeUsers.length} ta foydalanuvchi holati yuklandi va botlar ishga tushirildi.`);
     } catch (e) {
         console.error('loadAllStates error:', e.message);
     }
@@ -534,7 +526,7 @@ const blockExpiredUser = async (user, bot, options = {}) => {
     }
 
     const { getPendingPaymentKeyboard } = require('../utils/helpers');
-    bot.sendMessage(chatId, texts.payment.expired(texts.admin.username), {
+    bot.sendMessage(chatId, texts.payment.expired(user.name || 'Foydalanuvchi', texts.admin.username), {
         parse_mode: "Markdown",
         skipEmojiWrap: true,
         reply_markup: getPendingPaymentKeyboard()

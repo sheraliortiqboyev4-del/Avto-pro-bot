@@ -88,7 +88,8 @@ module.exports = (bot) => {
         }
     
         if (user.status === 'blocked') {
-            bot.sendMessage(chatId, texts.payment.blocked(texts.admin.username), {
+            bot.sendMessage(chatId, texts.payment.blocked(name, texts.admin.username), {
+                parse_mode: 'Markdown',
                 reply_markup: getPendingPaymentKeyboard()
             });
 

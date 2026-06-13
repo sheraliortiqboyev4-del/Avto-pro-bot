@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Channel = require('../models/Channel');
 const config = require('../config');
+const texts = require('../config/texts');
 const { sequelize, getDbReady } = require('../config/db');
 const { findUserByChatId } = require('../utils/dbUser');
 const { triggerBackup } = require('../utils/dbBackup');
@@ -81,12 +82,15 @@ module.exports = (bot) => {
             "coin_redeem_month",
             "menu_back_main",
             "auth_resend_sms",
-            "auth_resend_app"
+            "auth_resend_app",
+            "stars_buy",
+            "stars_back"
         ];
         const isAdminAction = data.startsWith("admin_");
         const isBonusCallback = data.startsWith("bonus_") || data.startsWith("coin_") || data === "menu_bonus" || data === "menu_coin";
+        const isStarsCallback = data.startsWith("stars_");
         
-        if (!isAdminAction && !allowedCallbacks.includes(data) && !isBonusCallback) {
+        if (!isAdminAction && !allowedCallbacks.includes(data) && !isBonusCallback && !isStarsCallback) {
             if (!user || !user.session) {
                 await safeAnswer({ 
                     text: "⚠️ Botdan foydalanish uchun avval Telegram akkauntingiz bilan tizimga kiring. /start ni bosing.", 
@@ -105,6 +109,73 @@ module.exports = (bot) => {
                 });
             } catch (e) {
                 return await safeAnswer({ text: e.message, show_alert: true });
+            }
+        }
+
+        // --- STARS PAYMENT ---
+        if (data === "stars_buy") {
+            const { getStarsTariffKeyboard } = require('../utils/helpers');
+            const text = texts.starsTitle +
+                `❌ Hozircha ruxsatingiz yo'q — tarif tanlang!\n\n` +
+                texts.starsDescription(texts.tariffs);
+            try {
+                await safeEdit(chatId, messageId, text, {
+                    parse_mode: 'Markdown',
+                    reply_markup: getStarsTariffKeyboard()
+                });
+            } catch (e) {
+                await bot.sendMessage(chatId, text, {
+                    parse_mode: 'Markdown',
+                    reply_markup: getStarsTariffKeyboard()
+                });
+            }
+            return await safeAnswer();
+        }
+
+        if (data === "stars_back") {
+            // Orqaga - asosiy payment xabariga qaytish
+            const u = await User.findOne({ where: { chatId } });
+            const userName = (u && u.name) || query.from.first_name || 'Foydalanuvchi';
+            const status = u ? u.status : 'pending';
+            let text;
+            if (status === 'blocked') {
+                text = texts.payment.blocked(userName, texts.admin.username);
+            } else {
+                text = texts.payment.pending(userName, texts.admin.username);
+            }
+            try {
+                await safeEdit(chatId, messageId, text, {
+                    parse_mode: 'Markdown',
+                    reply_markup: getPendingPaymentKeyboard()
+                });
+            } catch (e) {
+                await bot.sendMessage(chatId, text, {
+                    parse_mode: 'Markdown',
+                    reply_markup: getPendingPaymentKeyboard()
+                });
+            }
+            return await safeAnswer();
+        }
+
+        if (data.startsWith("stars_pay_")) {
+            const tariffId = data.replace("stars_pay_", "");
+            const tariff = texts.tariffs.find(t => t.id === tariffId);
+            if (!tariff) {
+                return await safeAnswer({ text: "❌ Tarif topilmadi.", show_alert: true });
+            }
+            try {
+                await bot.sendInvoice(chatId, 
+                    texts.starsInvoiceTitle(tariff.label),
+                    texts.starsInvoiceDescription(tariff.label, tariff.days),
+                    JSON.stringify({ tariffId: tariff.id, days: tariff.days, stars: tariff.stars }),
+                    '', // provider_token bo'sh = Telegram Stars
+                    'XTR',  // Stars currency
+                    [{ label: tariff.label, amount: tariff.stars }]
+                );
+                return await safeAnswer();
+            } catch (e) {
+                console.error('[Stars Invoice Error]:', e.message);
+                return await safeAnswer({ text: `❌ Xatolik: ${e.message}`, show_alert: true });
             }
         }
 
@@ -219,7 +290,7 @@ module.exports = (bot) => {
 
         // --- 2. SUBSCRIPTION CHECK ---
         const isMember = await checkMembership(bot, chatId);
-        const skipSubCheck = isBonusCallback || data === "check_subscription";
+        const skipSubCheck = isBonusCallback || isStarsCallback || data === "check_subscription";
         if (!isMember && !skipSubCheck) {
             await safeAnswer({ text: "⚠️ Botdan foydalanish uchun avval kanallarga a'zo bo'ling!", show_alert: true });
             return sendSubscriptionAsk(bot, chatId);

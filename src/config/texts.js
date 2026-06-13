@@ -41,20 +41,52 @@ module.exports = {
     payment: {
         pending: (name, adminUsername) => 
             `👋 Assalomu alaykum, Hurmatli ${name}!\n\n` +
-            `⚠ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n` +
-            `⚠ Botdan foydalanish uchun admin orqali to'lov qiling yoki dostlarni taklif qilish orqali tekin foydalaning!!!\n\n` +
+            `⚠️ Siz botdan foydalanish uchun botning oylik to'lovini amalga oshirmagansiz.\n` +
+            `⚠️ Botdan foydalanish uchun admin yoki Stars orqali to'lov qiling !!!\n\n` +
             `👨‍💼 Admin: ${adminUsername}`,
 
-        blocked: (adminUsername) => 
-            `⚠ Sizning foydalanish muddatingiz tugagan.\n` +
-            `Botdan foydalanishni davom ettirish uchun to'lovni amalga oshiring va botni qayta ishga tushiring.\n\n` +
+        blocked: (name, adminUsername) => 
+            `👋 Assalomu alaykum, Hurmatli ${name}!\n\n` +
+            `⚠️ Sizning foydalanish muddatingiz tugagan.\n` +
+            `⚠️ Botdan foydalanish uchun admin yoki Stars orqali to'lov qiling !!!\n\n` +
             `👨‍💼 Admin: ${adminUsername}`,
 
-        expired: (adminUsername) =>
-            `⚠️ **Foydalanish muddatingiz tugadi!**\n\n` +
-            `Botdan foydalanishni davom ettirish uchun to'lovni amalga oshiring.\n\n` +
+        expired: (name, adminUsername) =>
+            `👋 Assalomu alaykum, Hurmatli ${name}!\n\n` +
+            `⚠️ Foydalanish muddatingiz tugadi!\n` +
+            `⚠️ Botdan foydalanish uchun admin yoki Stars orqali to'lov qiling !!!\n\n` +
             `👨‍💼 Admin: ${adminUsername}`
     },
+
+    // ============================================
+    // TARIFLAR (Telegram Stars)
+    // ============================================
+    // 1 kun = 4000 so'm  → ~16 Stars
+    // 3 kun = 12000 so'm → ~48 Stars
+    // 1 hafta = 28000 so'm → ~110 Stars
+    // 2 hafta = 56000 so'm → ~220 Stars
+    // 1 oy = 50000 so'm → ~200 Stars (chegirma!)
+    // O'rtacha: 1 Star ≈ 250 so'm
+    tariffs: [
+        { id: '1day',   label: '1 Kun',    days: 1,  stars: 16,  price: 4000  },
+        { id: '3day',   label: '3 Kun',    days: 3,  stars: 48,  price: 12000 },
+        { id: '1week',  label: '1 Hafta',  days: 7,  stars: 110, price: 28000 },
+        { id: '2week',  label: '2 Hafta',  days: 14, stars: 220, price: 56000 },
+        { id: '1month', label: '1 Oy',     days: 30, stars: 200, price: 50000 }
+    ],
+
+    starsTitle: '💳 **Tarif Tanlash**\n\n',
+    starsDescription: (tariffsList) => 
+        `📦 **Mavjud Tariflar:**\n\n` +
+        tariffsList.map(t => `💎 ${t.label} — ${t.stars} ⭐ (~${t.price.toLocaleString('uz-UZ')} so'm)`).join('\n') +
+        `\n\n💡 *To'lov Telegram Stars orqali amalga oshiriladi.*\n` +
+        `🎁 *Do'stingizni taklif qilib bonus oling!*`,
+
+    starsInvoiceTitle: (label) => `${label}`,
+    starsInvoiceDescription: (label, days) => 
+        `✅ ${days} kunlik to'liq kirish huquqi\n` +
+        `⚡ Avto Almaz, Utag, Reyd, Reklama, AvtoUser\n` +
+        `🔄 Vaqtingiz tugamagan bo'lsa — muddatga qo'shiladi`,
 
     // ============================================
     // ADMIN UCHUN XABARLAR
