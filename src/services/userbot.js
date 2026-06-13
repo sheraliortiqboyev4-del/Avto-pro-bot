@@ -214,6 +214,8 @@ const startUserbot = async (chatId, sessionStr, bot) => {
             };
         }
         const client = new TelegramClient(new StringSession(sessionStr), config.apiId, config.apiHash, clientOpts);
+        // GramJS log'larini kamaytirish (faqat xatolar) - reconnect/timeout loglarini yashirish
+        try { client.setLogLevel('error'); } catch (e) {}
         await client.connect(); 
         userClients[chatId] = client; 
 

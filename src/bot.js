@@ -34,6 +34,14 @@ const { withPremiumEmojis, getPendingPaymentKeyboard } = require('./utils/helper
 const texts = require('./config/texts');
 const { restoreDB, backupDB, triggerBackup, verifyDatabaseAfterConnect, startBackupScheduler } = require('./utils/dbBackup');
 
+// --- GramJS log levelni global kamaytirish (reconnect/timeout xabarlarini yashirish) ---
+try {
+    const { Logger } = require('telegram/extensions/Logger');
+    Logger.setLevel('error');
+} catch (e) {
+    // Eski versiyada bu import yo'q - e'tiborsiz
+}
+
 // --- 1. SERVER & DNS SETUP ---
 try {
     dns.setServers(['8.8.8.8', '8.8.4.4']);
