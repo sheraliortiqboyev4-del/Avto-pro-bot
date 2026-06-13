@@ -16,6 +16,13 @@ process.on('unhandledRejection', (reason, promise) => {
         console.log(`⚠️ [Expected Unhandled Error] Ignoring: ${reason.message}`);
         return;
     }
+    
+    // GramJS TIMEOUT/Not connected xatolari - normal hodisa, log qilmaymiz
+    const errMsg = (reason && reason.message) || String(reason);
+    if (errMsg.includes('TIMEOUT') || errMsg.includes('Not connected') || errMsg.includes('Connection closed')) {
+        return;
+    }
+    
     console.error('❌ UNHANDLED REJECTION at:', promise, 'reason:', reason);
 });
 
@@ -41,6 +48,25 @@ try {
 } catch (e) {
     // Eski versiyada bu import yo'q - e'tiborsiz
 }
+
+// --- console.error filter: GramJS TIMEOUT va connection xatolarini yashirish ---
+const originalConsoleError = console.error;
+console.error = (...args) => {
+    const firstArg = args[0];
+    const msg = (firstArg && firstArg.message) || String(firstArg || '');
+    
+    // GramJS bilan bog'liq normal xatolar - yashirish
+    if (
+        msg.includes('TIMEOUT') ||
+        msg.includes('Not connected') ||
+        msg.includes('Connection closed') ||
+        (firstArg instanceof Error && firstArg.stack && firstArg.stack.includes('telegram/client/updates'))
+    ) {
+        return;
+    }
+    
+    originalConsoleError.apply(console, args);
+};
 
 // --- 1. SERVER & DNS SETUP ---
 try {
