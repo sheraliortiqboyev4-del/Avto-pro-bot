@@ -164,6 +164,30 @@ module.exports = (bot) => {
         bot.sendMessage(chatId, texts.help(texts.admin.channel, texts.admin.username));
     });
 
+    bot.onText(/\/pay/, async (msg) => {
+        const chatId = msg.chat.id;
+        const { TARIFFS, TEXTS, getStarsTariffKeyboard } = require('../services/payment');
+        
+        // Foydalanuvchi statusiga qarab xabar matni
+        const user = await User.findOne({ where: { chatId } });
+        let statusInfo = '';
+        if (user && user.status === 'approved' && user.expireAt) {
+            const now = new Date();
+            const expireAt = new Date(user.expireAt);
+            if (expireAt > now) {
+                const daysLeft = Math.ceil((expireAt - now) / (24 * 60 * 60 * 1000));
+                statusInfo = `✅ Hozirgi obuna: **${daysLeft} kun** qoldi\n\n`;
+            }
+        }
+        
+        const text = TEXTS.title + statusInfo + TEXTS.description(TARIFFS);
+        
+        bot.sendMessage(chatId, text, {
+            parse_mode: 'Markdown',
+            reply_markup: getStarsTariffKeyboard()
+        });
+    });
+
     bot.onText(/\/profile/, async (msg) => {
         const chatId = msg.chat.id;
         const isMember = await checkMembership(bot, chatId);

@@ -174,6 +174,7 @@ const EMOJI_MAP = {
     '🗂': '5445221832074483553',
     '💳' : '5402377703640800862',
     '⭐' : '5346309121794659890',
+    '🏠' : '5416041192905265756',
 };
 
 // Utag uchun alohida emoji xaritasi (DEFAULT_TAG_MESSAGES ichidagi emojilar)

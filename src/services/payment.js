@@ -25,7 +25,6 @@ const TARIFFS = [
     { id: '1day',   label: '1 Kun',    days: 1,  stars: 16,  price: 4000  },
     { id: '3day',   label: '3 Kun',    days: 3,  stars: 48,  price: 12000 },
     { id: '1week',  label: '1 Hafta',  days: 7,  stars: 110, price: 28000 },
-    { id: '2week',  label: '2 Hafta',  days: 14, stars: 220, price: 56000 },
     { id: '1month', label: '1 Oy',     days: 30, stars: 200, price: 50000 }
 ];
 
@@ -37,9 +36,9 @@ const TEXTS = {
 
     description: (tariffs) => 
         `📦 **Mavjud Tariflar:**\n\n` +
-        tariffs.map(t => `💎 ${t.label} — ${t.stars} ⭐ (~${t.price.toLocaleString('uz-UZ')} so'm)`).join('\n') +
-        `\n\n💡 *To'lov Telegram Stars orqali amalga oshiriladi.*\n` +
-        `🎁 *Do'stingizni taklif qilib bonus oling!*`,
+        tariffs.map(t => `💎 ${t.label} — ${t.stars} ⭐ (${t.price.toLocaleString('uz-UZ')} so'm)`).join('\n') +
+        `\n\n💡 **To'lov Telegram Stars orqali amalga oshiriladi.**\n` +
+        `🎁 **Do'stingizni taklif qilib bonus oling!**`,
 
     invoiceTitle: (label) => `${label} obuna`,
 
@@ -72,10 +71,10 @@ const getStarsTariffKeyboard = () => {
     const { BUTTON_EMOJI_IDS, BUTTON_STYLES } = require('../utils/helpers');
     
     const buttons = TARIFFS.map(t => ([{
-        text: `${t.label} — ${t.stars} ⭐`,
+        text: `${t.stars} — ${t.label} `,
         callback_data: `stars_pay_${t.id}`,
         icon_custom_emoji_id: BUTTON_EMOJI_IDS.stars,
-        style: BUTTON_STYLES.danger
+        style: BUTTON_STYLES.success
     }]));
     
     // Bonus tugmasi (Do'stlarni taklif qilish)
