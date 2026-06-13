@@ -25,7 +25,7 @@ const TARIFFS = [
     { id: '1day',   label: '1 Kun',    days: 1,  stars: 16,  price: 4000  },
     { id: '3day',   label: '3 Kun',    days: 3,  stars: 48,  price: 12000 },
     { id: '1week',  label: '1 Hafta',  days: 7,  stars: 110, price: 28000 },
-    { id: '1month', label: '1 Oy',     days: 30, stars: 200, price: 50000 }
+    { id: '1month', label: '1 Oy',     days: 30, stars: 250, price: 50000 }
 ];
 
 // ============================================
