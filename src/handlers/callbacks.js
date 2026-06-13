@@ -114,22 +114,8 @@ module.exports = (bot) => {
 
         // --- STARS PAYMENT ---
         if (data === "stars_buy") {
-            const { getStarsTariffKeyboard } = require('../utils/helpers');
-            const text = texts.starsTitle +
-                `❌ Hozircha ruxsatingiz yo'q — tarif tanlang!\n\n` +
-                texts.starsDescription(texts.tariffs);
-            try {
-                await safeEdit(chatId, messageId, text, {
-                    parse_mode: 'Markdown',
-                    reply_markup: getStarsTariffKeyboard()
-                });
-            } catch (e) {
-                await bot.sendMessage(chatId, text, {
-                    parse_mode: 'Markdown',
-                    reply_markup: getStarsTariffKeyboard()
-                });
-            }
-            return await safeAnswer();
+            const { handleStarsBuy } = require('../services/payment');
+            return await handleStarsBuy(bot, chatId, messageId, safeEdit, safeAnswer);
         }
 
         if (data === "stars_back") {
@@ -159,24 +145,8 @@ module.exports = (bot) => {
 
         if (data.startsWith("stars_pay_")) {
             const tariffId = data.replace("stars_pay_", "");
-            const tariff = texts.tariffs.find(t => t.id === tariffId);
-            if (!tariff) {
-                return await safeAnswer({ text: "❌ Tarif topilmadi.", show_alert: true });
-            }
-            try {
-                await bot.sendInvoice(chatId, 
-                    texts.starsInvoiceTitle(tariff.label),
-                    texts.starsInvoiceDescription(tariff.label, tariff.days),
-                    JSON.stringify({ tariffId: tariff.id, days: tariff.days, stars: tariff.stars }),
-                    '', // provider_token bo'sh = Telegram Stars
-                    'XTR',  // Stars currency
-                    [{ label: tariff.label, amount: tariff.stars }]
-                );
-                return await safeAnswer();
-            } catch (e) {
-                console.error('[Stars Invoice Error]:', e.message);
-                return await safeAnswer({ text: `❌ Xatolik: ${e.message}`, show_alert: true });
-            }
+            const { handleStarsPay } = require('../services/payment');
+            return await handleStarsPay(bot, chatId, tariffId, safeAnswer);
         }
 
         // --- BONUS / COIN (session va obuna shartsiz) ---

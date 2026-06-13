@@ -70,7 +70,7 @@ const BUTTON_EMOJI_IDS = {
     bonus: '5305687351173849819',    // 🎁
     logout: '5305737159909581647',   // 🔄
     profile: '5305587785241992785',  // 📊
-    admin: '5472187029756332585',    // 👨‍💻
+    admin: '5431650332419563627',    // 👨‍💻
     help: '5366068097365066701',     // 🧾
     
     // Umumiy
@@ -85,6 +85,7 @@ const BUTTON_EMOJI_IDS = {
     random: '5305784520513954243',  //
     custom: '5305557136355370145',   // ✍️
     share: '5305733135525224451',    // 👥 (Do'stlarga ulashish)
+    stars: '5346309121794659890',
     
     // Rejim/status
     on: '5416081784641168838',       // 🟢
@@ -171,6 +172,8 @@ const EMOJI_MAP = {
     '💰': '5305517270468928539',
     '🪙': '5395536520817947330',
     '🗂': '5445221832074483553',
+    '💳' : '5402377703640800862',
+    '⭐' : '5346309121794659890',
 };
 
 // Utag uchun alohida emoji xaritasi (DEFAULT_TAG_MESSAGES ichidagi emojilar)
@@ -704,37 +707,12 @@ function getPendingPaymentKeyboard() {
             [{
                 text: "Stars orqali to'lov",
                 callback_data: "stars_buy",
-                icon_custom_emoji_id: BUTTON_EMOJI_IDS.start,
+                icon_custom_emoji_id: BUTTON_EMOJI_IDS.stars,
                 style: BUTTON_STYLES.success
             }],
             [texts.adminButtons.contactAdmin(texts.admin.username)]
         ]
     };
-}
-
-function getStarsTariffKeyboard() {
-    // Lazy require - circular dependency oldini olish uchun
-    const texts = require('../config/texts');
-    const buttons = texts.tariffs.map(t => ([{
-        text: `${t.label} — ${t.stars} ⭐`,
-        callback_data: `stars_pay_${t.id}`,
-        style: BUTTON_STYLES.primary
-    }]));
-    // Bonus tugmasi (Do'stlarni taklif qilish)
-    buttons.push([{
-        text: "Bonus",
-        callback_data: "menu_bonus",
-        icon_custom_emoji_id: BUTTON_EMOJI_IDS.bonus,
-        style: BUTTON_STYLES.success
-    }]);
-    // Orqaga
-    buttons.push([{
-        text: "Orqaga",
-        callback_data: "stars_back",
-        icon_custom_emoji_id: BUTTON_EMOJI_IDS.back,
-        style: BUTTON_STYLES.danger
-    }]);
-    return { inline_keyboard: buttons };
 }
 
 function getAdminCoinKeyboard(targetId) {
@@ -756,6 +734,7 @@ function getGroupPickerKeyboard(requestId) {
             [{
                 text: 'Guruh',
                 icon_custom_emoji_id: '5305733135525224451',
+                style: BUTTON_STYLES.success ,
                 request_chat: {
                     request_id: requestId,
                     chat_is_channel: false,
@@ -888,7 +867,6 @@ module.exports = {
     getAdminMenu,
     getBonusCoinRow,
     getPendingPaymentKeyboard,
-    getStarsTariffKeyboard,
     getAdminCoinKeyboard,
     getAvtoUserGroupPickerKeyboard,
     getGroupPickerKeyboard,

@@ -59,36 +59,6 @@ module.exports = {
     },
 
     // ============================================
-    // TARIFLAR (Telegram Stars)
-    // ============================================
-    // 1 kun = 4000 so'm  → ~16 Stars
-    // 3 kun = 12000 so'm → ~48 Stars
-    // 1 hafta = 28000 so'm → ~110 Stars
-    // 2 hafta = 56000 so'm → ~220 Stars
-    // 1 oy = 50000 so'm → ~200 Stars (chegirma!)
-    // O'rtacha: 1 Star ≈ 250 so'm
-    tariffs: [
-        { id: '1day',   label: '1 Kun',    days: 1,  stars: 16,  price: 4000  },
-        { id: '3day',   label: '3 Kun',    days: 3,  stars: 48,  price: 12000 },
-        { id: '1week',  label: '1 Hafta',  days: 7,  stars: 110, price: 28000 },
-        { id: '2week',  label: '2 Hafta',  days: 14, stars: 220, price: 56000 },
-        { id: '1month', label: '1 Oy',     days: 30, stars: 200, price: 50000 }
-    ],
-
-    starsTitle: '💳 **Tarif Tanlash**\n\n',
-    starsDescription: (tariffsList) => 
-        `📦 **Mavjud Tariflar:**\n\n` +
-        tariffsList.map(t => `💎 ${t.label} — ${t.stars} ⭐ (~${t.price.toLocaleString('uz-UZ')} so'm)`).join('\n') +
-        `\n\n💡 *To'lov Telegram Stars orqali amalga oshiriladi.*\n` +
-        `🎁 *Do'stingizni taklif qilib bonus oling!*`,
-
-    starsInvoiceTitle: (label) => `${label}`,
-    starsInvoiceDescription: (label, days) => 
-        `✅ ${days} kunlik to'liq kirish huquqi\n` +
-        `⚡ Avto Almaz, Utag, Reyd, Reklama, AvtoUser\n` +
-        `🔄 Vaqtingiz tugamagan bo'lsa — muddatga qo'shiladi`,
-
-    // ============================================
     // ADMIN UCHUN XABARLAR
     // ============================================
     adminNotifications: {
@@ -100,7 +70,7 @@ module.exports = {
             `Tasdiqlash uchun quyidagi tugmani bosing:`,
 
         blockedUser: (name, chatId, time) =>
-            `🆕 **Yangi foydalanuvchi!**\n\n` +
+            `🆕 **Muddati tugagan foydalanuvchi!**\n\n` +
             `👤 Ism: ${name}\n` +
             `🆔 ID: \`${chatId}\`\n` +
             `📅 Vaqt: ${time}\n\n` +
@@ -140,7 +110,9 @@ module.exports = {
         contactAdmin: (adminUsername) => ({ 
             text: "Admin bilan bog'lanish", 
             url: `https://t.me/${adminUsername.replace('@', '')}`,
-            icon_custom_emoji_id: BUTTON_EMOJI_IDS.admin
+            icon_custom_emoji_id: BUTTON_EMOJI_IDS.admin ,
+            style: BUTTON_STYLES.danger
+
         })
     },
 
