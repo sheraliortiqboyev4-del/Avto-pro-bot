@@ -226,7 +226,6 @@ const DEFAULT_TAG_MESSAGES = [
 "алдайсанку сардор 🖼",
 "сикерс йиман 😢",
 "мне ергача ке олиб косенам 😒",
-
 ];
 
 // Global xotirada sessiyalarni saqlaymiz

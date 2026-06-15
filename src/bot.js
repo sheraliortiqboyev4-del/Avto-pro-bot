@@ -358,18 +358,22 @@ const initBot = async () => {
             const rssMB = Math.round(mem.rss / 1024 / 1024);
             console.log(`💾 Memory: heap ${heapUsedMB}MB | rss ${rssMB}MB`);
             
-            // Agar heap 200MB dan oshsa, GC majburiy (chegara 400MB)
-            if (heapUsedMB > 200 && global.gc) {
+            // Har 1 daqiqada AVTOMATIK GC (heap to'lib qolmasin uchun)
+            if (global.gc) {
                 try {
+                    const before = heapUsedMB;
                     global.gc();
                     const after = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
-                    console.log(`🧹 GC: ${heapUsedMB}MB → ${after}MB`);
+                    if (before - after > 20) {
+                        // Faqat sezilarli tozalanish bo'lsa log qilamiz (20MB+)
+                        console.log(`🧹 GC: ${before}MB → ${after}MB (-${before - after}MB)`);
+                    }
                 } catch (e) {}
             }
             
-            // Agar RSS 450MB dan oshsa - kritik holat, log ogohlantirish
-            if (rssMB > 450) {
-                console.error(`⚠️ KRITIK: RSS ${rssMB}MB - 512MB limitiga yaqin!`);
+            // Agar RSS 1700MB dan oshsa - kritik holat (2GB limitga yaqin)
+            if (rssMB > 1700) {
+                console.error(`⚠️ KRITIK: RSS ${rssMB}MB - 2GB limitiga yaqin!`);
             }
         }, 60 * 1000);
     } catch (err) {
