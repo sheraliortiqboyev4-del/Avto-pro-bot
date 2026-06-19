@@ -1982,10 +1982,20 @@ const fetchUtagParticipants = async (client, entity, memberFilter, limit) => {
 
     if (memberFilter === 'online') {
         try {
-            participants = await client.getParticipants(entity, {
-                filter: new Api.ChannelParticipantsOnline({}),
-                limit: cap
+            // Online filterga urinish (GramJS versiyasiga qarab ishlashi mumkin)
+            const FilterClass = Api.ChannelParticipantsRecent;
+            const all = await client.getParticipants(entity, { 
+                filter: new FilterClass({}), 
+                limit: cap ? cap * 3 : 500 
             });
+            participants = all.filter((p) => {
+                const st = p.status;
+                return st && (
+                    st instanceof Api.UserStatusOnline ||
+                    st instanceof Api.UserStatusRecently
+                );
+            });
+            if (cap) participants = participants.slice(0, cap);
         } catch (e) {
             console.error('[UTag] Online filter xato, fallback:', e.message);
             const all = await client.getParticipants(entity, { limit: cap ? cap * 3 : 500 });
@@ -1993,8 +2003,7 @@ const fetchUtagParticipants = async (client, entity, memberFilter, limit) => {
                 const st = p.status;
                 return st && (
                     st instanceof Api.UserStatusOnline ||
-                    st instanceof Api.UserStatusRecently ||
-                    st instanceof Api.UserStatusLastMonth
+                    st instanceof Api.UserStatusRecently
                 );
             });
             if (cap) participants = participants.slice(0, cap);
