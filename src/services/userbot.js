@@ -105,7 +105,7 @@ const getPromoBot = () => {
     return u.startsWith('@') ? u : `@${u}`;
 };
 
-// const PROMO_UTAG = () => `✈ ᴜᴛᴇɢ  ${getPromoBot()} ᴏʀǫᴀʟɪ ʏᴜʙᴏʀɪʟᴅɪ.`;
+const PROMO_UTAG = () => `.`;  //✈ ᴜᴛᴇɢ  ${getPromoBot()} ᴏʀǫᴀʟɪ ʏᴜʙᴏʀɪʟᴅɪ
 const PROMO_REKLAMA = () => `🧙 ʀᴇᴋʟᴀᴍᴀ ${getPromoBot()} ᴏʀǫᴀʟɪ ʏᴜʙᴏʀɪʟᴅɪ`;
 
 // --- YORDAMCHI FUNKSIYALAR ---
