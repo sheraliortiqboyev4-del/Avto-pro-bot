@@ -444,7 +444,8 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                                 btnText === 'Bosing' || 
                                 btnText === 'bosing' ||
                                 btnText == '💎  ta olmos olish' ||
-                                btnText == '🎁 olish'
+                                btnText == '🎁 olish' ,
+                                btnText == '🎁 Olish'
 
                              ) { 
                                 console.log("[" + chatId + "] Tugma topildi (Dynamic): " + btnText); 
