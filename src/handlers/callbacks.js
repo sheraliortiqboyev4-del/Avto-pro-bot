@@ -870,7 +870,10 @@ module.exports = (bot) => {
                 destinations: user.autoMsgDestinations || [],
                 customTargets: user.autoMsgCustomTargets || [],
                 savedMessage: user.autoMsgSaved || null,
-                exceptions: user.autoMsgExceptions || []
+                exceptions: user.autoMsgExceptions || [],
+                selectedGroups: user.autoMsgSelectedGroups || [],
+                selectedChats: user.autoMsgSelectedChats || [],
+                oneShot: user.autoMsgOneShot !== false
             };
             const enabledText = settings.enabled ? '🟢 **Yoqilgan**' : '🔴 **O\'chirilgan**';
             const intervalText = settings.intervalMs ? msToIntervalLabel(settings.intervalMs) : 'Belgilanmagan';
@@ -902,12 +905,25 @@ module.exports = (bot) => {
                 if (!user.autoMsgSaved || Object.keys(user.autoMsgSaved).length === 0) {
                     return await safeAnswer({ text: "❌ Avval xabar yuklang!", show_alert: true });
                 }
-                if (!user.autoMsgIntervalMs) {
+                const oneShot = user.autoMsgOneShot !== false;
+                // Interval rejimida interval kerak, bir martalik (oneShot) da kerak emas
+                if (!oneShot && !user.autoMsgIntervalMs) {
                     return await safeAnswer({ text: "❌ Avval intervalni belgilang!", show_alert: true });
                 }
-                if ((!user.autoMsgDestinations || user.autoMsgDestinations.length === 0) &&
-                    (!user.autoMsgCustomTargets || user.autoMsgCustomTargets.length === 0)) {
-                    return await safeAnswer({ text: "❌ Avval qayerga yuborishni belgilang!", show_alert: true });
+                const hasDestinations = (user.autoMsgDestinations && user.autoMsgDestinations.length > 0);
+                const hasCustom = (user.autoMsgCustomTargets && user.autoMsgCustomTargets.length > 0);
+                const hasSelectedGroups = (user.autoMsgSelectedGroups && user.autoMsgSelectedGroups.length > 0);
+                const hasSelectedChats = (user.autoMsgSelectedChats && user.autoMsgSelectedChats.length > 0);
+                if (!hasDestinations && !hasCustom && !hasSelectedGroups && !hasSelectedChats) {
+                    return await safeAnswer({ text: "❌ Avval qayerga yuborishni belgilang (guruh/chat tanlang yoki destination qo'shing)!", show_alert: true });
+                }
+                // Bir martalik rejimda interval avtomatik: minimal (1min) — tickni darhol ishlatish uchun
+                if (oneShot && !user.autoMsgIntervalMs) {
+                    await User.update({ autoMsgIntervalMs: 60000 }, { where: { chatId } });
+                }
+                // Bir martalik rejimda: eski yuborilganlarni tozalash (yangi boshlanish uchun)
+                if (oneShot) {
+                    await User.update({ autoMsgSentIds: [] }, { where: { chatId } });
                 }
             }
             await User.update({ autoMsgEnabled: enabled }, { where: { chatId } });
@@ -916,11 +932,16 @@ module.exports = (bot) => {
             triggerBackup('auto_msg_' + (enabled ? 'on' : 'off'), true);
             await safeAnswer({ text: enabled ? '✅ Avto Xabar yoqildi' : '🚫 Avto Xabar o\'chirildi', show_alert: true });
             const { getAutoMessageMenu, msToIntervalLabel, destinationKeyToLabel } = require('../utils/helpers');
+            const uFresh = await User.findOne({ where: { chatId } });
             const settings = {
                 enabled,
-                intervalMs: user.autoMsgIntervalMs ? Number(user.autoMsgIntervalMs) : null,
-                destinations: user.autoMsgDestinations || [],
-                savedMessage: user.autoMsgSaved || null
+                intervalMs: uFresh.autoMsgIntervalMs ? Number(uFresh.autoMsgIntervalMs) : null,
+                destinations: uFresh.autoMsgDestinations || [],
+                savedMessage: uFresh.autoMsgSaved || null,
+                exceptions: uFresh.autoMsgExceptions || [],
+                selectedGroups: uFresh.autoMsgSelectedGroups || [],
+                selectedChats: uFresh.autoMsgSelectedChats || [],
+                oneShot: uFresh.autoMsgOneShot !== false
             };
             const enabledText = enabled ? '🟢 **Yoqilgan**' : '🔴 **O\'chirilgan**';
             const intervalText = settings.intervalMs ? msToIntervalLabel(settings.intervalMs) : 'Belgilanmagan';
@@ -936,6 +957,34 @@ module.exports = (bot) => {
                 `📍 **Qayerga:** ${destText}\n` +
                 `📝 **Xabar:** ${hasMsg ? '✅ Yuklangan' : '❌ Yuklanmagan'}`;
             try { await safeEdit(chatId, messageId, text, { parse_mode: 'Markdown', ...getAutoMessageMenu(settings) }); } catch (e) {}
+            return;
+        }
+
+        // --- Rejim almashtirish (Bir martalik / Interval) ---
+        if (data === "automsg_toggle_mode") {
+            const newValue = user.autoMsgOneShot !== false ? false : true;
+            await User.update({ autoMsgOneShot: newValue, autoMsgSentIds: [] }, { where: { chatId } });
+            triggerBackup('auto_msg_mode', false);
+            await safeAnswer({
+                text: newValue ? '🎯 Rejim: Bir martalik (faqat 1 marta yuboradi)' : '🔁 Rejim: Interval rejimida davomli yuborish',
+                show_alert: true
+            });
+            const { getAutoMessageMenu } = require('../utils/helpers');
+            const u = await User.findOne({ where: { chatId } });
+            const s = {
+                enabled: !!u.autoMsgEnabled,
+                intervalMs: u.autoMsgIntervalMs ? Number(u.autoMsgIntervalMs) : null,
+                destinations: u.autoMsgDestinations || [],
+                savedMessage: u.autoMsgSaved || null,
+                exceptions: u.autoMsgExceptions || [],
+                selectedGroups: u.autoMsgSelectedGroups || [],
+                selectedChats: u.autoMsgSelectedChats || [],
+                oneShot: u.autoMsgOneShot !== false
+            };
+            try {
+                const currentText = '🚀 **Avto Xabar';
+                await safeEdit(chatId, messageId, null, { ...getAutoMessageMenu(s) }, true);
+            } catch (e) {}
             return;
         }
 
@@ -1055,6 +1104,208 @@ module.exports = (bot) => {
                 "➕ **Qo'shimcha guruh/kanal qo'shish**\n\nQuyidagi tugmalardan birini bosing yoki username/link ni to'g'ridan-to'g'ri yuboring.\nMasalan: @kanal_nomi, https://t.me/kanal, -100123456789",
                 { parse_mode: 'Markdown', ...getAutoMsgGroupPickerKeyboard() }
             );
+        }
+
+        // ============================================================
+        // GURUHLARNI TANLASH UI (rasimdagidek, pagination)
+        // ============================================================
+        if (data === "automsg_select_groups") {
+            const { getAutoMsgGroupSelectKeyboard } = require('../utils/helpers');
+            const { getAutoMsgGroupList, autoMsgDialogCache } = require('../services/userbot');
+            try {
+                await safeAnswer({ text: '👥 Guruhlar ro\'yxati yuklanmoqda...', show_alert: false });
+                const groups = await getAutoMsgGroupList(chatId, bot);
+                if (!groups || groups.length === 0) {
+                    return await safeAnswer({ text: '❌ Sizda hech qanday guruh topilmadi.', show_alert: true });
+                }
+                const dbSel = user.autoMsgSelectedGroups || [];
+                const selectedIds = new Set(dbSel.map(s => String(s.id || s)).filter(Boolean));
+                if (!global._autoMsgSelGroupState) global._autoMsgSelGroupState = {};
+                global._autoMsgSelGroupState[chatId] = { selected: selectedIds, page: 0, list: groups };
+                const text = `📊 **Guruhlarni tanlash**\n\n📍 Jami guruhlar: ${groups.length}\n✅ Tanlangan: ${selectedIds.size}\n\nXabar yubormoqchi bo'lgan guruhlaringizni tanlang:`;
+                try {
+                    await safeEdit(chatId, messageId, text, { parse_mode: 'Markdown', ...getAutoMsgGroupSelectKeyboard(groups, selectedIds, 0) });
+                } catch (e) {
+                    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown', ...getAutoMsgGroupSelectKeyboard(groups, selectedIds, 0) });
+                }
+                return;
+            } catch (e) {
+                autoMsgDialogCache.delete(chatId); // cacheni tozalash
+                return await safeAnswer({ text: '❌ ' + (e.message || 'Xatolik'), show_alert: true });
+            }
+        }
+
+        if (data === "automsg_select_chats") {
+            const { getAutoMsgChatSelectKeyboard } = require('../utils/helpers');
+            const { getAutoMsgChatList, autoMsgDialogCache } = require('../services/userbot');
+            try {
+                await safeAnswer({ text: '💬 Chatlar ro\'yxati yuklanmoqda...', show_alert: false });
+                const chats = await getAutoMsgChatList(chatId, bot);
+                if (!chats || chats.length === 0) {
+                    return await safeAnswer({ text: '❌ Sizda hech qanday shaxsiy chat topilmadi.', show_alert: true });
+                }
+                const dbSel = user.autoMsgSelectedChats || [];
+                const selectedIds = new Set(dbSel.map(s => String(s.id || s)).filter(Boolean));
+                if (!global._autoMsgSelChatState) global._autoMsgSelChatState = {};
+                global._autoMsgSelChatState[chatId] = { selected: selectedIds, page: 0, list: chats };
+                const text = `💬 **Shaxsiy chatlarni tanlash**\n\n📍 Jami: ${chats.length} ta chat\n✅ Tanlangan: ${selectedIds.size}\n\nXabar yubormoqchi bo'lgan chatlarni tanlang:`;
+                try {
+                    await safeEdit(chatId, messageId, text, { parse_mode: 'Markdown', ...getAutoMsgChatSelectKeyboard(chats, selectedIds, 0) });
+                } catch (e) {
+                    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown', ...getAutoMsgChatSelectKeyboard(chats, selectedIds, 0) });
+                }
+                return;
+            } catch (e) {
+                autoMsgDialogCache.delete(chatId);
+                return await safeAnswer({ text: '❌ ' + (e.message || 'Xatolik'), show_alert: true });
+            }
+        }
+
+        // Guruh tanlash -> toggle
+        if (data.startsWith("automsg_selgroup_")) {
+            const rest = data.slice("automsg_selgroup_".length);
+            const { getAutoMsgGroupSelectKeyboard } = require('../utils/helpers');
+            const st = global._autoMsgSelGroupState && global._autoMsgSelGroupState[chatId];
+            if (!st || !st.list) return await safeAnswer({ text: 'State yo\'q, qayta oching', show_alert: true });
+            // Page navigation
+            if (rest.startsWith("page_")) {
+                const pageStr = rest.slice("page_".length);
+                if (pageStr === "nop") { return await safeAnswer(); }
+                const np = parseInt(pageStr, 10);
+                if (!isNaN(np)) {
+                    st.page = np;
+                    try {
+                        await safeEdit(chatId, messageId, null, { ...getAutoMsgGroupSelectKeyboard(st.list, st.selected, st.page) }, true);
+                    } catch (e) {}
+                }
+                return await safeAnswer();
+            }
+            if (rest === "selectall") {
+                st.list.forEach(g => st.selected.add(String(g.id)));
+                await safeAnswer({ text: `✅ Hammasi tanlandi (${st.selected.size})`, show_alert: false });
+                try {
+                    await safeEdit(chatId, messageId, null, { ...getAutoMsgGroupSelectKeyboard(st.list, st.selected, st.page) }, true);
+                } catch (e) {}
+                return;
+            }
+            if (rest === "clearsel") {
+                st.selected.clear();
+                await safeAnswer({ text: '✅ Tanlov tozalandi', show_alert: false });
+                try {
+                    await safeEdit(chatId, messageId, null, { ...getAutoMsgGroupSelectKeyboard(st.list, st.selected, st.page) }, true);
+                } catch (e) {}
+                return;
+            }
+            if (rest === "save") {
+                const arr = st.list.filter(g => st.selected.has(String(g.id)));
+                const toSave = arr.map(g => ({ id: String(g.id), title: g.title || g.id, peerId: g.peerId }));
+                await User.update({
+                    autoMsgSelectedGroups: toSave,
+                    autoMsgSentIds: [],
+                    autoMsgLastSentAt: null
+                }, { where: { chatId } });
+                triggerBackup('auto_msg_groups', false);
+                delete global._autoMsgSelGroupState[chatId];
+                await safeAnswer({ text: `✅ Saqlandi! ${toSave.length} ta guruh tanlandi.`, show_alert: true });
+                // Menu ga qaytish
+                const { getAutoMessageMenu, msToIntervalLabel, destinationKeyToLabel } = require('../utils/helpers');
+                const u = await User.findOne({ where: { chatId } });
+                const s = {
+                    enabled: !!u.autoMsgEnabled,
+                    intervalMs: u.autoMsgIntervalMs ? Number(u.autoMsgIntervalMs) : null,
+                    destinations: u.autoMsgDestinations || [],
+                    savedMessage: u.autoMsgSaved || null,
+                    exceptions: u.autoMsgExceptions || [],
+                    selectedGroups: u.autoMsgSelectedGroups || [],
+                    selectedChats: u.autoMsgSelectedChats || [],
+                    oneShot: u.autoMsgOneShot !== false
+                };
+                try {
+                    const labelText = `🚀 **Avto Xabar**\n\n✅ Guruhlar saqlandi: ${toSave.length} ta`;
+                    await safeEdit(chatId, messageId, labelText, { parse_mode: 'Markdown', ...getAutoMessageMenu(s) });
+                } catch (_) {}
+                return;
+            }
+            // Default: guruh id (toggle)
+            const targetId = rest;
+            if (st.selected.has(targetId)) st.selected.delete(targetId);
+            else st.selected.add(targetId);
+            try {
+                await safeEdit(chatId, messageId, null, { ...getAutoMsgGroupSelectKeyboard(st.list, st.selected, st.page) }, true);
+            } catch (e) {}
+            return await safeAnswer();
+        }
+
+        // Chat (PM) tanlash -> toggle
+        if (data.startsWith("automsg_selchat_")) {
+            const rest = data.slice("automsg_selchat_".length);
+            const { getAutoMsgChatSelectKeyboard } = require('../utils/helpers');
+            const st = global._autoMsgSelChatState && global._autoMsgSelChatState[chatId];
+            if (!st || !st.list) return await safeAnswer({ text: 'State yo\'q, qayta oching', show_alert: true });
+            if (rest.startsWith("page_")) {
+                const pageStr = rest.slice("page_".length);
+                if (pageStr === "nop") { return await safeAnswer(); }
+                const np = parseInt(pageStr, 10);
+                if (!isNaN(np)) {
+                    st.page = np;
+                    try {
+                        await safeEdit(chatId, messageId, null, { ...getAutoMsgChatSelectKeyboard(st.list, st.selected, st.page) }, true);
+                    } catch (e) {}
+                }
+                return await safeAnswer();
+            }
+            if (rest === "selectall") {
+                st.list.forEach(c => st.selected.add(String(c.id)));
+                await safeAnswer({ text: `✅ Hammasi tanlandi (${st.selected.size})`, show_alert: false });
+                try {
+                    await safeEdit(chatId, messageId, null, { ...getAutoMsgChatSelectKeyboard(st.list, st.selected, st.page) }, true);
+                } catch (e) {}
+                return;
+            }
+            if (rest === "clearsel") {
+                st.selected.clear();
+                await safeAnswer({ text: '✅ Tanlov tozalandi', show_alert: false });
+                try {
+                    await safeEdit(chatId, messageId, null, { ...getAutoMsgChatSelectKeyboard(st.list, st.selected, st.page) }, true);
+                } catch (e) {}
+                return;
+            }
+            if (rest === "save") {
+                const arr = st.list.filter(c => st.selected.has(String(c.id)));
+                const toSave = arr.map(c => ({ id: String(c.id), title: c.title || c.id, username: c.username || '', peerId: c.peerId }));
+                await User.update({
+                    autoMsgSelectedChats: toSave,
+                    autoMsgSentIds: [],
+                    autoMsgLastSentAt: null
+                }, { where: { chatId } });
+                triggerBackup('auto_msg_chats', false);
+                delete global._autoMsgSelChatState[chatId];
+                await safeAnswer({ text: `✅ Saqlandi! ${toSave.length} ta chat tanlandi.`, show_alert: true });
+                const { getAutoMessageMenu } = require('../utils/helpers');
+                const u = await User.findOne({ where: { chatId } });
+                const s = {
+                    enabled: !!u.autoMsgEnabled,
+                    intervalMs: u.autoMsgIntervalMs ? Number(u.autoMsgIntervalMs) : null,
+                    destinations: u.autoMsgDestinations || [],
+                    savedMessage: u.autoMsgSaved || null,
+                    exceptions: u.autoMsgExceptions || [],
+                    selectedGroups: u.autoMsgSelectedGroups || [],
+                    selectedChats: u.autoMsgSelectedChats || [],
+                    oneShot: u.autoMsgOneShot !== false
+                };
+                try {
+                    const labelText = `🚀 **Avto Xabar**\n\n✅ Chatlar saqlandi: ${toSave.length} ta`;
+                    await safeEdit(chatId, messageId, labelText, { parse_mode: 'Markdown', ...getAutoMessageMenu(s) });
+                } catch (_) {}
+                return;
+            }
+            const targetId = rest;
+            if (st.selected.has(targetId)) st.selected.delete(targetId);
+            else st.selected.add(targetId);
+            try {
+                await safeEdit(chatId, messageId, null, { ...getAutoMsgChatSelectKeyboard(st.list, st.selected, st.page) }, true);
+            } catch (e) {}
+            return await safeAnswer();
         }
 
         // --- ISTISNOLAR (EXCEPTIONS) menyusi ---

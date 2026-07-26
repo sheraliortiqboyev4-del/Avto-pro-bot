@@ -2175,6 +2175,90 @@ const resolvePeerEntity = async (client, peer, opts = {}) => {
 const autoMsgSchedulers = {};
 const autoMsgCooldowns = new Map(); // `${chatId}:${peerId}` -> lastSentMs
 
+// ============================================================
+// Dialogs dan guruh/chat/kanal ro'yxatini cache qilish (UI uchun)
+// ============================================================
+const autoMsgDialogCache = new Map(); // chatId -> { groups: [...], chats: [...], cachedAt }
+const AUTO_MSG_DIALOG_CACHE_TTL = 5 * 60 * 1000; // 5 daqiqa
+
+const _ensureUserClient = async (chatId, bot) => {
+    if (userClients[chatId]) return userClients[chatId];
+    await startUserbot(chatId, bot);
+    if (!userClients[chatId]) throw new Error("Userbot ulanib bo'lmadi. Iltimos avval sessiyani kiriting.");
+    return userClients[chatId];
+};
+
+const getAutoMsgGroupList = async (chatId, bot) => {
+    const now = Date.now();
+    const cached = autoMsgDialogCache.get(chatId);
+    if (cached && (now - cached.cachedAt) < AUTO_MSG_DIALOG_CACHE_TTL && cached.groups) {
+        return cached.groups;
+    }
+    const client = await _ensureUserClient(chatId, bot);
+    const dialogs = await client.getDialogs({ limit: 500 });
+    const groups = [];
+    for (const d of dialogs || []) {
+        try {
+            const e = d.entity || d.chat;
+            if (!e) continue;
+            const className = e.className || (e.broadcast ? 'Channel' : (e.megagroup ? 'Channel' : 'Chat'));
+            const isGroup = (className === 'Chat') || (className === 'Channel' && e.megagroup === true);
+            // KANALLARNI BUTUNLAYMIZ: broadcast = true -> KANAL, HECH QACHON QO'SHILMAYDIZ
+            const isChannel = className === 'Channel' && e.broadcast === true;
+            if (isGroup && !isChannel) {
+                groups.push({
+                    id: String(e.id),
+                    title: e.title || `Guruh ${e.id}`,
+                    className: isGroup ? (className === 'Chat' ? 'Chat' : 'Channel(megagroup)') : 'Group',
+                    peerId: (className === 'Chat') ? `-${e.id}` : `-100${e.id}`
+                });
+            }
+        } catch (_) {}
+    }
+    groups.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
+    autoMsgDialogCache.set(chatId, {
+        groups,
+        chats: cached?.chats || null,
+        cachedAt: now
+    });
+    return groups;
+};
+
+const getAutoMsgChatList = async (chatId, bot) => {
+    const now = Date.now();
+    const cached = autoMsgDialogCache.get(chatId);
+    if (cached && (now - cached.cachedAt) < AUTO_MSG_DIALOG_CACHE_TTL && cached.chats) {
+        return cached.chats;
+    }
+    const client = await _ensureUserClient(chatId, bot);
+    const dialogs = await client.getDialogs({ limit: 500 });
+    const chats = [];
+    for (const d of dialogs || []) {
+        try {
+            const e = d.entity || d.chat;
+            if (!e) continue;
+            const className = e.className || (e.broadcast ? 'Channel' : (e.megagroup ? 'Channel' : 'Chat'));
+            const isUser = className === 'User' || (!e.broadcast && !e.megagroup && e.firstName != null);
+            if (isUser && !e.bot && !e.self && !e.deleted) {
+                chats.push({
+                    id: String(e.id),
+                    title: `${e.firstName || ''}${e.lastName ? ' ' + e.lastName : ''}`.trim() || `User ${e.id}`,
+                    username: e.username || '',
+                    className: 'User',
+                    peerId: String(e.id)
+                });
+            }
+        } catch (_) {}
+    }
+    chats.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
+    autoMsgDialogCache.set(chatId, {
+        groups: cached?.groups || null,
+        chats,
+        cachedAt: now
+    });
+    return chats;
+};
+
 const DEFAULT_AUTO_REPLY = "Men hozir online emasman. Tez orada siz bilan bog'lanaman.";
 
 function getAUTO_REPLY(user) {
@@ -2307,11 +2391,80 @@ const collectAutoMsgTargets = async (client, user) => {
 
     const wantsChat = includesAll || dests.includes('chat');
     const wantsGroup = includesAll || dests.includes('group');
-    const wantsChannel = includesAll || dests.includes('channel');
+    // KANALLAR BUTUNLAY OLIB TASHLANDI: hech qachon channelga yuborilmaydi
 
-    if (wantsChat || wantsGroup || wantsChannel) {
+    // ======================================
+    // 1) TANLANGAN GURUHLAR (selectedGroups) → YAGONA PRIORITETLI MANBA
+    // ======================================
+    const selGroups = Array.isArray(user.autoMsgSelectedGroups) ? user.autoMsgSelectedGroups : [];
+    if (wantsGroup && selGroups.length > 0) {
+        for (const g of selGroups) {
+            try {
+                const gid = String(g.id || '').trim();
+                if (!gid) continue;
+                if (isException(gid, g.title || '')) {
+                    console.log(`[AutoMsg] Exception (selected group) skipped: ${g.title || gid}`);
+                    continue;
+                }
+                let resolved = null;
+                try {
+                    resolved = await resolvePeerEntity(client, g.peerId || gid, { returnType: 'inputEntity' });
+                } catch (_) {
+                    let fallback = gid;
+                    if (/^\d+$/.test(gid)) fallback = `-100${gid}`;
+                    try { resolved = await resolvePeerEntity(client, fallback, { returnType: 'inputEntity' }); } catch (__) {}
+                }
+                if (resolved) {
+                    const rcn = (resolved.className || '').toString();
+                    if (rcn === 'InputPeerChannel' && (!resolved.accessHash || BigInt(resolved.accessHash) === BigInt(0))) continue;
+                    targets.push({
+                        peer: resolved,
+                        label: g.title || `Group ${gid}`,
+                        key: `sel_g_${gid}`
+                    });
+                }
+            } catch (_) {}
+        }
+    }
+
+    // ======================================
+    // 2) TANLANGAN CHATLAR (selectedChats) → YAGONA PRIORITETLI MANBA
+    // ======================================
+    const selChats = Array.isArray(user.autoMsgSelectedChats) ? user.autoMsgSelectedChats : [];
+    if (wantsChat && selChats.length > 0) {
+        for (const c of selChats) {
+            try {
+                const cid = String(c.id || '').trim();
+                if (!cid) continue;
+                if (isException(cid, c.title || '')) {
+                    console.log(`[AutoMsg] Exception (selected chat) skipped: ${c.title || cid}`);
+                    continue;
+                }
+                let resolved = null;
+                try {
+                    resolved = await resolvePeerEntity(client, c.peerId || cid, { returnType: 'inputEntity' });
+                } catch (_) {
+                    try { resolved = await resolvePeerEntity(client, cid, { returnType: 'inputEntity' }); } catch (__) {}
+                }
+                if (resolved) {
+                    const rcn = (resolved.className || '').toString();
+                    if (rcn === 'InputPeerUser' && (!resolved.accessHash || BigInt(resolved.accessHash) === BigInt(0))) continue;
+                    targets.push({
+                        peer: resolved,
+                        label: c.title || `Chat ${cid}`,
+                        key: `sel_c_${cid}`
+                    });
+                }
+            } catch (_) {}
+        }
+    }
+
+    // ======================================
+    // 3) Fallback: AGAR TANLANGAN BO'LMASA → eski dialogs usuli (kanallar olib tashlandi)
+    // ======================================
+    if (targets.length === 0 && (wantsChat || wantsGroup)) {
         try {
-            const dialogs = await client.getDialogs({ limit: 200 });
+            const dialogs = await client.getDialogs({ limit: 300 });
             for (const d of dialogs || []) {
                 try {
                     const e = d.entity || d.chat;
@@ -2320,62 +2473,52 @@ const collectAutoMsgTargets = async (client, user) => {
                     const isUser = className === 'User' || (!e.broadcast && !e.megagroup && e.firstName != null);
                     const isChannel = className === 'Channel' && e.broadcast === true;
                     const isGroup = (className === 'Chat') || (className === 'Channel' && e.megagroup === true);
-                    // BOTLARNI FILTRLASH: hech qachon botlarga avto xabar yubormang
-                    if (isUser && e.bot) continue;
-                    // O'z akkauntimizga yubormaslik
-                    if (isUser && e.self) continue;
-                    // O'chirilgan (deleted) akkauntlarni o'tkazib yubor
-                    if (isUser && e.deleted) continue;
 
-                    // ISTISNO: agar bu exception listida bo'lsa -> skip
+                    if (isChannel) continue; // KANALLARNI BUTUNLAYMIZ
+                    if (isUser && (e.bot || e.self || e.deleted)) continue;
+
                     if (e.id) {
                         const eidStr = String(e.id);
                         const etitle = isUser ? (e.username || (e.firstName || '')) : (e.title || '');
-                        if (isException(eidStr, etitle)) {
-                            console.log(`[AutoMsg] Exception target skipped: ${etitle || eidStr}`);
-                            continue;
-                        }
+                        if (isException(eidStr, etitle)) continue;
                     }
 
                     if (wantsChat && isUser) {
-                        targets.push({ peer: e, label: e.username || (e.firstName || 'User'), key: `u_${e.id}` });
+                        targets.push({ peer: e, label: e.username || (e.firstName || 'User'), key: `fb_u_${e.id}` });
                     } else if (wantsGroup && isGroup) {
-                        targets.push({ peer: e, label: e.title || 'Group', key: `g_${e.id}` });
-                    } else if (wantsChannel && isChannel) {
-                        targets.push({ peer: e, label: e.title || 'Channel', key: `c_${e.id}` });
+                        targets.push({ peer: e, label: e.title || 'Group', key: `fb_g_${e.id}` });
                     }
-                } catch (ee) { /* skip */ }
+                } catch (ee) {}
             }
         } catch (e) {
-            console.error('[AutoMsg] Dialogs olishda xato:', e.message);
+            console.error('[AutoMsg] Dialogs fallback xato:', e.message);
         }
     }
 
-    // Custom targets
+    // ======================================
+    // 4) Custom targets — kanallarni o'tkazib yubor
+    // ======================================
     const customs = user.autoMsgCustomTargets || [];
     for (const t of customs) {
         try {
             const raw = resolveAutoMsgPeerId(t.id);
             if (!raw) continue;
             try {
-                // resolvePeerEntity orqali to'liq resolve qilamiz (accessHash to'g'ri bo'lishi uchun)
                 const resolved = await resolvePeerEntity(client, raw, { returnType: 'inputEntity' });
                 if (!resolved) continue;
-                // accessHash tekshiruvi (user va channel uchun)
                 const rcn = (resolved.className || '').toString();
+                if (rcn === 'InputPeerChannel') {
+                    console.log(`[AutoMsg] Custom target skip: KANAL (${t.id})`);
+                    continue;
+                }
                 if (rcn === 'InputPeerUser' && (!resolved.accessHash || BigInt(resolved.accessHash) === BigInt(0))) continue;
-                if (rcn === 'InputPeerChannel' && (!resolved.accessHash || BigInt(resolved.accessHash) === BigInt(0))) continue;
-
-                // ISTISNO tekshiruvi: custom target ID
                 const customIdStr = (t.id || '').toString().trim();
-                const rId = resolved.userId || resolved.channelId || resolved.chatId;
+                const rId = resolved.userId || resolved.chatId;
                 const resolvedIdStr = rId != null ? String(rId) : '';
                 if (isException(customIdStr, t.title || '') || (resolvedIdStr && isException(resolvedIdStr, t.title || ''))) {
                     console.log(`[AutoMsg] Exception custom target skipped: ${t.title || customIdStr}`);
                     continue;
                 }
-
-                // BOTNI aniqlash uchun entity-ni ham olishga harakat qilamiz
                 let isBotTarget = false;
                 let tKey = 'custom_' + String(t.id);
                 try {
@@ -2386,8 +2529,7 @@ const collectAutoMsgTargets = async (client, user) => {
                 if (isBotTarget) continue;
                 targets.push({ peer: resolved, label: t.title || String(t.id), key: tKey });
             } catch (e2) {
-                // resolve qilib bo'lmagan targetni tashlab ketamiz (accessHash=0 bilan yubormaymiz)
-                console.log(`[AutoMsg] Custom target skip (resolve olinmadi): ${t.id} -> ${e2.message}`);
+                console.log(`[AutoMsg] Custom target skip: ${t.id} -> ${e2.message}`);
             }
         } catch (e) {
             console.error('[AutoMsg] Custom target resolve xato:', e.message);
@@ -2406,10 +2548,18 @@ const collectAutoMsgTargets = async (client, user) => {
 const autoMsgTick = async (chatId, bot) => {
     try {
         const user = await User.findOne({ where: { chatId } });
-        if (!user || !user.autoMsgEnabled || !user.session || !user.autoMsgIntervalMs || !user.autoMsgSaved) {
+        if (!user || !user.autoMsgEnabled || !user.session || !user.autoMsgSaved) {
             stopAutoMsgScheduler(chatId);
             return;
         }
+        const oneShot = user.autoMsgOneShot !== false;
+
+        // Bir martalik yuborishda interval kerak emas, faqat xabar va tanlanganlar yetarli
+        if (!oneShot && !user.autoMsgIntervalMs) {
+            console.log(`[AutoMsg] ${chatId}: interval rejimida lekin interval belgilanmagan`);
+            return;
+        }
+
         if (!userClients[chatId]) {
             try {
                 await startUserbot(chatId, bot);
@@ -2421,10 +2571,18 @@ const autoMsgTick = async (chatId, bot) => {
         const client = userClients[chatId];
         if (!client) return;
 
-        const interval = Number(user.autoMsgIntervalMs);
+        const interval = Number(user.autoMsgIntervalMs || 0);
         const lastSent = user.autoMsgLastSentAt ? new Date(user.autoMsgLastSentAt).getTime() : 0;
         const now = Date.now();
-        if (now - lastSent < interval - 5000) return;
+
+        // Interval rejimida interval tekshiruvi, bir martalikda esa skip
+        if (!oneShot) {
+            if (now - lastSent < interval - 5000) return;
+        }
+
+        // Bir martalik rejim: avval yuborilganlarni (autoMsgSentIds) yuklab ol
+        const sentIds = Array.isArray(user.autoMsgSentIds) ? [...user.autoMsgSentIds] : [];
+        const sentSet = new Set(sentIds.filter(Boolean));
 
         const targets = await collectAutoMsgTargets(client, user);
         if (targets.length === 0) {
@@ -2433,39 +2591,44 @@ const autoMsgTick = async (chatId, bot) => {
             return;
         }
 
-        console.log(`[AutoMsg] ${chatId}: ${targets.length} ta targetga yuborish boshlandi`);
+        console.log(`[AutoMsg] ${chatId}: ${targets.length} ta targetga (rejim: ${oneShot ? 'BIR MARTALIK' : 'INTERVAL'}) yuborish boshlandi`);
         let successCount = 0;
         let skipCount = 0;
         const errors = [];
+        const newlySent = [];
+
         for (const tg of targets) {
-            // ======================================
-            // PER-TARGET COOLDOWN (autoMsgCooldowns)
-            // Bir xil targetga interval ichida 1 martadan ko'p yubormaslik
-            // ======================================
-            const cooldownKey = `${chatId}:${tg.key || (tg.peer && (tg.peer.id != null ? String(tg.peer.id) : String(tg.peer))) || JSON.stringify(tg)}`;
-            const targetLastSent = autoMsgCooldowns.get(cooldownKey) || 0;
-            if (now - targetLastSent < interval) {
+            // Target uchun unique key (yuborilganlarni eslash)
+            const peerKey = tg.key || (tg.peer && (tg.peer.id != null ? String(tg.peer.id) : String(tg.peer))) || JSON.stringify(tg);
+            const uniqueTargetKey = peerKey;
+
+            // Bir martalik rejim: avval yuborilgan bo'lsa -> SKIP
+            if (oneShot && sentSet.has(uniqueTargetKey)) {
                 skipCount++;
                 continue;
             }
 
-            // ======================================
-            // Target peerni tekshirish va yuborishdan oldin validatsiya
-            // Entity (dialog) tipidagi peerni avval inputEntity ga aylantiramiz
-            // ======================================
+            // Interval rejimida per-target cooldown
+            if (!oneShot && interval > 0) {
+                const cooldownKey = `${chatId}:${uniqueTargetKey}`;
+                const targetLastSent = autoMsgCooldowns.get(cooldownKey) || 0;
+                if (now - targetLastSent < interval) {
+                    skipCount++;
+                    continue;
+                }
+            }
+
+            // Targetni tekshirish
             let finalPeer = tg.peer;
             try {
                 const pcn = (tg.peer.className || tg.peer.constructor?.name || '').toString();
                 if (pcn === 'User' || pcn === 'Chat' || pcn === 'Channel') {
-                    // Entity berilgan → inputEntity ga aylantirishga harakat
                     try {
                         finalPeer = await client.getInputEntity(tg.peer);
                     } catch (convErr) {
-                        // Entity → inputEntity aylantirib bo'lmadi → resolvePeerEntity bilan qayta
                         finalPeer = await resolvePeerEntity(client, tg.peer, { returnType: 'inputEntity' });
                     }
                 }
-                // accessHash tekshiruvi (agar user/channel bo'lsa)
                 const fcn = (finalPeer.className || '').toString();
                 if (fcn === 'InputPeerUser' && (!finalPeer.accessHash || BigInt(finalPeer.accessHash) === BigInt(0))) {
                     console.log(`[AutoMsg] Skip ${tg.label}: user accessHash=0`);
@@ -2485,24 +2648,48 @@ const autoMsgTick = async (chatId, bot) => {
 
             try {
                 await sendAutoMsgMessage(client, chatId, finalPeer, user.autoMsgSaved);
-                autoMsgCooldowns.set(cooldownKey, Date.now());
+                if (!oneShot) autoMsgCooldowns.set(`${chatId}:${uniqueTargetKey}`, Date.now());
+                newlySent.push(uniqueTargetKey);
                 successCount++;
             } catch (e) {
                 const em = (e.message || '').toLowerCase();
                 const msg = `${tg.label}: ${e.message}`;
                 if (em.includes('peer_id_invalid') || em.includes('input entity') || em.includes('chat not found') || em.includes('user is blocked')) {
-                    // Tiplashgan xatolarni faqat log, error emas
                     console.log(`[AutoMsg] Skip yuborish (${tg.label}): ${e.message}`);
+                    // Hato bo'lsa ham bir martalik rejimda yana qayta urinmaslik uchun qo'sh
+                    if (oneShot) newlySent.push(uniqueTargetKey);
                 } else {
                     errors.push(msg);
                     console.error(`[AutoMsg] Yuborish xato (${tg.label}):`, e.message);
                 }
             }
-            await new Promise(r => setTimeout(r, 800));
+            await new Promise(r => setTimeout(r, 700));
         }
 
-        await User.update({ autoMsgLastSentAt: new Date() }, { where: { chatId } });
-        console.log(`[AutoMsg] ${chatId}: Yuborildi ${successCount}/${targets.length}. Skip: ${skipCount}. Xatolar: ${errors.length}`);
+        // ======================================
+        // O'zgarishlarni saqlash
+        // ======================================
+        const updatePayload = { autoMsgLastSentAt: new Date() };
+        if (oneShot) {
+            const union = Array.from(new Set([...sentIds, ...newlySent]));
+            updatePayload.autoMsgSentIds = union;
+            // Bir martalik rejimda BARCHA targetlarga yuborilgan bo'lsa → avtomatik o'chir
+            const totalTargetKeys = targets.map(t => t.key || (t.peer && (t.peer.id != null ? String(t.peer.id) : String(t.peer))) || JSON.stringify(t));
+            const allDone = totalTargetKeys.every(k => union.includes(k));
+            if (allDone && successCount > 0) {
+                updatePayload.autoMsgEnabled = false;
+                console.log(`[AutoMsg] ${chatId}: Barcha targetlarga bir martalik yuborildi — o'chirildi`);
+                setTimeout(() => bot.sendMessage(chatId, "✅ **Avto Xabar (Bir martalik):** Barcha tanlangan guruh va chatlarga xabar yuborildi. Avtomatik o'chirildi.", { parse_mode: 'Markdown' }).catch(() => {}), 500);
+                stopAutoMsgScheduler(chatId);
+            }
+        }
+        try {
+            await User.update(updatePayload, { where: { chatId } });
+        } catch (dbErr) {
+            console.error(`[AutoMsg] ${chatId} DB save xato:`, dbErr.message);
+        }
+
+        console.log(`[AutoMsg] ${chatId}: Yuborildi ${successCount}/${targets.length}. Skip: ${skipCount}. Xatolar: ${errors.length}${oneShot ? ' (BIR MARTALIK)' : ''}`);
 
         if (successCount === 0 && errors.length > 0 && skipCount === 0) {
             const errSample = errors.slice(0, 3).join('\n');
@@ -3216,5 +3403,6 @@ module.exports = {
     userClients, avtoAlmazStates, utagStates, reklamaStates, reydSessions, autoMsgSchedulers,
     startUserbot, blockExpiredUser, initAuth, handleAuthStep, resendAuthCode, scrapeUsers,
     startReyd, startReklama, startAutoTag, loadAllStates,
-    startAutoMsgScheduler, stopAutoMsgScheduler
+    startAutoMsgScheduler, stopAutoMsgScheduler,
+    getAutoMsgGroupList, getAutoMsgChatList, autoMsgDialogCache
 };

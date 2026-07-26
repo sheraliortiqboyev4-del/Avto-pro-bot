@@ -151,6 +151,22 @@ const User = sequelize.define('User', {
     autoMsgExceptions: {
         type: DataTypes.JSON,
         defaultValue: []
+    },
+    autoMsgSelectedGroups: {
+        type: DataTypes.JSON,
+        defaultValue: []
+    },
+    autoMsgSelectedChats: {
+        type: DataTypes.JSON,
+        defaultValue: []
+    },
+    autoMsgOneShot: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true
+    },
+    autoMsgSentIds: {
+        type: DataTypes.JSON,
+        defaultValue: []
     }
 }, {
     tableName: 'users',

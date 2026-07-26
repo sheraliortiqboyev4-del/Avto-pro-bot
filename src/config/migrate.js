@@ -17,7 +17,11 @@ const USER_COLUMNS = {
     autoReplyMessage: { type: DataTypes.TEXT, allowNull: true },
     autoReplyEntities: { type: DataTypes.JSON, allowNull: true },
     autoMsgLastSentAt: { type: DataTypes.DATE, allowNull: true },
-    autoMsgExceptions: { type: DataTypes.JSON, allowNull: true }
+    autoMsgExceptions: { type: DataTypes.JSON, allowNull: true },
+    autoMsgSelectedGroups: { type: DataTypes.JSON, allowNull: true },
+    autoMsgSelectedChats: { type: DataTypes.JSON, allowNull: true },
+    autoMsgOneShot: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    autoMsgSentIds: { type: DataTypes.JSON, allowNull: true }
 };
 
 const migrateUsersTable = async () => {

@@ -703,11 +703,159 @@ const AUTO_MSG_INTERVALS = [
 ];
 
 const AUTO_MSG_DESTINATIONS = [
-    { label: 'Shaxsiy Chat', key: 'chat', id: 'dst_chat', icon: 'chat' },
-    { label: 'Guruhlar', key: 'group', id: 'dst_group', icon: 'group' },
-    { label: 'Kanallar', key: 'channel', id: 'dst_channel', icon: 'channel' },
+    { label: 'Shaxsiy Chatlar', key: 'chat', id: 'dst_chat', icon: 'chat' },
+    { label: 'Guruhlar (tanlash)', key: 'group', id: 'dst_group', icon: 'group' },
     { label: 'Barchasi', key: 'all', id: 'dst_all', icon: 'stars' },
 ];
+
+const AUTO_MSG_GROUP_PAGE_SIZE = 10;
+
+// ============================================================
+// Guruhlarni paginated tanlash klaviaturasi
+// groups: [{ id, title }] 
+// selectedIds: Set of string IDs
+// page: 0-based
+// ============================================================
+function getAutoMsgGroupSelectKeyboard(groups = [], selectedIds = new Set(), page = 0) {
+    const pageSize = AUTO_MSG_GROUP_PAGE_SIZE;
+    const totalPages = Math.max(1, Math.ceil(groups.length / pageSize));
+    const currentPage = Math.max(0, Math.min(page, totalPages - 1));
+    const start = currentPage * pageSize;
+    const slice = groups.slice(start, start + pageSize);
+    const buttons = [];
+
+    slice.forEach((g) => {
+        const sid = String(g.id);
+        const isSel = selectedIds.has(sid);
+        const label = g.title || sid;
+        const truncated = label.length > 38 ? label.slice(0, 38) + '…' : label;
+        buttons.push([{
+            text: `${isSel ? '✅' : '❌'} ${truncated}`,
+            callback_data: `automsg_selgroup_${g.id}`,
+            style: isSel ? BUTTON_STYLES.success : BUTTON_STYLES.danger
+        }]);
+    });
+
+    const navRow = [];
+    navRow.push({
+        text: `📄 ${currentPage + 1}/${totalPages}`,
+        callback_data: 'automsg_selgroup_page_nop',
+        style: BUTTON_STYLES.primary
+    });
+    if (currentPage + 1 < totalPages) {
+        navRow.push({
+            text: '➡️ Keyingi',
+            callback_data: `automsg_selgroup_page_${currentPage + 1}`,
+            style: BUTTON_STYLES.primary
+        });
+    }
+    if (currentPage > 0) {
+        navRow.unshift({
+            text: '⬅️ Oldingi',
+            callback_data: `automsg_selgroup_page_${currentPage - 1}`,
+            style: BUTTON_STYLES.primary
+        });
+    }
+    buttons.push(navRow);
+
+    buttons.push([
+        {
+            text: '✅ Barchasini tanlash',
+            callback_data: 'automsg_selgroup_selectall',
+            style: BUTTON_STYLES.success
+        },
+        {
+            text: '📂 Tanlanmagan tozalash',
+            callback_data: 'automsg_selgroup_clearsel',
+            style: BUTTON_STYLES.danger
+        }
+    ]);
+    buttons.push([
+        {
+            text: `✅ Tasdiqlash (${selectedIds.size} ta tanlandi)`,
+            callback_data: 'automsg_selgroup_save',
+            style: BUTTON_STYLES.success
+        },
+        {
+            text: '◀️ Orqaga',
+            callback_data: 'menu_automessage',
+            style: BUTTON_STYLES.primary
+        }
+    ]);
+    return { reply_markup: { inline_keyboard: buttons } };
+}
+
+// ============================================================
+// Chatlar (PM) uchun paginated tanlash
+// ============================================================
+function getAutoMsgChatSelectKeyboard(chats = [], selectedIds = new Set(), page = 0) {
+    const pageSize = AUTO_MSG_GROUP_PAGE_SIZE;
+    const totalPages = Math.max(1, Math.ceil(chats.length / pageSize));
+    const currentPage = Math.max(0, Math.min(page, totalPages - 1));
+    const start = currentPage * pageSize;
+    const slice = chats.slice(start, start + pageSize);
+    const buttons = [];
+
+    slice.forEach((c) => {
+        const sid = String(c.id);
+        const isSel = selectedIds.has(sid);
+        const label = c.title || (c.username ? '@' + c.username : sid);
+        const truncated = label.length > 38 ? label.slice(0, 38) + '…' : label;
+        buttons.push([{
+            text: `${isSel ? '✅' : '❌'} ${truncated}`,
+            callback_data: `automsg_selchat_${c.id}`,
+            style: isSel ? BUTTON_STYLES.success : BUTTON_STYLES.danger
+        }]);
+    });
+
+    const navRow = [];
+    navRow.push({
+        text: `📄 ${currentPage + 1}/${totalPages}`,
+        callback_data: 'automsg_selchat_page_nop',
+        style: BUTTON_STYLES.primary
+    });
+    if (currentPage + 1 < totalPages) {
+        navRow.push({
+            text: '➡️ Keyingi',
+            callback_data: `automsg_selchat_page_${currentPage + 1}`,
+            style: BUTTON_STYLES.primary
+        });
+    }
+    if (currentPage > 0) {
+        navRow.unshift({
+            text: '⬅️ Oldingi',
+            callback_data: `automsg_selchat_page_${currentPage - 1}`,
+            style: BUTTON_STYLES.primary
+        });
+    }
+    buttons.push(navRow);
+
+    buttons.push([
+        {
+            text: '✅ Barchasini tanlash',
+            callback_data: 'automsg_selchat_selectall',
+            style: BUTTON_STYLES.success
+        },
+        {
+            text: '📂 Tozalash',
+            callback_data: 'automsg_selchat_clearsel',
+            style: BUTTON_STYLES.danger
+        }
+    ]);
+    buttons.push([
+        {
+            text: `✅ Tasdiqlash (${selectedIds.size} ta tanlandi)`,
+            callback_data: 'automsg_selchat_save',
+            style: BUTTON_STYLES.success
+        },
+        {
+            text: '◀️ Orqaga',
+            callback_data: 'menu_automessage',
+            style: BUTTON_STYLES.primary
+        }
+    ]);
+    return { reply_markup: { inline_keyboard: buttons } };
+}
 
 function intervalToMs(intervalId) {
     const found = AUTO_MSG_INTERVALS.find(x => x.id === intervalId);
@@ -738,6 +886,10 @@ function getAutoMessageMenu(settings = {}) {
         ? settings.destinations.map(destinationKeyToLabel).join(', ')
         : 'Belgilanmagan';
     const excCount = Array.isArray(settings.exceptions) ? settings.exceptions.length : 0;
+    const selGrCount = Array.isArray(settings.selectedGroups) ? settings.selectedGroups.length : 0;
+    const selChCount = Array.isArray(settings.selectedChats) ? settings.selectedChats.length : 0;
+    const oneShot = settings.oneShot !== false; // default true
+    const modeLabel = oneShot ? '🎯 Bir martalik' : `🔁 ${intervalLabel} oraliqda`;
     const status = enabled ? '🟢 Yoqilgan' : '🔴 O\'chirilgan';
 
     return {
@@ -756,6 +908,12 @@ function getAutoMessageMenu(settings = {}) {
                     style: BUTTON_STYLES.primary
                 }],
                 [{
+                    text: `🔁 Rejim: ${modeLabel}`,
+                    callback_data: 'automsg_toggle_mode',
+                    icon_custom_emoji_id: oneShot ? BUTTON_EMOJI_IDS.stars : BUTTON_EMOJI_IDS.clock,
+                    style: oneShot ? BUTTON_STYLES.success : BUTTON_STYLES.primary
+                }],
+                [{
                     text: `⏰ Interval: ${intervalLabel}`,
                     callback_data: 'automsg_set_interval',
                     icon_custom_emoji_id: BUTTON_EMOJI_IDS.clock,
@@ -768,10 +926,16 @@ function getAutoMessageMenu(settings = {}) {
                     style: BUTTON_STYLES.primary
                 }],
                 [{
-                    text: '➕ Qo\'shimcha guruh/kanal qo\'shish',
-                    callback_data: 'automsg_add_target',
-                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.add,
-                    style: BUTTON_STYLES.success
+                    text: `👥 Guruxlarni tanlash (${selGrCount} ta)`,
+                    callback_data: 'automsg_select_groups',
+                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.group,
+                    style: selGrCount > 0 ? BUTTON_STYLES.success : BUTTON_STYLES.primary
+                }],
+                [{
+                    text: `💬 Chatlarni tanlash (${selChCount} ta)`,
+                    callback_data: 'automsg_select_chats',
+                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.chat,
+                    style: selChCount > 0 ? BUTTON_STYLES.success : BUTTON_STYLES.primary
                 }],
                 [{
                     text: `⛔ Istisnolar${excCount > 0 ? ` (${excCount} ta)` : ''}`,
@@ -1220,6 +1384,8 @@ module.exports = {
     getAutoMsgIntervalKeyboard,
     getAutoMsgDestKeyboard,
     getAutoMsgGroupPickerKeyboard,
+    getAutoMsgGroupSelectKeyboard,
+    getAutoMsgChatSelectKeyboard,
     getAutoMsgExceptionPickerKeyboard,
     getAutoMsgExceptionMenu,
     getAutoReplyMenu,
@@ -1228,6 +1394,7 @@ module.exports = {
     destinationKeyToLabel,
     AUTO_MSG_INTERVALS,
     AUTO_MSG_DESTINATIONS,
+    AUTO_MSG_GROUP_PAGE_SIZE,
     getAdminMenu,
     getBonusCoinRow,
     getPendingPaymentKeyboard,
