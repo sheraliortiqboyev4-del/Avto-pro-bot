@@ -27,6 +27,7 @@ const {
 } = require('../utils/helpers');
 
 const userClients = {}; 
+const userClientHandlers = {}; // chatId -> Set of attached handler keys
 const avtoAlmazStates = {}; 
 const utagStates = {}; 
 const reklamaStates = {};
@@ -64,8 +65,34 @@ const cleanupTempData = () => {
                 cleaned++;
             }
         }
+
+        // 4. AutoReply cooldown Map tozalash (1 soatdan eski yozuvlar)
+        try {
+            const AUTO_REPLY_TTL = 60 * 60 * 1000; // 1 soat
+            let arCleaned = 0;
+            for (const [key, ts] of autoReplyLastSent.entries()) {
+                if (now - ts > AUTO_REPLY_TTL) {
+                    autoReplyLastSent.delete(key);
+                    arCleaned++;
+                }
+            }
+            cleaned += arCleaned > 0 ? 1 : 0;
+        } catch (_) {}
+
+        // 5. AutoMsg cooldown Map tozalash (24 soatdan eski yozuvlar)
+        try {
+            const AUTO_MSG_TTL = 24 * 60 * 60 * 1000; // 24 soat
+            let amCleaned = 0;
+            for (const [key, ts] of autoMsgCooldowns.entries()) {
+                if (now - ts > AUTO_MSG_TTL) {
+                    autoMsgCooldowns.delete(key);
+                    amCleaned++;
+                }
+            }
+            cleaned += amCleaned > 0 ? 1 : 0;
+        } catch (_) {}
         
-        // 4. Temporary file'larni tozalash (1 soatdan eski)
+        // 6. Temporary file'larni tozalash (1 soatdan eski)
         const tempDir = path.join(process.cwd(), 'temp');
         if (fs.existsSync(tempDir)) {
             const files = fs.readdirSync(tempDir);
@@ -83,7 +110,7 @@ const cleanupTempData = () => {
             }
         }
         
-        // 5. Garbage collection (agar mavjud bo'lsa)
+        // 7. Garbage collection (agar mavjud bo'lsa)
         if (global.gc) {
             global.gc();
         }
@@ -282,11 +309,25 @@ const invalidateUserSession = async (chatId, bot, reason = 'session_invalid') =>
     }
 };
 
+const _attachHandlerOnce = (chatId, client, key, handler, event) => {
+    if (!userClientHandlers[chatId]) userClientHandlers[chatId] = new Set();
+    if (userClientHandlers[chatId].has(key)) return false;
+    try {
+        client.addEventHandler(handler, event);
+        userClientHandlers[chatId].add(key);
+        return true;
+    } catch (e) {
+        console.error(`[Handler] ${key} (${chatId}) ulash xato:`, e.message);
+        return false;
+    }
+};
+
 const startUserbot = async (chatId, sessionStr, bot) => { 
     try { 
         if (userClients[chatId]) {
             try { await userClients[chatId].disconnect(); } catch (e) {}
         }
+        userClientHandlers[chatId] = new Set();
 
         const clientOpts = getGramJsClientParams(config.authUseWss !== false, { forAuth: false });
         clientOpts.receiveUpdates = true;
@@ -328,13 +369,9 @@ const startUserbot = async (chatId, sessionStr, bot) => {
         }
 
         // --- AVTO JAVOB (AUTO REPLY) LISTENER ---
-        try {
-            client.addEventHandler(async (event) => {
-                handleAutoReplyOnMessage(client, selfId, event, chatId);
-            }, new NewMessage({}));
-        } catch (e) {
-            console.error(`[AutoReply] Listener qo'shilmadi (${chatId}):`, e.message);
-        }
+        _attachHandlerOnce(chatId, client, 'auto_reply_newmsg', async (event) => {
+            handleAutoReplyOnMessage(client, selfId, event, chatId);
+        }, new NewMessage({}));
 
         console.log("Userbot " + chatId + " uchun ishga tushdi."); 
     
@@ -354,7 +391,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
         });        
 
         // --- YANGI: XABARLARNI ESHITISH (Bot guruhda bo'lmasa ham ishlashi uchun) ---
-        client.addEventHandler(async (event) => {
+        _attachHandlerOnce(chatId, client, 'cmd_uteg_newmsg', async (event) => {
             const message = event.message;
             if (!message || !message.message) return;
 
@@ -394,14 +431,20 @@ const startUserbot = async (chatId, sessionStr, bot) => {
 
                     // 3. Akkaunt rejimini tekshirish (agar o'rnatilmagan bo'lsa)
                     if (!user.utagAccountMode) {
-                        await client.sendMessage(message.peerId, { message: "⚠️ **Avto Utag rejimi o'rnatilmagan.**\nIltimos, botga kirib rejimni tanlang (Asosiy menyu -> Avto Utag)." });
+                        try {
+                            const replyPeer = await resolvePeerEntity(client, message.peerId, { returnType: 'inputEntity' });
+                            await client.sendMessage(replyPeer, { message: "⚠️ **Avto Utag rejimi o'rnatilmagan.**\nIltimos, botga kirib rejimni tanlang (Asosiy menyu -> Avto Utag)." });
+                        } catch (_) {}
                         return;
                     }
 
                     if (message.peerId instanceof Api.PeerUser) {
-                        await client.sendMessage(message.peerId, {
-                            message: "⚠️ Utag buyruqlarini **guruh yoki kanalda** yuboring (shaxsiy chatda emas)."
-                        });
+                        try {
+                            const replyPeer = await resolvePeerEntity(client, message.peerId, { returnType: 'inputEntity' });
+                            await client.sendMessage(replyPeer, {
+                                message: "⚠️ Utag buyruqlarini **guruh yoki kanalda** yuboring (shaxsiy chatda emas)."
+                            });
+                        } catch (_) {}
                         return;
                     }
 
@@ -409,7 +452,10 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                     if (command === 'utegstop') {
                         if (utagStates[chatId]) {
                             utagStates[chatId].status = 'stopped';
-                            await client.sendMessage(message.peerId, { message: "⏹ **Utag to'xtatildi.** (/s yoki /utegStop)" });
+                            try {
+                                const replyPeer = await resolvePeerEntity(client, message.peerId, { returnType: 'inputEntity' });
+                                await client.sendMessage(replyPeer, { message: "⏹ **Utag to'xtatildi.** (/s yoki /utegStop)" });
+                            } catch (_) {}
                         }
                         return;
                     }
@@ -424,16 +470,27 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                                 user.utagAccountMode = 'main';
                                 console.log(`[Utag] Default rejim o'rnatildi (main) user ${chatId} uchun`);
                             } else {
-                                await client.sendMessage(message.peerId, { 
-                                    message: "⚠️ Foydalanuvchi topilmadi. Iltimos, botga /start buyrug'ini yuboring." 
-                                });
+                                try {
+                                    const replyPeer = await resolvePeerEntity(client, message.peerId, { returnType: 'inputEntity' });
+                                    await client.sendMessage(replyPeer, { 
+                                        message: "⚠️ Foydalanuvchi topilmadi. Iltimos, botga /start buyrug'ini yuboring." 
+                                    });
+                                } catch (_) {}
                                 return;
                             }
                         }
-                        await client.sendMessage(message.peerId, { message: "🚀 **Utag (bot so'zlari) boshlanmoqda...**" });
+                        try {
+                            const replyPeer = await resolvePeerEntity(client, message.peerId, { returnType: 'inputEntity' });
+                            await client.sendMessage(replyPeer, { message: "🚀 **Utag (bot so'zlari) boshlanmoqda...**" });
+                        } catch (_) {}
                         startAutoTag(chatId, peerStr, bot, {
                             limit: 0, mode: 'random_words', memberFilter: 'all', isCommand: true
-                        }).catch((e) => client.sendMessage(message.peerId, { message: `❌ ${e.message}` }));
+                        }).catch(async (e) => {
+                            try {
+                                const replyPeer = await resolvePeerEntity(client, message.peerId, { returnType: 'inputEntity' });
+                                await client.sendMessage(replyPeer, { message: `❌ ${e.message}` });
+                            } catch (_) {}
+                        });
                         return;
                     }
 
@@ -447,27 +504,51 @@ const startUserbot = async (chatId, sessionStr, bot) => {
                                 user.utagAccountMode = 'main';
                                 console.log(`[Utag] Default rejim o'rnatildi (main) user ${chatId} uchun`);
                             } else {
-                                await client.sendMessage(message.peerId, { 
-                                    message: "⚠️ Foydalanuvchi topilmadi. Iltimos, botga /start buyrug'ini yuboring." 
-                                });
+                                try {
+                                    const replyPeer = await resolvePeerEntity(client, message.peerId, { returnType: 'inputEntity' });
+                                    await client.sendMessage(replyPeer, { 
+                                        message: "⚠️ Foydalanuvchi topilmadi. Iltimos, botga /start buyrug'ini yuboring." 
+                                    });
+                                } catch (_) {}
                                 return;
                             }
                         }
                         const args = parts.slice(1).join(' ').trim();
                         if (args) {
-                            await client.sendMessage(message.peerId, { message: `🚀 **Utag ("${args}" bilan) boshlanmoqda...**` });
+                            try {
+                                const replyPeer = await resolvePeerEntity(client, message.peerId, { returnType: 'inputEntity' });
+                                await client.sendMessage(replyPeer, { message: `🚀 **Utag ("${args}" bilan) boshlanmoqda...**` });
+                            } catch (_) {}
                             startAutoTag(chatId, peerStr, bot, {
                                 limit: 0, mode: 'custom', tagText: args, memberFilter: 'all', isCommand: true
-                            }).catch((e) => client.sendMessage(message.peerId, { message: `❌ ${e.message}` }));
+                            }).catch(async (e) => {
+                                try {
+                                    const replyPeer = await resolvePeerEntity(client, message.peerId, { returnType: 'inputEntity' });
+                                    await client.sendMessage(replyPeer, { message: `❌ ${e.message}` });
+                                } catch (_) {}
+                            });
                         } else {
-                            await client.sendMessage(message.peerId, { message: "🚀 **Utag (faqat @) boshlanmoqda...**" });
+                            try {
+                                const replyPeer = await resolvePeerEntity(client, message.peerId, { returnType: 'inputEntity' });
+                                await client.sendMessage(replyPeer, { message: "🚀 **Utag (faqat @) boshlanmoqda...**" });
+                            } catch (_) {}
                             startAutoTag(chatId, peerStr, bot, {
                                 limit: 0, mode: 'only_mention', memberFilter: 'all', isCommand: true
-                            }).catch((e) => client.sendMessage(message.peerId, { message: `❌ ${e.message}` }));
+                            }).catch(async (e) => {
+                                try {
+                                    const replyPeer = await resolvePeerEntity(client, message.peerId, { returnType: 'inputEntity' });
+                                    await client.sendMessage(replyPeer, { message: `❌ ${e.message}` });
+                                } catch (_) {}
+                            });
                         }
                     }
                 } catch (e) {
-                    console.error(`[Userbot Command Error] ${chatId}:`, e.message);
+                    const em = (e.message || '').toLowerCase();
+                    if (!em.includes('input entity') && !em.includes('peer_id') && !em.includes('chat not found')) {
+                        console.error(`[Userbot Command Error] ${chatId}:`, e.message);
+                    } else {
+                        console.log(`[Userbot Command] (${chatId}) Peer resolve xatosi (tashlab ketildi): ${e.message}`);
+                    }
                 }
             }
         }, new NewMessage({}));
@@ -493,7 +574,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
         console.log(`✅ Userbot ulandi: ${chatId}`);
 
         // --- AVTO ALMAZ HANDLER (USER INPUT) ---
-        client.addEventHandler(async (event) => { 
+        _attachHandlerOnce(chatId, client, 'avto_almaz_newmsg', async (event) => { 
             const message = event.message; 
             if (!message) return;
 
@@ -590,7 +671,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
         }, new NewMessage({})); 
 
         // Tahrirlangan xabarlar uchun (ba'zi botlar tugmalarni tahrirlangan xabarda yuboradi)
-        client.addEventHandler(async (update) => {
+        _attachHandlerOnce(chatId, client, 'avto_almaz_editmsg', async (update) => {
             try {
                 if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
                     const message = update.message;
@@ -2003,11 +2084,21 @@ const normalizeTelegramGroupId = (linkOrId) => {
 // Umumiy Peer/Entity resolver (4+ fallback qatlam)
 // client: TelegramClient instance
 // peer: string (username, ID, t.me link) | PeerUser | PeerChat | PeerChannel | Entity object
-// opts: { forceCacheReload, returnType: 'entity' | 'inputEntity' | 'any' }
+// opts: { forceCacheReload, returnType: 'entity' | 'inputEntity' | 'any', strict: boolean }
+// strict=true & returnType=inputEntity: accessHash=0 bo'lgan peerni HECH QACHON qaytarmaydi
 // ============================================================
 const resolvePeerEntity = async (client, peer, opts = {}) => {
-    const { returnType = 'any' } = opts;
+    const { returnType = 'any', strict = true } = opts;
+    const isStrictForSend = strict && returnType === 'inputEntity';
     if (!client || peer == null) throw new Error("Client yoki peer berilmagan.");
+
+    const validateInputPeer = (inp, kind) => {
+        if (!isStrictForSend) return true;
+        if (kind === 'user' && inp.accessHash != null && BigInt(inp.accessHash) !== BigInt(0)) return true;
+        if (kind === 'channel' && inp.accessHash != null && BigInt(inp.accessHash) !== BigInt(0)) return true;
+        if (kind === 'chat') return true; // InputPeerChat da accessHash kerak emas
+        return false;
+    };
 
     // 0) Avval 1 marta dialogs cache'ni yuklash (agar hech qachon yuklanmagan bo'lsa)
     try {
@@ -2020,37 +2111,74 @@ const resolvePeerEntity = async (client, peer, opts = {}) => {
     } catch (_) {}
 
     let lastErr = null;
+    let candidate = null;
 
     // 1-urinish: getInputEntity (tez)
     try {
         const r = await client.getInputEntity(peer);
-        if (r) return (returnType === 'entity') ? (await client.getEntity(r).catch(() => r)) : r;
+        if (r) {
+            if (returnType === 'entity') {
+                return (await client.getEntity(r).catch(() => r));
+            }
+            return r;
+        }
     } catch (e) { lastErr = e; }
 
     // 2-urinish: getEntity (accessHash bilan to'liq)
     try {
         const r = await client.getEntity(peer);
-        if (r) return (returnType === 'inputEntity') ? (await client.getInputEntity(r).catch(() => r)) : r;
+        if (r) {
+            if (returnType === 'inputEntity') {
+                const inp = await client.getInputEntity(r).catch(() => null);
+                if (inp) return inp;
+            }
+            return r;
+        }
     } catch (e) { lastErr = e; }
 
     // 3-urinish: Agar string/ID bo'lsa → manual InputPeer/InputChannel/InputChat hosil qilish
     if (typeof peer === 'string' || (typeof peer === 'number' && !isNaN(peer))) {
         const s = String(peer).trim();
         try {
-            // Foydalanuvchi ID: musbat raqam (yoki -100siz)
             if (/^\d+$/.test(s)) {
                 const id = BigInt(s);
                 const inp = new Api.InputPeerUser({ userId: id, accessHash: BigInt(0) });
-                return (returnType === 'entity') ? (await client.getEntity(inp).catch(() => inp)) : inp;
+                candidate = inp;
+                if (validateInputPeer(inp, 'user')) {
+                    return (returnType === 'entity') ? (await client.getEntity(inp).catch(() => inp)) : inp;
+                }
+                // strict rejimda: accessHash=0 → getEntity orqali aniqlashga urinib ko'ramiz
+                if (isStrictForSend) {
+                    try {
+                        const ent = await client.getEntity(inp);
+                        if (ent) {
+                            const inpValid = await client.getInputEntity(ent);
+                            if (inpValid && validateInputPeer(inpValid, 'user')) return inpValid;
+                        }
+                    } catch (e2) { lastErr = e2; }
+                }
             }
             if (/^-100\d+$/.test(s)) {
                 const id = BigInt(s.slice(4));
                 const inp = new Api.InputPeerChannel({ channelId: id, accessHash: BigInt(0) });
-                return (returnType === 'entity') ? (await client.getEntity(inp).catch(() => inp)) : inp;
+                candidate = inp; candidateKind = 'channel';
+                if (validateInputPeer(inp, 'channel')) {
+                    return (returnType === 'entity') ? (await client.getEntity(inp).catch(() => inp)) : inp;
+                }
+                if (isStrictForSend) {
+                    try {
+                        const ent = await client.getEntity(inp);
+                        if (ent) {
+                            const inpValid = await client.getInputEntity(ent);
+                            if (inpValid && validateInputPeer(inpValid, 'channel')) return inpValid;
+                        }
+                    } catch (e2) { lastErr = e2; }
+                }
             }
             if (/^-\d+$/.test(s)) {
                 const id = BigInt(s.slice(1));
                 const inp = new Api.InputPeerChat({ chatId: id });
+                candidate = inp;
                 return (returnType === 'entity') ? (await client.getEntity(inp).catch(() => inp)) : inp;
             }
         } catch (e) { lastErr = e; }
@@ -2061,15 +2189,48 @@ const resolvePeerEntity = async (client, peer, opts = {}) => {
         try {
             const cn = peer.className;
             if (cn === 'PeerUser' && peer.userId != null) {
-                const inp = new Api.InputPeerUser({ userId: BigInt(peer.userId), accessHash: BigInt(peer.accessHash || 0) });
-                return (returnType === 'entity') ? (await client.getEntity(inp).catch(() => inp)) : inp;
+                const hasAccessHash = peer.accessHash != null && BigInt(peer.accessHash) !== BigInt(0);
+                const inp = new Api.InputPeerUser({
+                    userId: BigInt(peer.userId),
+                    accessHash: hasAccessHash ? BigInt(peer.accessHash) : BigInt(0)
+                });
+                candidate = inp;
+                if (validateInputPeer(inp, 'user')) {
+                    return (returnType === 'entity') ? (await client.getEntity(inp).catch(() => inp)) : inp;
+                }
+                if (isStrictForSend) {
+                    try {
+                        const ent = await client.getEntity(inp);
+                        if (ent) {
+                            const inpValid = await client.getInputEntity(ent);
+                            if (inpValid && validateInputPeer(inpValid, 'user')) return inpValid;
+                        }
+                    } catch (e2) { lastErr = e2; }
+                }
             }
             if (cn === 'PeerChannel' && peer.channelId != null) {
-                const inp = new Api.InputPeerChannel({ channelId: BigInt(peer.channelId), accessHash: BigInt(peer.accessHash || 0) });
-                return (returnType === 'entity') ? (await client.getEntity(inp).catch(() => inp)) : inp;
+                const hasAccessHash = peer.accessHash != null && BigInt(peer.accessHash) !== BigInt(0);
+                const inp = new Api.InputPeerChannel({
+                    channelId: BigInt(peer.channelId),
+                    accessHash: hasAccessHash ? BigInt(peer.accessHash) : BigInt(0)
+                });
+                candidate = inp; candidateKind = 'channel';
+                if (validateInputPeer(inp, 'channel')) {
+                    return (returnType === 'entity') ? (await client.getEntity(inp).catch(() => inp)) : inp;
+                }
+                if (isStrictForSend) {
+                    try {
+                        const ent = await client.getEntity(inp);
+                        if (ent) {
+                            const inpValid = await client.getInputEntity(ent);
+                            if (inpValid && validateInputPeer(inpValid, 'channel')) return inpValid;
+                        }
+                    } catch (e2) { lastErr = e2; }
+                }
             }
             if (cn === 'PeerChat' && peer.chatId != null) {
                 const inp = new Api.InputPeerChat({ chatId: BigInt(peer.chatId) });
+                candidate = inp;
                 return (returnType === 'entity') ? (await client.getEntity(inp).catch(() => inp)) : inp;
             }
         } catch (e) { lastErr = e; }
@@ -2079,8 +2240,18 @@ const resolvePeerEntity = async (client, peer, opts = {}) => {
     try {
         await client.getDialogs({ limit: 200 }).catch(() => {});
         const r = await client.getInputEntity(peer);
-        if (r) return (returnType === 'entity') ? (await client.getEntity(r).catch(() => r)) : r;
+        if (r) {
+            if (returnType === 'entity') {
+                return (await client.getEntity(r).catch(() => r));
+            }
+            return r;
+        }
     } catch (e) { lastErr = e; }
+
+    // Oxirgi fallback: strict emas va candidate bor bo'lsa uni qaytar (entity/any uchun)
+    if (!isStrictForSend && candidate) {
+        return (returnType === 'entity') ? candidate : candidate;
+    }
 
     throw lastErr || new Error(`Peer ni topib bo'lmadi: ${JSON.stringify(peer)}`);
 };
@@ -2200,12 +2371,18 @@ const collectAutoMsgTargets = async (client, user) => {
                     const isUser = className === 'User' || (!e.broadcast && !e.megagroup && e.firstName != null);
                     const isChannel = className === 'Channel' && e.broadcast === true;
                     const isGroup = (className === 'Chat') || (className === 'Channel' && e.megagroup === true);
+                    // BOTLARNI FILTRLASH: hech qachon botlarga avto xabar yubormang
+                    if (isUser && e.bot) continue;
+                    // O'z akkauntimizga yubormaslik
+                    if (isUser && e.self) continue;
+                    // O'chirilgan (deleted) akkauntlarni o'tkazib yubor
+                    if (isUser && e.deleted) continue;
                     if (wantsChat && isUser) {
-                        targets.push({ peer: e, label: e.username || (e.firstName || 'User') });
+                        targets.push({ peer: e, label: e.username || (e.firstName || 'User'), key: `u_${e.id}` });
                     } else if (wantsGroup && isGroup) {
-                        targets.push({ peer: e, label: e.title || 'Group' });
+                        targets.push({ peer: e, label: e.title || 'Group', key: `g_${e.id}` });
                     } else if (wantsChannel && isChannel) {
-                        targets.push({ peer: e, label: e.title || 'Channel' });
+                        targets.push({ peer: e, label: e.title || 'Channel', key: `c_${e.id}` });
                     }
                 } catch (ee) { /* skip */ }
             }
@@ -2220,19 +2397,27 @@ const collectAutoMsgTargets = async (client, user) => {
         try {
             const raw = resolveAutoMsgPeerId(t.id);
             if (!raw) continue;
-            if (typeof raw === 'string') {
+            try {
+                // resolvePeerEntity orqali to'liq resolve qilamiz (accessHash to'g'ri bo'lishi uchun)
+                const resolved = await resolvePeerEntity(client, raw, { returnType: 'inputEntity' });
+                if (!resolved) continue;
+                // accessHash tekshiruvi (user va channel uchun)
+                const rcn = (resolved.className || '').toString();
+                if (rcn === 'InputPeerUser' && (!resolved.accessHash || BigInt(resolved.accessHash) === BigInt(0))) continue;
+                if (rcn === 'InputPeerChannel' && (!resolved.accessHash || BigInt(resolved.accessHash) === BigInt(0))) continue;
+                // BOTNI aniqlash uchun entity-ni ham olishga harakat qilamiz
+                let isBotTarget = false;
+                let tKey = 'custom_' + String(t.id);
                 try {
-                    const ent = await client.getEntity(raw);
-                    targets.push({ peer: ent, label: t.title || raw || 'Custom' });
-                } catch (e2) {
-                    targets.push({ peer: raw, label: t.title || raw || 'Custom' });
-                }
-            } else if (raw.className === 'channel') {
-                targets.push({ peer: new Api.InputPeerChannel({ channelId: raw.id, accessHash: BigInt(0) }), label: t.title || String(raw.id) });
-            } else if (raw.className === 'chat') {
-                targets.push({ peer: new Api.InputPeerChat({ chatId: raw.id }), label: t.title || String(raw.id) });
-            } else if (raw.className === 'user') {
-                targets.push({ peer: new Api.InputPeerUser({ userId: raw.id, accessHash: BigInt(0) }), label: t.title || String(raw.id) });
+                    const ent = await client.getEntity(resolved);
+                    if (ent && ent.bot) isBotTarget = true;
+                    if (ent && ent.id) tKey = `c_${rcn}_${ent.id}`;
+                } catch (_) {}
+                if (isBotTarget) continue;
+                targets.push({ peer: resolved, label: t.title || String(t.id), key: tKey });
+            } catch (e2) {
+                // resolve qilib bo'lmagan targetni tashlab ketamiz (accessHash=0 bilan yubormaymiz)
+                console.log(`[AutoMsg] Custom target skip (resolve olinmadi): ${t.id} -> ${e2.message}`);
             }
         } catch (e) {
             console.error('[AutoMsg] Custom target resolve xato:', e.message);
@@ -2241,7 +2426,7 @@ const collectAutoMsgTargets = async (client, user) => {
 
     const seen = new Set();
     return targets.filter(t => {
-        const k = (t.peer && (t.peer.id != null ? String(t.peer.id) : String(t.peer))) || JSON.stringify(t);
+        const k = t.key || (t.peer && (t.peer.id != null ? String(t.peer.id) : String(t.peer))) || JSON.stringify(t);
         if (seen.has(k)) return false;
         seen.add(k);
         return true;
@@ -2280,23 +2465,76 @@ const autoMsgTick = async (chatId, bot) => {
 
         console.log(`[AutoMsg] ${chatId}: ${targets.length} ta targetga yuborish boshlandi`);
         let successCount = 0;
+        let skipCount = 0;
         const errors = [];
         for (const tg of targets) {
+            // ======================================
+            // PER-TARGET COOLDOWN (autoMsgCooldowns)
+            // Bir xil targetga interval ichida 1 martadan ko'p yubormaslik
+            // ======================================
+            const cooldownKey = `${chatId}:${tg.key || (tg.peer && (tg.peer.id != null ? String(tg.peer.id) : String(tg.peer))) || JSON.stringify(tg)}`;
+            const targetLastSent = autoMsgCooldowns.get(cooldownKey) || 0;
+            if (now - targetLastSent < interval) {
+                skipCount++;
+                continue;
+            }
+
+            // ======================================
+            // Target peerni tekshirish va yuborishdan oldin validatsiya
+            // Entity (dialog) tipidagi peerni avval inputEntity ga aylantiramiz
+            // ======================================
+            let finalPeer = tg.peer;
             try {
-                await sendAutoMsgMessage(client, chatId, tg.peer, user.autoMsgSaved);
+                const pcn = (tg.peer.className || tg.peer.constructor?.name || '').toString();
+                if (pcn === 'User' || pcn === 'Chat' || pcn === 'Channel') {
+                    // Entity berilgan → inputEntity ga aylantirishga harakat
+                    try {
+                        finalPeer = await client.getInputEntity(tg.peer);
+                    } catch (convErr) {
+                        // Entity → inputEntity aylantirib bo'lmadi → resolvePeerEntity bilan qayta
+                        finalPeer = await resolvePeerEntity(client, tg.peer, { returnType: 'inputEntity' });
+                    }
+                }
+                // accessHash tekshiruvi (agar user/channel bo'lsa)
+                const fcn = (finalPeer.className || '').toString();
+                if (fcn === 'InputPeerUser' && (!finalPeer.accessHash || BigInt(finalPeer.accessHash) === BigInt(0))) {
+                    console.log(`[AutoMsg] Skip ${tg.label}: user accessHash=0`);
+                    skipCount++;
+                    continue;
+                }
+                if (fcn === 'InputPeerChannel' && (!finalPeer.accessHash || BigInt(finalPeer.accessHash) === BigInt(0))) {
+                    console.log(`[AutoMsg] Skip ${tg.label}: channel accessHash=0`);
+                    skipCount++;
+                    continue;
+                }
+            } catch (validateErr) {
+                console.log(`[AutoMsg] Skip ${tg.label}: validate xato -> ${validateErr.message}`);
+                skipCount++;
+                continue;
+            }
+
+            try {
+                await sendAutoMsgMessage(client, chatId, finalPeer, user.autoMsgSaved);
+                autoMsgCooldowns.set(cooldownKey, Date.now());
                 successCount++;
             } catch (e) {
+                const em = (e.message || '').toLowerCase();
                 const msg = `${tg.label}: ${e.message}`;
-                errors.push(msg);
-                console.error(`[AutoMsg] Yuborish xato (${tg.label}):`, e.message);
+                if (em.includes('peer_id_invalid') || em.includes('input entity') || em.includes('chat not found') || em.includes('user is blocked')) {
+                    // Tiplashgan xatolarni faqat log, error emas
+                    console.log(`[AutoMsg] Skip yuborish (${tg.label}): ${e.message}`);
+                } else {
+                    errors.push(msg);
+                    console.error(`[AutoMsg] Yuborish xato (${tg.label}):`, e.message);
+                }
             }
             await new Promise(r => setTimeout(r, 800));
         }
 
         await User.update({ autoMsgLastSentAt: new Date() }, { where: { chatId } });
-        console.log(`[AutoMsg] ${chatId}: Yuborildi ${successCount}/${targets.length}. Xatolar: ${errors.length}`);
+        console.log(`[AutoMsg] ${chatId}: Yuborildi ${successCount}/${targets.length}. Skip: ${skipCount}. Xatolar: ${errors.length}`);
 
-        if (successCount === 0 && errors.length > 0) {
+        if (successCount === 0 && errors.length > 0 && skipCount === 0) {
             const errSample = errors.slice(0, 3).join('\n');
             bot.sendMessage(chatId, `⚠️ **Avto Xabar ogohlantirish:**\n\nHamma targetlarga yuborib bo'lmadi.\n\nXatolar:\n${errSample}`, { parse_mode: 'Markdown' }).catch(() => {});
         }
@@ -2425,10 +2663,12 @@ const handleAutoReplyOnMessage = async (client, selfId, event, chatId) => {
                 try {
                     targetPeer = await resolvePeerEntity(client, msg.fromId, { returnType: 'inputEntity' });
                 } catch (e2) {
-                    // 3-urinish: to'g'ridan userId asosida qurish
-                    const uid = fromIdUserId || peerUserId;
-                    if (/^\d+$/.test(uid)) {
-                        targetPeer = new Api.InputPeerUser({ userId: BigInt(uid), accessHash: BigInt(0) });
+                    // 3-urinish: forceCacheReload bilan qayta urinish
+                    try {
+                        targetPeer = await resolvePeerEntity(client, msg.fromId, { returnType: 'inputEntity', forceCacheReload: true });
+                    } catch (e3) {
+                        // HECH QACHON accessHash=0 bilan to'g'ridan yubormang — PEER_ID_INVALID bo'ladi
+                        targetPeer = null;
                     }
                 }
             } else {
@@ -2442,6 +2682,20 @@ const handleAutoReplyOnMessage = async (client, selfId, event, chatId) => {
             const tClass = (targetPeer.className || targetPeer.constructor?.name || '').toString();
             if (tClass === 'InputPeerChannel' || tClass === 'InputPeerChat' || tClass === 'InputPeerUserFromMessage') {
                 return;
+            }
+            // accessHash=0 bo'lsa → hali ham to'g'ri resolve qilinmagan, xavfsiz yuborib bo'lmaydi
+            if (tClass === 'InputPeerUser' && targetPeer.accessHash != null && BigInt(targetPeer.accessHash) === BigInt(0)) {
+                // Oxirgi harakat: dialogs cache orqali topishga urinish
+                try {
+                    const forceResolved = await resolvePeerEntity(client, targetPeer.userId.toString(), { returnType: 'inputEntity', forceCacheReload: true });
+                    if (forceResolved && forceResolved.accessHash != null && BigInt(forceResolved.accessHash) !== BigInt(0)) {
+                        targetPeer = forceResolved;
+                    } else {
+                        return;
+                    }
+                } catch (_) {
+                    return;
+                }
             }
             const tUserId = targetPeer.userId != null ? targetPeer.userId.toString() : null;
             if (tUserId) resolvedUserId = tUserId;
