@@ -16,7 +16,8 @@ const USER_COLUMNS = {
     autoReplyEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     autoReplyMessage: { type: DataTypes.TEXT, allowNull: true },
     autoReplyEntities: { type: DataTypes.JSON, allowNull: true },
-    autoMsgLastSentAt: { type: DataTypes.DATE, allowNull: true }
+    autoMsgLastSentAt: { type: DataTypes.DATE, allowNull: true },
+    autoMsgExceptions: { type: DataTypes.JSON, allowNull: true }
 };
 
 const migrateUsersTable = async () => {

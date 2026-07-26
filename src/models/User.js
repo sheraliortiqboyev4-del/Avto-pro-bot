@@ -147,6 +147,10 @@ const User = sequelize.define('User', {
         type: DataTypes.DATE,
         allowNull: true,
         defaultValue: null
+    },
+    autoMsgExceptions: {
+        type: DataTypes.JSON,
+        defaultValue: []
     }
 }, {
     tableName: 'users',

@@ -573,141 +573,8 @@ const startUserbot = async (chatId, sessionStr, bot) => {
 
         console.log(`✅ Userbot ulandi: ${chatId}`);
 
-        // --- AVTO ALMAZ HANDLER (USER INPUT) ---
-        _attachHandlerOnce(chatId, client, 'avto_almaz_newmsg', async (event) => { 
-            const message = event.message; 
-            if (!message) return;
-
-            // Real-time muddat tekshirish (faqat admin bo'lmasa) 
-            if (chatId.toString() !== config.adminId.toString()) { 
-                const user = await getUser(chatId); 
-                if (user && user.status === 'approved' && user.expireAt) { 
-                    const now = new Date(); 
-                    if (user.expireAt < now) { 
-                        console.log(`[Real-time Userbot Expiry] User ${chatId} muddati tugagan.`); 
-                        await blockExpiredUser(user, bot); 
-                        return; 
-                    } 
-                } 
-            } 
-
-            // Agar funksiya o'chirilgan bo'lsa, ishlamaydi 
-            if (avtoAlmazStates[chatId] === false) return; 
-            
-            // Faqat tugmasi bor xabarlarni tekshiramiz 
-            if (message && message.buttons && message.buttons.length > 0) { 
-                let clicked = false; 
-                
-                const rows = message.buttons; 
-                for (let i = 0; i < rows.length; i++) { 
-                    const row = rows[i]; 
-                    for (let j = 0; j < row.length; j++) { 
-                        const button = row[j]; 
-                        
-                        if (button.text) { 
-                            const btnText = button.text; 
-                            
-                            // Regex orqali istalgan miqdordagi almaz/sovg'ani/pulni aniqlash 
-                            if ( 
-                                /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || // "10 💎 olish", "100 💵 olish" 
-                                btnText === 'olish' || 
-                                btnText === 'клик' || 
-                                btnText === 'click' || 
-                                btnText === 'Click' || 
-                                btnText === 'Bosing' || 
-                                btnText === 'bosing' ||
-                                btnText == '💎  ta olmos olish' ||
-                                btnText == '🎁 olish' ,
-                                btnText == '🎁 Olish' ,
-                                btnText == 'Olish'
-
-                             ) { 
-                                console.log("[" + chatId + "] Tugma topildi (Dynamic): " + btnText); 
-                                try { 
-                                    // Tugmani darhol bosamiz (await kutmasdan, parallel) 
-                                    message.click(i, j).then(async () => { 
-                                        console.log("[" + chatId + "] Tugma bosildi!"); 
-                                        
-                                        // Statistikani ham parallel yangilaymiz 
-                                        updateStats(chatId).catch(err => console.error("Stats update error:", err)); 
-
-                                        // Xabar yuborish (Non-blocking) 
-                                        try { 
-                                            const user = await getUser(chatId); 
-                                            const totalClicks = user ? (user.clicks + 1) : 1; // +1 chunki updateStats parallel ketyapti 
-
-                                            let chatTitle = "Noma'lum guruh"; 
-                                            try { 
-                                                const chat = await message.getChat(); 
-                                                chatTitle = chat.title || chat.firstName || "Guruh"; 
-                                            } catch (e) {} 
-
-                                            // Xabar turini aniqlash 
-                                            let rewardText = "1 almaz olindi 💎"; 
-                                            if (btnText.includes('💵')) { 
-                                                rewardText = "Pul olindi 💵"; 
-                                            } 
-
-                                            bot.sendMessage(chatId, "💎 **Avto Almaz:** " + rewardText + "\n" + chatTitle + "\n\nJami: " + totalClicks + " ta", { parse_mode: "Markdown" }); 
-                                        } catch (e) { 
-                                            console.error("Xabar yuborishda xatolik:", e); 
-                                        } 
-
-                                    }).catch(err => { 
-                                        console.error("Tugmani bosishda xatolik:", err); 
-                                    }); 
-                                    
-                                    clicked = true; 
-                                    break; 
-                                } catch (err) { 
-                                    console.error("Tugmani bosishda xatolik:", err); 
-                                } 
-                            } 
-                        } 
-                    } 
-                    if (clicked) break; 
-                } 
-            } 
-        }, new NewMessage({})); 
-
-        // Tahrirlangan xabarlar uchun (ba'zi botlar tugmalarni tahrirlangan xabarda yuboradi)
-        _attachHandlerOnce(chatId, client, 'avto_almaz_editmsg', async (update) => {
-            try {
-                if (update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage) {
-                    const message = update.message;
-                    if (message && message.buttons && message.buttons.length > 0) {
-                        // O'sha mantiqni tahrirlangan xabarlar uchun ham qo'llaymiz
-                        let clicked = false;
-                        const rows = message.buttons;
-                        for (let i = 0; i < rows.length; i++) {
-                            const row = rows[i];
-                            for (let j = 0; j < row.length; j++) {
-                                const button = row[j];
-                                if (button.text) {
-                                    const btnText = button.text;
-                                    if ( 
-                                        /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || 
-                                        btnText === 'olish' || 
-                                        btnText === 'клик' || 
-                                        btnText === 'click' || 
-                                        btnText === 'Click' || 
-                                        btnText === 'Bosing' || 
-                                        btnText === 'bosing' ||
-                                        btnText == '💎  ta olmos olish' ||
-                                        btnText == '🎁 olish'
-                                     ) {
-                                        message.click(i, j).catch(() => {});
-                                        clicked = true;
-                                        break;
-                                    }
-                                }
-                            }
-                            if (clicked) break;
-                        }
-                    }
-                }
-            } catch (e) {}
-        });
+        // --- AVTO ALMAZ HANDLERLARI (BIR MARKAZDAN: attachAlmazHandlers) ---
+        attachAlmazHandlers(client, chatId, bot);
 
     } catch (e) { console.error(`Userbot xatosi (${chatId}):`, e.message); } 
 }; 
@@ -833,59 +700,105 @@ const getCodeDeliveryHint = (isCodeViaApp, sentCode) => {
 };
 
 const attachAlmazHandlers = (client, chatId, bot) => {
-    client.addEventHandler(async (event) => {
+    // ============================================================
+    // YAGONA AVTO ALMAZ MATCHER (btnText ni normalize qiladi)
+    // ============================================================
+    const _matchAlmazButton = (btnText) => {
+        if (!btnText || typeof btnText !== 'string') return false;
+        const t = btnText.trim();
+        const tl = t.toLowerCase();
+        // 1. Son + emoji + "olish" formati (regex)
+        if (/^\d+\s*[💎🎁💵💰🪙].*(olish|ol|взять|take|get)$/iu.test(t)) return true;
+        // 2. Oddiy kalit so'zlar
+        const keywords = [
+            'olish', 'ol', 'взять', 'взят', 'клик', 'кликни',
+            'click', 'clic', 'bosing', 'bos', 'нажми', 'нажать', 'press',
+            '💎 1 ta olmos olish', '💎 1 та олмос олиш', '1🎁 olish', '🎁 olish', '🎁 Olish',
+            'Olish', 'OLISH', 'ОЛИШ'
+        ];
+        for (const k of keywords) {
+            if (tl === k.toLowerCase()) return true;
+        }
+        // 3. Qisqa formalar (bosish uchun)
+        if (['💎', '🎁', '💵', '🪙', '💰'].includes(t)) return true;
+        return false;
+    };
+
+    // --- Yangi xabarlar uchun handler ---
+    _attachHandlerOnce(chatId, client, 'avto_almaz_newmsg_v2', async (event) => {
         const message = event.message;
         if (!message) return;
         if (chatId.toString() !== config.adminId.toString()) {
-            const user = await getUser(chatId);
-            if (user?.status === 'approved' && user.expireAt && user.expireAt < new Date()) {
-                await blockExpiredUser(user, bot);
-                return;
-            }
+            try {
+                const user = await getUser(chatId);
+                if (user?.status === 'approved' && user.expireAt && user.expireAt < new Date()) {
+                    await blockExpiredUser(user, bot);
+                    return;
+                }
+            } catch (_) {}
         }
         if (avtoAlmazStates[chatId] === false) return;
-        if (!message.buttons?.length) return;
+        if (!message.buttons || !message.buttons.length) return;
+
         for (let i = 0; i < message.buttons.length; i++) {
             const row = message.buttons[i];
             for (let j = 0; j < row.length; j++) {
-                const btnText = row[j]?.text;
-                if (!btnText) continue;
-                if (/^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || ['olish', 'клик', 'click', 'Click', 'Bosing', 'bosing'].includes(btnText)) {
+                const btn = row[j];
+                const btnText = btn?.text;
+                if (!_matchAlmazButton(btnText)) continue;
+                // Tugma topildi -> bosishga urinish
+                console.log(`[Avto Almaz] (${chatId}) Tugma topildi: "${btnText}" -> bosmoqda (row=${i}, col=${j})`);
+                try {
                     message.click(i, j).then(async () => {
-                        updateStats(chatId).catch(() => {});
-                        const u = await getUser(chatId);
-                        const totalClicks = u ? u.clicks + 1 : 1;
-                        let chatTitle = "Guruh";
+                        console.log(`[Avto Almaz] (${chatId}) Tugma muvaffaqiyatli bosildi!`);
+                        try { updateStats(chatId).catch(() => {}); } catch (_) {}
                         try {
-                            const chat = await message.getChat();
-                            chatTitle = chat.title || chat.firstName || "Guruh";
-                        } catch (e) {}
-                        const rewardText = btnText.includes('💵') ? "Pul olindi 💵" : "1 almaz olindi 💎";
-                        bot.sendMessage(chatId, "💎 **Avto Almaz:** " + rewardText + "\n" + chatTitle + "\n\nJami: " + totalClicks + " ta", { parse_mode: "Markdown" });
-                    }).catch(() => {});
-                    return;
+                            const u = await getUser(chatId);
+                            const totalClicks = u ? (u.clicks || 0) + 1 : 1;
+                            let chatTitle = "Guruh";
+                            try {
+                                const chat = await message.getChat();
+                                chatTitle = chat.title || chat.firstName || "Guruh";
+                            } catch (e) {}
+                            const rewardText = (btnText || '').includes('💵') ? "Pul olindi 💵" : "1 almaz olindi 💎";
+                            bot.sendMessage(chatId, "💎 **Avto Almaz:** " + rewardText + "\n" + chatTitle + "\n\nJami: " + totalClicks + " ta", { parse_mode: "Markdown" }).catch(() => {});
+                        } catch (inner) {
+                            console.error(`[Avto Almaz] (${chatId}) Xabar yuborish xatosi:`, inner.message);
+                        }
+                    }).catch((err) => {
+                        console.error(`[Avto Almaz] (${chatId}) Tugmani bosish xatosi:`, err.message || String(err));
+                    });
+                    return; // Bir xabarda bir dona tugmani bosing
+                } catch (outerErr) {
+                    console.error(`[Avto Almaz] (${chatId}) Click chaqirish xatosi:`, outerErr.message);
                 }
             }
         }
     }, new NewMessage({}));
 
-    client.addEventHandler(async (update) => {
-        if (!(update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage)) return;
-        const message = update.message;
-        if (!message?.buttons?.length) return;
-        for (let i = 0; i < message.buttons.length; i++) {
-            const row = message.buttons[i];
-            for (let j = 0; j < row.length; j++) {
-                const btnText = row[j]?.text;
-                if (!btnText) continue;
-                if (
-                    /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) ||
-                    ['olish', 'клик', 'click', 'Click', 'Bosing', 'bosing', '💎 1 ta olmos olish', '1🎁 olish'].includes(btnText)
-                ) {
-                    message.click(i, j).catch(() => {});
+    // --- Tahrirlangan xabarlar uchun handler ---
+    _attachHandlerOnce(chatId, client, 'avto_almaz_editmsg_v2', async (update) => {
+        try {
+            if (!(update instanceof Api.UpdateEditMessage || update instanceof Api.UpdateEditChannelMessage)) return;
+            const message = update.message;
+            if (!message || !message.buttons || !message.buttons.length) return;
+            if (avtoAlmazStates[chatId] === false) return;
+            for (let i = 0; i < message.buttons.length; i++) {
+                const row = message.buttons[i];
+                for (let j = 0; j < row.length; j++) {
+                    const btn = row[j];
+                    if (!_matchAlmazButton(btn?.text)) continue;
+                    console.log(`[Avto Almaz] (${chatId}) Edit xabarida tugma topildi: "${btn.text}" -> bosmoqda`);
+                    message.click(i, j).then(() => {
+                        console.log(`[Avto Almaz] (${chatId}) Edit tugma bosildi!`);
+                    }).catch((err) => {
+                        console.error(`[Avto Almaz] (${chatId}) Edit click xatosi:`, err.message);
+                    });
                     return;
                 }
             }
+        } catch (e) {
+            console.error(`[Avto Almaz] (${chatId}) Edit handler xatosi:`, e.message);
         }
     });
 };
@@ -2356,6 +2269,42 @@ const collectAutoMsgTargets = async (client, user) => {
     const dests = (user.autoMsgDestinations || []).map(d => String(d).toLowerCase());
     const includesAll = dests.includes('all');
 
+    // ======================================
+    // ISTISNOLAR (EXCEPTIONS) - ID larni Set'ga yig'ish
+    // ======================================
+    const exceptions = Array.isArray(user.autoMsgExceptions) ? user.autoMsgExceptions : [];
+    const excSet = new Set();
+    for (const ex of exceptions) {
+        if (!ex || !ex.id) continue;
+        const excId = String(ex.id).trim();
+        excSet.add(excId);
+        // Format variantlarini ham qo'shish
+        if (/^\d+$/.test(excId)) {
+            excSet.add(`-${excId}`);
+            excSet.add(`-100${excId}`);
+        } else if (/^-\d+$/.test(excId)) {
+            excSet.add(excId.replace(/^-/, ''));
+            if (excId.startsWith('-100')) excSet.add(excId.replace(/^-100/, '-'));
+        }
+        if (ex.title) excSet.add(String(ex.title).toLowerCase());
+    }
+    const isException = (id, title = '') => {
+        if (!id) return false;
+        const sId = String(id).trim();
+        if (excSet.has(sId)) return true;
+        if (/^\d+$/.test(sId)) {
+            if (excSet.has(`-${sId}`)) return true;
+            if (excSet.has(`-100${sId}`)) return true;
+        } else if (/^-\d+$/.test(sId)) {
+            if (excSet.has(sId.replace(/^-/, ''))) return true;
+        }
+        if (title) {
+            const tl = String(title).toLowerCase().trim();
+            if (tl && excSet.has(tl)) return true;
+        }
+        return false;
+    };
+
     const wantsChat = includesAll || dests.includes('chat');
     const wantsGroup = includesAll || dests.includes('group');
     const wantsChannel = includesAll || dests.includes('channel');
@@ -2377,6 +2326,17 @@ const collectAutoMsgTargets = async (client, user) => {
                     if (isUser && e.self) continue;
                     // O'chirilgan (deleted) akkauntlarni o'tkazib yubor
                     if (isUser && e.deleted) continue;
+
+                    // ISTISNO: agar bu exception listida bo'lsa -> skip
+                    if (e.id) {
+                        const eidStr = String(e.id);
+                        const etitle = isUser ? (e.username || (e.firstName || '')) : (e.title || '');
+                        if (isException(eidStr, etitle)) {
+                            console.log(`[AutoMsg] Exception target skipped: ${etitle || eidStr}`);
+                            continue;
+                        }
+                    }
+
                     if (wantsChat && isUser) {
                         targets.push({ peer: e, label: e.username || (e.firstName || 'User'), key: `u_${e.id}` });
                     } else if (wantsGroup && isGroup) {
@@ -2405,6 +2365,16 @@ const collectAutoMsgTargets = async (client, user) => {
                 const rcn = (resolved.className || '').toString();
                 if (rcn === 'InputPeerUser' && (!resolved.accessHash || BigInt(resolved.accessHash) === BigInt(0))) continue;
                 if (rcn === 'InputPeerChannel' && (!resolved.accessHash || BigInt(resolved.accessHash) === BigInt(0))) continue;
+
+                // ISTISNO tekshiruvi: custom target ID
+                const customIdStr = (t.id || '').toString().trim();
+                const rId = resolved.userId || resolved.channelId || resolved.chatId;
+                const resolvedIdStr = rId != null ? String(rId) : '';
+                if (isException(customIdStr, t.title || '') || (resolvedIdStr && isException(resolvedIdStr, t.title || ''))) {
+                    console.log(`[AutoMsg] Exception custom target skipped: ${t.title || customIdStr}`);
+                    continue;
+                }
+
                 // BOTNI aniqlash uchun entity-ni ham olishga harakat qilamiz
                 let isBotTarget = false;
                 let tKey = 'custom_' + String(t.id);

@@ -737,6 +737,7 @@ function getAutoMessageMenu(settings = {}) {
     const destLabel = settings.destinations && settings.destinations.length > 0
         ? settings.destinations.map(destinationKeyToLabel).join(', ')
         : 'Belgilanmagan';
+    const excCount = Array.isArray(settings.exceptions) ? settings.exceptions.length : 0;
     const status = enabled ? '🟢 Yoqilgan' : '🔴 O\'chirilgan';
 
     return {
@@ -773,6 +774,12 @@ function getAutoMessageMenu(settings = {}) {
                     style: BUTTON_STYLES.success
                 }],
                 [{
+                    text: `⛔ Istisnolar${excCount > 0 ? ` (${excCount} ta)` : ''}`,
+                    callback_data: 'automsg_exceptions',
+                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.block,
+                    style: BUTTON_STYLES.danger
+                }],
+                [{
                     text: '⚔️ Reyd (tez xabar)',
                     callback_data: 'menu_reyd',
                     icon_custom_emoji_id: BUTTON_EMOJI_IDS.reyd,
@@ -787,6 +794,85 @@ function getAutoMessageMenu(settings = {}) {
             ]
         }
     };
+}
+
+function getAutoMsgExceptionPickerKeyboard() {
+    return {
+        keyboard: [
+            [{
+                text: 'Guruhni istisno qilish',
+                icon_custom_emoji_id: BUTTON_EMOJI_IDS.group,
+                style: BUTTON_STYLES.danger,
+                request_chat: {
+                    request_id: AUTOMSG_EXC_GROUP_REQUEST_ID,
+                    chat_is_channel: false,
+                    chat_is_forum: false,
+                    bot_is_member: false
+                }
+            }],
+            [{
+                text: 'Kanalni istisno qilish',
+                icon_custom_emoji_id: BUTTON_EMOJI_IDS.channel,
+                style: BUTTON_STYLES.danger,
+                request_chat: {
+                    request_id: AUTOMSG_EXC_CHANNEL_REQUEST_ID,
+                    chat_is_channel: true,
+                    bot_is_member: false
+                }
+            }],
+            [{
+                text: 'Userni istisno qilish',
+                icon_custom_emoji_id: BUTTON_EMOJI_IDS.user,
+                style: BUTTON_STYLES.danger,
+                request_user: {
+                    request_id: AUTOMSG_EXC_USER_REQUEST_ID,
+                    user_is_bot: false
+                }
+            }],
+            [{
+                text: 'Username / ID / Link',
+                icon_custom_emoji_id: BUTTON_EMOJI_IDS.share,
+                style: BUTTON_STYLES.primary
+            }]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+        is_persistent: false
+    };
+}
+
+function getAutoMsgExceptionMenu(exceptions = []) {
+    const list = Array.isArray(exceptions) ? exceptions : [];
+    const buttons = [];
+    list.forEach((ex, idx) => {
+        const icon = ex.type === 'user' ? '👤' : (ex.type === 'channel' ? '📢' : '👥');
+        const label = `${icon} ${ex.title || ex.id}`;
+        buttons.push([{
+            text: `❌ O'chir: ${label.length > 35 ? label.slice(0, 35) + '...' : label}`,
+            callback_data: `automsg_exc_remove_${idx}`,
+            icon_custom_emoji_id: BUTTON_EMOJI_IDS.remove,
+            style: BUTTON_STYLES.danger
+        }]);
+    });
+    buttons.push([{
+        text: '➕ Yangi istisno qo\'shish',
+        callback_data: 'automsg_exc_add',
+        icon_custom_emoji_id: BUTTON_EMOJI_IDS.add,
+        style: BUTTON_STYLES.success
+    }]);
+    buttons.push([{
+        text: '🔄 Barchasini tozalash',
+        callback_data: 'automsg_exc_clear',
+        icon_custom_emoji_id: BUTTON_EMOJI_IDS.remove,
+        style: BUTTON_STYLES.danger
+    }]);
+    buttons.push([{
+        text: 'Orqaga (Avto Xabar)',
+        callback_data: 'menu_automessage',
+        icon_custom_emoji_id: BUTTON_EMOJI_IDS.back,
+        style: BUTTON_STYLES.primary
+    }]);
+    return { reply_markup: { inline_keyboard: buttons } };
 }
 
 function getAutoMsgIntervalKeyboard() {
@@ -990,6 +1076,9 @@ const REYD_CHAT_REQUEST_ID = 2;
 const UTAG_CHAT_REQUEST_ID = 3;
 const AUTOMSG_GROUP_REQUEST_ID = 4;
 const AUTOMSG_CHANNEL_REQUEST_ID = 5;
+const AUTOMSG_EXC_GROUP_REQUEST_ID = 6;
+const AUTOMSG_EXC_CHANNEL_REQUEST_ID = 7;
+const AUTOMSG_EXC_USER_REQUEST_ID = 8;
 
 function getGroupPickerKeyboard(requestId) {
     return {
@@ -1131,6 +1220,8 @@ module.exports = {
     getAutoMsgIntervalKeyboard,
     getAutoMsgDestKeyboard,
     getAutoMsgGroupPickerKeyboard,
+    getAutoMsgExceptionPickerKeyboard,
+    getAutoMsgExceptionMenu,
     getAutoReplyMenu,
     intervalToMs,
     msToIntervalLabel,
@@ -1152,6 +1243,9 @@ module.exports = {
     UTAG_CHAT_REQUEST_ID,
     AUTOMSG_GROUP_REQUEST_ID,
     AUTOMSG_CHANNEL_REQUEST_ID,
+    AUTOMSG_EXC_GROUP_REQUEST_ID,
+    AUTOMSG_EXC_CHANNEL_REQUEST_ID,
+    AUTOMSG_EXC_USER_REQUEST_ID,
     isUserAdmin,
     EMOJI_MAP,
     UTAG_EMOJI_MAP,

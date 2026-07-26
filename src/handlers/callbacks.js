@@ -869,7 +869,8 @@ module.exports = (bot) => {
                 intervalMs: user.autoMsgIntervalMs ? Number(user.autoMsgIntervalMs) : null,
                 destinations: user.autoMsgDestinations || [],
                 customTargets: user.autoMsgCustomTargets || [],
-                savedMessage: user.autoMsgSaved || null
+                savedMessage: user.autoMsgSaved || null,
+                exceptions: user.autoMsgExceptions || []
             };
             const enabledText = settings.enabled ? '🟢 **Yoqilgan**' : '🔴 **O\'chirilgan**';
             const intervalText = settings.intervalMs ? msToIntervalLabel(settings.intervalMs) : 'Belgilanmagan';
@@ -1054,6 +1055,72 @@ module.exports = (bot) => {
                 "➕ **Qo'shimcha guruh/kanal qo'shish**\n\nQuyidagi tugmalardan birini bosing yoki username/link ni to'g'ridan-to'g'ri yuboring.\nMasalan: @kanal_nomi, https://t.me/kanal, -100123456789",
                 { parse_mode: 'Markdown', ...getAutoMsgGroupPickerKeyboard() }
             );
+        }
+
+        // --- ISTISNOLAR (EXCEPTIONS) menyusi ---
+        if (data === "automsg_exceptions") {
+            const { getAutoMsgExceptionMenu } = require('../utils/helpers');
+            const exceptions = user.autoMsgExceptions || [];
+            let listText = 'Sizda hech qanday istisno yo\'q. Birorta guruh/kanal/userni xabar yuborishdan chetlashtirish uchun ➕ tugmasini bosing.';
+            if (exceptions.length > 0) {
+                listText = `⛔ **Hozirgi istisnolar (${exceptions.length} ta):**\n\n`;
+                exceptions.forEach((ex, i) => {
+                    const icon = ex.type === 'user' ? '👤' : (ex.type === 'channel' ? '📢' : '👥');
+                    listText += `${i + 1}. ${icon} \`${ex.id}\` — ${ex.title || ex.id}\n`;
+                });
+                listText += '\nBu guruh/kanal/userlarga avto xabar HECH QACHON yuborilmaydi.';
+            }
+            const header = '⛔ **Avto Xabar — Istisnolar**\n\n';
+            const text = header + listText;
+            try {
+                await safeEdit(chatId, messageId, text, { parse_mode: 'Markdown', ...getAutoMsgExceptionMenu(exceptions) });
+            } catch (e) {
+                await bot.sendMessage(chatId, text, { parse_mode: 'Markdown', ...getAutoMsgExceptionMenu(exceptions) });
+            }
+            return await safeAnswer();
+        }
+
+        if (data === "automsg_exc_add") {
+            global.userStates[chatId] = { step: 'WAITING_AUTOMSG_EXCEPTION' };
+            await safeAnswer();
+            try { await bot.deleteMessage(chatId, messageId); } catch (e) {}
+            const { getAutoMsgExceptionPickerKeyboard } = require('../utils/helpers');
+            return bot.sendMessage(
+                chatId,
+                "⛔ **Istisno qo'shish**\n\nXabar yuborilmasligi kerak bo'lgan guruh/kanal/foydalanuvchini tanlang yoki username/link/ID ni yuboring.\nMasalan: @user, -100123456789, https://t.me/test",
+                { parse_mode: 'Markdown', ...getAutoMsgExceptionPickerKeyboard() }
+            );
+        }
+
+        if (data.startsWith("automsg_exc_remove_")) {
+            const idx = parseInt(data.replace("automsg_exc_remove_", ""), 10);
+            const { getAutoMsgExceptionMenu } = require('../utils/helpers');
+            if (isNaN(idx)) return await safeAnswer({ text: 'Noto\'g\'ri indeks', show_alert: true });
+            const current = Array.isArray(user.autoMsgExceptions) ? [...user.autoMsgExceptions] : [];
+            if (idx < 0 || idx >= current.length) return await safeAnswer({ text: 'Indeks chetdan chiqdi', show_alert: true });
+            const removed = current.splice(idx, 1)[0];
+            await User.update({ autoMsgExceptions: current }, { where: { chatId } });
+            triggerBackup('auto_msg_exception_remove', false);
+            await safeAnswer({ text: `✅ O'chirildi: ${removed?.title || removed?.id}`, show_alert: true });
+            const menuText = current.length === 0
+                ? '⛔ **Istisnolar:** Endi hech qanday istisno yo\'q.'
+                : `⛔ **Istisnolar (${current.length} ta):**`;
+            try {
+                await safeEdit(chatId, messageId, menuText, { parse_mode: 'Markdown', ...getAutoMsgExceptionMenu(current) }, true);
+            } catch (e) {}
+            return;
+        }
+
+        if (data === "automsg_exc_clear") {
+            const { getAutoMsgExceptionMenu } = require('../utils/helpers');
+            await User.update({ autoMsgExceptions: [] }, { where: { chatId } });
+            triggerBackup('auto_msg_exception_clear', false);
+            await safeAnswer({ text: '✅ Barcha istisnolar tozalandi', show_alert: true });
+            const text = '⛔ **Istisnolar:** Barchasi tozalandi. Hech qanday istisno qolmadi.';
+            try {
+                await safeEdit(chatId, messageId, text, { parse_mode: 'Markdown', ...getAutoMsgExceptionMenu([]) }, true);
+            } catch (e) {}
+            return;
         }
 
         // ============================================================
