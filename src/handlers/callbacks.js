@@ -12,6 +12,7 @@ const {
     checkMembership,
     getBonusCoinRow,
     getPendingPaymentKeyboard,
+    removeKeyboardMarkup,
     BUTTON_EMOJI_IDS,
     BUTTON_STYLES
 } = require('../utils/helpers');
