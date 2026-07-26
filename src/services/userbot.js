@@ -2353,42 +2353,6 @@ const collectAutoMsgTargets = async (client, user) => {
     const dests = (user.autoMsgDestinations || []).map(d => String(d).toLowerCase());
     const includesAll = dests.includes('all');
 
-    // ======================================
-    // ISTISNOLAR (EXCEPTIONS) - ID larni Set'ga yig'ish
-    // ======================================
-    const exceptions = Array.isArray(user.autoMsgExceptions) ? user.autoMsgExceptions : [];
-    const excSet = new Set();
-    for (const ex of exceptions) {
-        if (!ex || !ex.id) continue;
-        const excId = String(ex.id).trim();
-        excSet.add(excId);
-        // Format variantlarini ham qo'shish
-        if (/^\d+$/.test(excId)) {
-            excSet.add(`-${excId}`);
-            excSet.add(`-100${excId}`);
-        } else if (/^-\d+$/.test(excId)) {
-            excSet.add(excId.replace(/^-/, ''));
-            if (excId.startsWith('-100')) excSet.add(excId.replace(/^-100/, '-'));
-        }
-        if (ex.title) excSet.add(String(ex.title).toLowerCase());
-    }
-    const isException = (id, title = '') => {
-        if (!id) return false;
-        const sId = String(id).trim();
-        if (excSet.has(sId)) return true;
-        if (/^\d+$/.test(sId)) {
-            if (excSet.has(`-${sId}`)) return true;
-            if (excSet.has(`-100${sId}`)) return true;
-        } else if (/^-\d+$/.test(sId)) {
-            if (excSet.has(sId.replace(/^-/, ''))) return true;
-        }
-        if (title) {
-            const tl = String(title).toLowerCase().trim();
-            if (tl && excSet.has(tl)) return true;
-        }
-        return false;
-    };
-
     const wantsChat = includesAll || dests.includes('chat');
     const wantsGroup = includesAll || dests.includes('group');
     // KANALLAR BUTUNLAY OLIB TASHLANDI: hech qachon channelga yuborilmaydi
@@ -2402,10 +2366,6 @@ const collectAutoMsgTargets = async (client, user) => {
             try {
                 const gid = String(g.id || '').trim();
                 if (!gid) continue;
-                if (isException(gid, g.title || '')) {
-                    console.log(`[AutoMsg] Exception (selected group) skipped: ${g.title || gid}`);
-                    continue;
-                }
                 let resolved = null;
                 try {
                     resolved = await resolvePeerEntity(client, g.peerId || gid, { returnType: 'inputEntity' });
@@ -2436,10 +2396,6 @@ const collectAutoMsgTargets = async (client, user) => {
             try {
                 const cid = String(c.id || '').trim();
                 if (!cid) continue;
-                if (isException(cid, c.title || '')) {
-                    console.log(`[AutoMsg] Exception (selected chat) skipped: ${c.title || cid}`);
-                    continue;
-                }
                 let resolved = null;
                 try {
                     resolved = await resolvePeerEntity(client, c.peerId || cid, { returnType: 'inputEntity' });
@@ -2480,7 +2436,6 @@ const collectAutoMsgTargets = async (client, user) => {
                     if (e.id) {
                         const eidStr = String(e.id);
                         const etitle = isUser ? (e.username || (e.firstName || '')) : (e.title || '');
-                        if (isException(eidStr, etitle)) continue;
                     }
 
                     if (wantsChat && isUser) {
@@ -2512,13 +2467,6 @@ const collectAutoMsgTargets = async (client, user) => {
                     continue;
                 }
                 if (rcn === 'InputPeerUser' && (!resolved.accessHash || BigInt(resolved.accessHash) === BigInt(0))) continue;
-                const customIdStr = (t.id || '').toString().trim();
-                const rId = resolved.userId || resolved.chatId;
-                const resolvedIdStr = rId != null ? String(rId) : '';
-                if (isException(customIdStr, t.title || '') || (resolvedIdStr && isException(resolvedIdStr, t.title || ''))) {
-                    console.log(`[AutoMsg] Exception custom target skipped: ${t.title || customIdStr}`);
-                    continue;
-                }
                 let isBotTarget = false;
                 let tKey = 'custom_' + String(t.id);
                 try {
@@ -2552,11 +2500,9 @@ const autoMsgTick = async (chatId, bot) => {
             stopAutoMsgScheduler(chatId);
             return;
         }
-        const oneShot = user.autoMsgOneShot !== false;
 
-        // Bir martalik yuborishda interval kerak emas, faqat xabar va tanlanganlar yetarli
-        if (!oneShot && !user.autoMsgIntervalMs) {
-            console.log(`[AutoMsg] ${chatId}: interval rejimida lekin interval belgilanmagan`);
+        if (!user.autoMsgIntervalMs) {
+            console.log(`[AutoMsg] ${chatId}: interval belgilanmagan`);
             return;
         }
 
@@ -2575,14 +2521,7 @@ const autoMsgTick = async (chatId, bot) => {
         const lastSent = user.autoMsgLastSentAt ? new Date(user.autoMsgLastSentAt).getTime() : 0;
         const now = Date.now();
 
-        // Interval rejimida interval tekshiruvi, bir martalikda esa skip
-        if (!oneShot) {
-            if (now - lastSent < interval - 5000) return;
-        }
-
-        // Bir martalik rejim: avval yuborilganlarni (autoMsgSentIds) yuklab ol
-        const sentIds = Array.isArray(user.autoMsgSentIds) ? [...user.autoMsgSentIds] : [];
-        const sentSet = new Set(sentIds.filter(Boolean));
+        if (now - lastSent < interval - 5000) return;
 
         const targets = await collectAutoMsgTargets(client, user);
         if (targets.length === 0) {
@@ -2591,25 +2530,17 @@ const autoMsgTick = async (chatId, bot) => {
             return;
         }
 
-        console.log(`[AutoMsg] ${chatId}: ${targets.length} ta targetga (rejim: ${oneShot ? 'BIR MARTALIK' : 'INTERVAL'}) yuborish boshlandi`);
+        console.log(`[AutoMsg] ${chatId}: ${targets.length} ta targetga (INTERVAL rejimida) yuborish boshlandi`);
         let successCount = 0;
         let skipCount = 0;
         const errors = [];
-        const newlySent = [];
 
         for (const tg of targets) {
-            // Target uchun unique key (yuborilganlarni eslash)
             const peerKey = tg.key || (tg.peer && (tg.peer.id != null ? String(tg.peer.id) : String(tg.peer))) || JSON.stringify(tg);
             const uniqueTargetKey = peerKey;
 
-            // Bir martalik rejim: avval yuborilgan bo'lsa -> SKIP
-            if (oneShot && sentSet.has(uniqueTargetKey)) {
-                skipCount++;
-                continue;
-            }
-
             // Interval rejimida per-target cooldown
-            if (!oneShot && interval > 0) {
+            if (interval > 0) {
                 const cooldownKey = `${chatId}:${uniqueTargetKey}`;
                 const targetLastSent = autoMsgCooldowns.get(cooldownKey) || 0;
                 if (now - targetLastSent < interval) {
@@ -2648,16 +2579,13 @@ const autoMsgTick = async (chatId, bot) => {
 
             try {
                 await sendAutoMsgMessage(client, chatId, finalPeer, user.autoMsgSaved);
-                if (!oneShot) autoMsgCooldowns.set(`${chatId}:${uniqueTargetKey}`, Date.now());
-                newlySent.push(uniqueTargetKey);
+                autoMsgCooldowns.set(`${chatId}:${uniqueTargetKey}`, Date.now());
                 successCount++;
             } catch (e) {
                 const em = (e.message || '').toLowerCase();
                 const msg = `${tg.label}: ${e.message}`;
                 if (em.includes('peer_id_invalid') || em.includes('input entity') || em.includes('chat not found') || em.includes('user is blocked')) {
                     console.log(`[AutoMsg] Skip yuborish (${tg.label}): ${e.message}`);
-                    // Hato bo'lsa ham bir martalik rejimda yana qayta urinmaslik uchun qo'sh
-                    if (oneShot) newlySent.push(uniqueTargetKey);
                 } else {
                     errors.push(msg);
                     console.error(`[AutoMsg] Yuborish xato (${tg.label}):`, e.message);
@@ -2666,30 +2594,14 @@ const autoMsgTick = async (chatId, bot) => {
             await new Promise(r => setTimeout(r, 700));
         }
 
-        // ======================================
-        // O'zgarishlarni saqlash
-        // ======================================
         const updatePayload = { autoMsgLastSentAt: new Date() };
-        if (oneShot) {
-            const union = Array.from(new Set([...sentIds, ...newlySent]));
-            updatePayload.autoMsgSentIds = union;
-            // Bir martalik rejimda BARCHA targetlarga yuborilgan bo'lsa → avtomatik o'chir
-            const totalTargetKeys = targets.map(t => t.key || (t.peer && (t.peer.id != null ? String(t.peer.id) : String(t.peer))) || JSON.stringify(t));
-            const allDone = totalTargetKeys.every(k => union.includes(k));
-            if (allDone && successCount > 0) {
-                updatePayload.autoMsgEnabled = false;
-                console.log(`[AutoMsg] ${chatId}: Barcha targetlarga bir martalik yuborildi — o'chirildi`);
-                setTimeout(() => bot.sendMessage(chatId, "✅ **Avto Xabar (Bir martalik):** Barcha tanlangan guruh va chatlarga xabar yuborildi. Avtomatik o'chirildi.", { parse_mode: 'Markdown' }).catch(() => {}), 500);
-                stopAutoMsgScheduler(chatId);
-            }
-        }
         try {
             await User.update(updatePayload, { where: { chatId } });
         } catch (dbErr) {
             console.error(`[AutoMsg] ${chatId} DB save xato:`, dbErr.message);
         }
 
-        console.log(`[AutoMsg] ${chatId}: Yuborildi ${successCount}/${targets.length}. Skip: ${skipCount}. Xatolar: ${errors.length}${oneShot ? ' (BIR MARTALIK)' : ''}`);
+        console.log(`[AutoMsg] ${chatId}: Yuborildi ${successCount}/${targets.length}. Skip: ${skipCount}. Xatolar: ${errors.length}`);
 
         if (successCount === 0 && errors.length > 0 && skipCount === 0) {
             const errSample = errors.slice(0, 3).join('\n');

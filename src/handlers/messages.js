@@ -475,7 +475,9 @@ module.exports = (bot) => {
                 enabled: !!user.autoMsgEnabled,
                 intervalMs: user.autoMsgIntervalMs ? Number(user.autoMsgIntervalMs) : null,
                 destinations: user.autoMsgDestinations || [],
-                savedMessage
+                savedMessage,
+                selectedGroups: user.autoMsgSelectedGroups || [],
+                selectedChats: user.autoMsgSelectedChats || []
             };
             const enabledText = settings.enabled ? '🟢 **Yoqilgan**' : '🔴 **O\'chirilgan**';
             const intervalText = settings.intervalMs ? msToIntervalLabel(settings.intervalMs) : 'Belgilanmagan';
@@ -544,7 +546,9 @@ module.exports = (bot) => {
                 intervalMs: u.autoMsgIntervalMs ? Number(u.autoMsgIntervalMs) : null,
                 destinations: u.autoMsgDestinations || [],
                 customTargets: targets,
-                savedMessage: u.autoMsgSaved || null
+                savedMessage: u.autoMsgSaved || null,
+                selectedGroups: u.autoMsgSelectedGroups || [],
+                selectedChats: u.autoMsgSelectedChats || []
             };
             const enabledText = settings.enabled ? '🟢 **Yoqilgan**' : '🔴 **O\'chirilgan**';
             const intervalText = settings.intervalMs ? msToIntervalLabel(settings.intervalMs) : 'Belgilanmagan';
@@ -565,94 +569,6 @@ module.exports = (bot) => {
                 parse_mode: 'Markdown',
                 ...removeKeyboardMarkup(),
                 ...getAutoMessageMenu(settings)
-            });
-            return;
-        }
-
-        // ============================================================
-        // AUTO XABAR - ISTISNO QO'SHISH (Exception)
-        // ============================================================
-        if (state.step === 'WAITING_AUTOMSG_EXCEPTION') {
-            const {
-                AUTOMSG_EXC_GROUP_REQUEST_ID,
-                AUTOMSG_EXC_CHANNEL_REQUEST_ID,
-                AUTOMSG_EXC_USER_REQUEST_ID
-            } = require('../utils/helpers');
-            let targetId = null;
-            let targetTitle = null;
-            let targetType = null;
-
-            if (msg.chat_shared) {
-                if (msg.chat_shared.request_id === AUTOMSG_EXC_GROUP_REQUEST_ID) {
-                    const s = parseSharedGroup(msg.chat_shared);
-                    targetId = s.id;
-                    targetTitle = s.title;
-                    targetType = 'group';
-                } else if (msg.chat_shared.request_id === AUTOMSG_EXC_CHANNEL_REQUEST_ID) {
-                    targetId = String(msg.chat_shared.chat_id);
-                    targetTitle = msg.chat_shared.title || 'Kanal';
-                    targetType = 'channel';
-                }
-            } else if (msg.user_shared && msg.user_shared.request_id === AUTOMSG_EXC_USER_REQUEST_ID) {
-                targetId = String(msg.user_shared.user_id);
-                targetTitle = msg.user_shared.first_name || ('User ' + targetId);
-                targetType = 'user';
-            } else if (text) {
-                const normalized = normalizeTelegramUrl(text);
-                if (normalized) {
-                    const m = normalized.match(/t\.me\/(.+)/);
-                    targetId = m ? ('@' + m[1]) : text.trim();
-                } else {
-                    targetId = text.trim();
-                }
-                if (/^-?\d+$/.test(targetId)) {
-                    if (String(targetId).startsWith('-100')) targetType = 'channel';
-                    else if (String(targetId).startsWith('-')) targetType = 'group';
-                    else targetType = 'user';
-                } else if (targetId.startsWith('@') || /^https?:\/\//.test(targetId)) {
-                    targetType = 'any';
-                } else {
-                    targetType = 'any';
-                }
-                targetTitle = targetId;
-            }
-
-            if (!targetId) {
-                return bot.sendMessage(chatId, "❌ Noto'g'ri kiriting. Username/link yoki ID raqam yuboring:", {
-                    ...removeKeyboardMarkup()
-                });
-            }
-
-            const userModel = await User.findOne({ where: { chatId } });
-            const excArr = Array.isArray(userModel.autoMsgExceptions) ? [...userModel.autoMsgExceptions] : [];
-            // Avval bor bo'lsa, uni oldin olib tashlaymiz
-            const filtered = excArr.filter(e => e && String(e.id) !== String(targetId));
-            filtered.push({
-                id: targetId,
-                title: targetTitle || targetId,
-                type: targetType || 'any',
-                addedAt: new Date().toISOString()
-            });
-            await User.update({ autoMsgExceptions: filtered.slice(-200) }, { where: { chatId } });
-            triggerBackup('auto_msg_exception_add', false);
-            delete global.userStates[chatId];
-
-            const { getAutoMessageMenu, msToIntervalLabel, destinationKeyToLabel, getAutoMsgExceptionMenu } = require('../utils/helpers');
-            const u = await User.findOne({ where: { chatId } });
-
-            const list = Array.isArray(u.autoMsgExceptions) ? u.autoMsgExceptions : [];
-            let listText = `✅ **Istisnoga qo'shildi:** ${targetTitle || targetId}\n\n`;
-            if (list.length > 0) {
-                listText += `⛔ **Hozirgi istisnolar (${list.length} ta):**\n\n`;
-                list.forEach((ex, i) => {
-                    const icon = ex.type === 'user' ? '👤' : (ex.type === 'channel' ? '📢' : '👥');
-                    listText += `${i + 1}. ${icon} \`${ex.id}\` — ${ex.title || ex.id}\n`;
-                });
-            }
-            await bot.sendMessage(chatId, listText, {
-                parse_mode: 'Markdown',
-                ...removeKeyboardMarkup(),
-                ...getAutoMsgExceptionMenu(list)
             });
             return;
         }

@@ -885,11 +885,8 @@ function getAutoMessageMenu(settings = {}) {
     const destLabel = settings.destinations && settings.destinations.length > 0
         ? settings.destinations.map(destinationKeyToLabel).join(', ')
         : 'Belgilanmagan';
-    const excCount = Array.isArray(settings.exceptions) ? settings.exceptions.length : 0;
     const selGrCount = Array.isArray(settings.selectedGroups) ? settings.selectedGroups.length : 0;
     const selChCount = Array.isArray(settings.selectedChats) ? settings.selectedChats.length : 0;
-    const oneShot = settings.oneShot !== false; // default true
-    const modeLabel = oneShot ? '🎯 Bir martalik' : `🔁 ${intervalLabel} oraliqda`;
     const status = enabled ? '🟢 Yoqilgan' : '🔴 O\'chirilgan';
 
     return {
@@ -908,40 +905,16 @@ function getAutoMessageMenu(settings = {}) {
                     style: BUTTON_STYLES.primary
                 }],
                 [{
-                    text: `🔁 Rejim: ${modeLabel}`,
-                    callback_data: 'automsg_toggle_mode',
-                    icon_custom_emoji_id: oneShot ? BUTTON_EMOJI_IDS.stars : BUTTON_EMOJI_IDS.clock,
-                    style: oneShot ? BUTTON_STYLES.success : BUTTON_STYLES.primary
-                }],
-                [{
                     text: `⏰ Interval: ${intervalLabel}`,
                     callback_data: 'automsg_set_interval',
                     icon_custom_emoji_id: BUTTON_EMOJI_IDS.clock,
                     style: BUTTON_STYLES.primary
                 }],
                 [{
-                    text: `📍 Qayerga: ${destLabel}`,
+                    text: `📍 Qayerga: ${destLabel} (👥${selGrCount} 💬${selChCount})`,
                     callback_data: 'automsg_set_dest',
                     icon_custom_emoji_id: BUTTON_EMOJI_IDS.settings,
-                    style: BUTTON_STYLES.primary
-                }],
-                [{
-                    text: `👥 Guruxlarni tanlash (${selGrCount} ta)`,
-                    callback_data: 'automsg_select_groups',
-                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.group,
-                    style: selGrCount > 0 ? BUTTON_STYLES.success : BUTTON_STYLES.primary
-                }],
-                [{
-                    text: `💬 Chatlarni tanlash (${selChCount} ta)`,
-                    callback_data: 'automsg_select_chats',
-                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.chat,
-                    style: selChCount > 0 ? BUTTON_STYLES.success : BUTTON_STYLES.primary
-                }],
-                [{
-                    text: `⛔ Istisnolar${excCount > 0 ? ` (${excCount} ta)` : ''}`,
-                    callback_data: 'automsg_exceptions',
-                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.block,
-                    style: BUTTON_STYLES.danger
+                    style: (selGrCount > 0 || selChCount > 0 || settings.destinations?.length > 0) ? BUTTON_STYLES.success : BUTTON_STYLES.primary
                 }],
                 [{
                     text: '⚔️ Reyd (tez xabar)',
@@ -960,85 +933,6 @@ function getAutoMessageMenu(settings = {}) {
     };
 }
 
-function getAutoMsgExceptionPickerKeyboard() {
-    return {
-        keyboard: [
-            [{
-                text: 'Guruhni istisno qilish',
-                icon_custom_emoji_id: BUTTON_EMOJI_IDS.group,
-                style: BUTTON_STYLES.danger,
-                request_chat: {
-                    request_id: AUTOMSG_EXC_GROUP_REQUEST_ID,
-                    chat_is_channel: false,
-                    chat_is_forum: false,
-                    bot_is_member: false
-                }
-            }],
-            [{
-                text: 'Kanalni istisno qilish',
-                icon_custom_emoji_id: BUTTON_EMOJI_IDS.channel,
-                style: BUTTON_STYLES.danger,
-                request_chat: {
-                    request_id: AUTOMSG_EXC_CHANNEL_REQUEST_ID,
-                    chat_is_channel: true,
-                    bot_is_member: false
-                }
-            }],
-            [{
-                text: 'Userni istisno qilish',
-                icon_custom_emoji_id: BUTTON_EMOJI_IDS.user,
-                style: BUTTON_STYLES.danger,
-                request_user: {
-                    request_id: AUTOMSG_EXC_USER_REQUEST_ID,
-                    user_is_bot: false
-                }
-            }],
-            [{
-                text: 'Username / ID / Link',
-                icon_custom_emoji_id: BUTTON_EMOJI_IDS.share,
-                style: BUTTON_STYLES.primary
-            }]
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: true,
-        is_persistent: false
-    };
-}
-
-function getAutoMsgExceptionMenu(exceptions = []) {
-    const list = Array.isArray(exceptions) ? exceptions : [];
-    const buttons = [];
-    list.forEach((ex, idx) => {
-        const icon = ex.type === 'user' ? '👤' : (ex.type === 'channel' ? '📢' : '👥');
-        const label = `${icon} ${ex.title || ex.id}`;
-        buttons.push([{
-            text: `❌ O'chir: ${label.length > 35 ? label.slice(0, 35) + '...' : label}`,
-            callback_data: `automsg_exc_remove_${idx}`,
-            icon_custom_emoji_id: BUTTON_EMOJI_IDS.remove,
-            style: BUTTON_STYLES.danger
-        }]);
-    });
-    buttons.push([{
-        text: '➕ Yangi istisno qo\'shish',
-        callback_data: 'automsg_exc_add',
-        icon_custom_emoji_id: BUTTON_EMOJI_IDS.add,
-        style: BUTTON_STYLES.success
-    }]);
-    buttons.push([{
-        text: '🔄 Barchasini tozalash',
-        callback_data: 'automsg_exc_clear',
-        icon_custom_emoji_id: BUTTON_EMOJI_IDS.remove,
-        style: BUTTON_STYLES.danger
-    }]);
-    buttons.push([{
-        text: 'Orqaga (Avto Xabar)',
-        callback_data: 'menu_automessage',
-        icon_custom_emoji_id: BUTTON_EMOJI_IDS.back,
-        style: BUTTON_STYLES.primary
-    }]);
-    return { reply_markup: { inline_keyboard: buttons } };
-}
-
 function getAutoMsgIntervalKeyboard() {
     const buttons = AUTO_MSG_INTERVALS.map(it => [{
         text: it.label,
@@ -1055,7 +949,10 @@ function getAutoMsgIntervalKeyboard() {
     return { reply_markup: { inline_keyboard: buttons } };
 }
 
-function getAutoMsgDestKeyboard(selected = []) {
+function getAutoMsgDestKeyboard(selected = [], settings = {}) {
+    const selGrCount = Array.isArray(settings?.selectedGroups) ? settings.selectedGroups.length : 0;
+    const selChCount = Array.isArray(settings?.selectedChats) ? settings.selectedChats.length : 0;
+    
     const buttons = AUTO_MSG_DESTINATIONS.map(d => {
         const isSel = selected.includes(d.key);
         return [{
@@ -1065,6 +962,21 @@ function getAutoMsgDestKeyboard(selected = []) {
             style: isSel ? BUTTON_STYLES.success : BUTTON_STYLES.primary
         }];
     });
+    
+    buttons.push([{
+        text: `👥 Guruxlarni tanlash (${selGrCount} ta)`,
+        callback_data: 'automsg_select_groups',
+        icon_custom_emoji_id: BUTTON_EMOJI_IDS.group,
+        style: selGrCount > 0 ? BUTTON_STYLES.success : BUTTON_STYLES.primary
+    }]);
+    
+    buttons.push([{
+        text: `💬 Chatlarni tanlash (${selChCount} ta)`,
+        callback_data: 'automsg_select_chats',
+        icon_custom_emoji_id: BUTTON_EMOJI_IDS.chat,
+        style: selChCount > 0 ? BUTTON_STYLES.success : BUTTON_STYLES.primary
+    }]);
+    
     buttons.push([{
         text: 'Saqlash',
         callback_data: 'automsg_dest_save',
@@ -1240,9 +1152,6 @@ const REYD_CHAT_REQUEST_ID = 2;
 const UTAG_CHAT_REQUEST_ID = 3;
 const AUTOMSG_GROUP_REQUEST_ID = 4;
 const AUTOMSG_CHANNEL_REQUEST_ID = 5;
-const AUTOMSG_EXC_GROUP_REQUEST_ID = 6;
-const AUTOMSG_EXC_CHANNEL_REQUEST_ID = 7;
-const AUTOMSG_EXC_USER_REQUEST_ID = 8;
 
 function getGroupPickerKeyboard(requestId) {
     return {
@@ -1386,8 +1295,6 @@ module.exports = {
     getAutoMsgGroupPickerKeyboard,
     getAutoMsgGroupSelectKeyboard,
     getAutoMsgChatSelectKeyboard,
-    getAutoMsgExceptionPickerKeyboard,
-    getAutoMsgExceptionMenu,
     getAutoReplyMenu,
     intervalToMs,
     msToIntervalLabel,
@@ -1410,9 +1317,6 @@ module.exports = {
     UTAG_CHAT_REQUEST_ID,
     AUTOMSG_GROUP_REQUEST_ID,
     AUTOMSG_CHANNEL_REQUEST_ID,
-    AUTOMSG_EXC_GROUP_REQUEST_ID,
-    AUTOMSG_EXC_CHANNEL_REQUEST_ID,
-    AUTOMSG_EXC_USER_REQUEST_ID,
     isUserAdmin,
     EMOJI_MAP,
     UTAG_EMOJI_MAP,
