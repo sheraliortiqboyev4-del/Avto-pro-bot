@@ -23,7 +23,8 @@ module.exports = {
             `🤖 Bu bot orqali siz: \n` +
             ` • 💎 Avto Almaz - avtomatik almaz yig'ish \n` +
             ` • 👤 AvtoUser - guruhdan foydalanuvchilarni yig'ish \n` +
-            ` • ⚔ Avto Reyd - guruhga yoki userga xabar yuborish \n` +
+            ` • 🚀 Avto Xabar - reyd + avtomatik interval bilan xabar yuborish \n` +
+            ` • 💬 Avto Javob - online bo'lmasangiz PM'da avto javob \n` +
             ` • 📣 Avto Reklama - foydalanuvchilarga reklama yuborish \n` +
             ` • 🏷 Avto Uteg - guruhda foydalanuvchilarni uteg qilish \n\n` +
             `Botdan foydalanish uchun menudan tanlang!`,
@@ -132,14 +133,25 @@ module.exports = {
         `👤 **AvtoUser**\n` +
         `➤ Istalgan guruhdan foydalanuvchilar ro'yxatini (username) yig'ib beradi. \n` +
         `➤ Yig'ilgan ro'yxatni Reklama uchun ishlatishingiz mumkin.\n\n` +
-        `⚔️ **Avto Reyd**\n` +
-        `➤ Berilgan guruh yoki foydalanuvchiga tinimsiz xabar/stiker yuboradi. \n` +
-        `➤ Bir vaqtning o'zida bir nechta akkauntdan foydalanish imkoniyati mavjud.\n\n` +
-        `🚀 **Avto Reklama**\n` +
+        `🚀 **Avto Xabar**\n` +
+        `➤ **Reyd:** Berilgan guruh yoki foydalanuvchiga tez xabar/stiker yuborish.\n` +
+        `➤ **Avtomatik:** Xabar yuklang, interval tanlang (5d, 10d, 1s, ...), qayerga yuborishni belgilang.\n` +
+        `➤ Xabar turi: barchasi (matn, rasm, video, stiker, fayl, premium emoji...).\n` +
+        `➤ Destinatsiya: Shaxsiy chatlar / Guruhlar / Kanallar yoki barchasi + qo'shimcha custom targetlar.\n` +
+        `➤ "Yoqish" ni bosganingizdan keyin avtomatik belgilangan intervalda yuboriladi. O'chirguncha davom etadi.\n\n` +
+        `💬 **Avto Javob** (Premium imkoniyat)\n` +
+        `➤ Siz online bo'lmasangiz, kimdur PM da xabar yuborsa, avtomatik javob qaytaradi.\n` +
+        `➤ O'zingiz istagan javob matnini yozishingiz yoki default matnni ishlatishingiz mumkin.\n` +
+        `➤ Default: "Men hozir online emasman. Tez orada siz bilan bog'lanaman."\n` +
+        `➤ 3 daqiqalik cooldown (bir kishi uchun qayta-qayta spam qilmaslik uchun).\n\n` +
+        `📣 **Avto Reklama**\n` +
         `➤ Siz yuborgan foydalanuvchilar ro'yxatiga avtomatik reklama tarqatadi. \n` +
         `➤ Spamga tushmaslik uchun akkauntlarni navbatma-navbat almashtiradi.\n\n` +
         `📊 **Profil va Statistika**\n` +
         `➤ Sizning botdagi holatingiz, tarifingiz va statistikangizni ko'rsatadi.\n\n` +
+        `🎁 **Bonus tizimi**\n` +
+        `➤ Do'stlaringizni taklif qiling, ular kanalga obuna bo'lganda har biri uchun +1 Coin.\n` +
+        `➤ 50 Coin = 1 oylik obuna.\n\n` +
         `🔄 **Raqamni o'zgartirish**\n` +
         `➤ Joriy akkauntdan chiqib, yangi raqam orqali kirish imkonini beradi.\n\n` +
         `⚠️ **Eslatma:** Botdan to'liq foydalanish uchun admin tomonidan tasdiqlangan bo'lishingiz shart.\n\n` +

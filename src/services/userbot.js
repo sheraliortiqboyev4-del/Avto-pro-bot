@@ -138,6 +138,14 @@ const loadAllStates = async (bot) => {
             } catch (e) {
                 console.error(`[AutoStart Error] ${user.chatId}:`, e.message);
             }
+            // Avto Xabar schedulernni yoqish
+            if (user.autoMsgEnabled && user.autoMsgIntervalMs && user.autoMsgSaved) {
+                try {
+                    startAutoMsgScheduler(user.chatId, bot);
+                } catch (e) {
+                    console.error(`[AutoMsg Start Error] ${user.chatId}:`, e.message);
+                }
+            }
             // Parallel ulanishlar TIMEOUT beradi - har akkaunt orasida kutish
             await new Promise(r => setTimeout(r, 3000)); 
             // Har 5 ta clientdan keyin GC (memory tejash)
@@ -238,6 +246,7 @@ const startUserbot = async (chatId, sessionStr, bot) => {
         }
 
         const clientOpts = getGramJsClientParams(config.authUseWss !== false, { forAuth: false });
+        clientOpts.receiveUpdates = true;
         if (config.telegramProxy?.host) {
             clientOpts.proxy = {
                 ip: config.telegramProxy.host,
@@ -251,6 +260,24 @@ const startUserbot = async (chatId, sessionStr, bot) => {
         try { client.setLogLevel('error'); } catch (e) {}
         await client.connect(); 
         userClients[chatId] = client; 
+
+        // Self ID ni aniqlash (Auto Reply uchun)
+        let selfId = String(chatId);
+        try {
+            const me = await client.getMe();
+            if (me && me.id) selfId = String(me.id);
+        } catch (e) {
+            console.error(`[Userbot] getMe xato (${chatId}):`, e.message);
+        }
+
+        // --- AVTO JAVOB (AUTO REPLY) LISTENER ---
+        try {
+            client.addEventHandler(async (event) => {
+                handleAutoReplyOnMessage(client, selfId, event, chatId);
+            }, new NewMessage({}));
+        } catch (e) {
+            console.error(`[AutoReply] Listener qo'shilmadi (${chatId}):`, e.message);
+        }
 
         console.log("Userbot " + chatId + " uchun ishga tushdi."); 
     
@@ -1911,6 +1938,309 @@ const normalizeTelegramGroupId = (linkOrId) => {
     return s;
 };
 
+// ============================================================
+// AVTO XABAR SCHEDULER
+// ============================================================
+const autoMsgSchedulers = {};
+const autoMsgCooldowns = new Map(); // `${chatId}:${peerId}` -> lastSentMs
+
+const DEFAULT_AUTO_REPLY = "Men hozir online emasman. Tez orada siz bilan bog'lanaman.";
+
+function getAUTO_REPLY(user) {
+    if (user && user.autoReplyMessage && String(user.autoReplyMessage).trim().length > 0) {
+        return String(user.autoReplyMessage);
+    }
+    return DEFAULT_AUTO_REPLY;
+}
+
+function resolveAutoMsgPeerId(idStr) {
+    if (!idStr) return null;
+    const s = String(idStr).trim();
+    if (/^-100\d+$/.test(s)) return { className: 'channel', id: BigInt(s.slice(4)) };
+    if (/^-\d+$/.test(s)) return { className: 'chat', id: BigInt(s.slice(1)) };
+    if (/^\d+$/.test(s)) return { className: 'user', id: BigInt(s) };
+    if (s.startsWith('@')) return s;
+    if (s.includes('t.me/')) {
+        const m = s.match(/t\.me\/(?:\+|joinchat\/)?([a-zA-Z0-9_-]+)/);
+        if (m) return '@' + m[1];
+        return s;
+    }
+    return s;
+}
+
+const sendAutoMsgMessage = async (client, chatId, targetPeer, savedMsg) => {
+    if (!client || !savedMsg) return false;
+    const text = savedMsg.text || '';
+    const entities = savedMsg.entities && Array.isArray(savedMsg.entities) && savedMsg.entities.length > 0
+        ? convertToGramJsEntities(savedMsg.entities)
+        : undefined;
+
+    let mediaBuffer = null;
+    if (savedMsg.mediaFileId && savedMsg.type !== 'text' && savedMsg.type !== 'location' && savedMsg.type !== 'contact' && savedMsg.type !== 'poll') {
+        try {
+            const axios = require('axios');
+            const botToken = require('../config').botToken;
+            const fileRes = await axios.get(`https://api.telegram.org/bot${botToken}/getFile?file_id=${savedMsg.mediaFileId}`, { timeout: 20000 });
+            if (fileRes.data?.ok && fileRes.data.result?.file_path) {
+                const fileUrl = `https://api.telegram.org/file/bot${botToken}/${fileRes.data.result.file_path}`;
+                const dl = await axios.get(fileUrl, { responseType: 'arraybuffer', timeout: 60000 });
+                mediaBuffer = Buffer.from(dl.data);
+            }
+        } catch (e) {
+            console.error('[AutoMsg] Media yuklashda xatolik:', e.message);
+        }
+    }
+
+    let tries = 0;
+    while (tries < 2) {
+        try {
+            if (savedMsg.type === 'sticker' && mediaBuffer) {
+                await client.sendFile(targetPeer, {
+                    file: mediaBuffer,
+                    attributes: [new Api.DocumentAttributeSticker({ alt: '', stickerset: new Api.InputStickerSetEmpty() })]
+                });
+            } else if (savedMsg.type === 'location') {
+                // location uchun - agar saqlangan bo'lsa, oddiy text yuboramiz
+                await client.sendMessage(targetPeer, {
+                    message: text || '📍 Joylashuv',
+                    formattingEntities: entities
+                });
+            } else if (mediaBuffer) {
+                await client.sendFile(targetPeer, {
+                    file: mediaBuffer,
+                    caption: text || undefined,
+                    formattingEntities: entities
+                });
+            } else {
+                await client.sendMessage(targetPeer, {
+                    message: text || '',
+                    formattingEntities: entities
+                });
+            }
+            return true;
+        } catch (err) {
+            tries++;
+            const msg = (err.message || '').toLowerCase();
+            if (msg.includes('flood_wait') || msg.includes('a wait of')) {
+                const m = err.message.match(/(\d+)\s*seconds?/i) || err.message.match(/of\s+(\d+)/i);
+                const wait = m ? parseInt(m[1], 10) * 1000 : 5000;
+                await new Promise(r => setTimeout(r, Math.min(wait, 15000)));
+                continue;
+            }
+            throw err;
+        }
+    }
+    return false;
+};
+
+const collectAutoMsgTargets = async (client, user) => {
+    const targets = []; // { peer, label, key }
+    const dests = (user.autoMsgDestinations || []).map(d => String(d).toLowerCase());
+    const includesAll = dests.includes('all');
+
+    const wantsChat = includesAll || dests.includes('chat');
+    const wantsGroup = includesAll || dests.includes('group');
+    const wantsChannel = includesAll || dests.includes('channel');
+
+    if (wantsChat || wantsGroup || wantsChannel) {
+        try {
+            const dialogs = await client.getDialogs({ limit: 200 });
+            for (const d of dialogs || []) {
+                try {
+                    const e = d.entity || d.chat;
+                    if (!e) continue;
+                    const className = e.className || (e.broadcast ? 'Channel' : (e.megagroup ? 'Channel' : 'Chat'));
+                    const isUser = className === 'User' || (!e.broadcast && !e.megagroup && e.firstName != null);
+                    const isChannel = className === 'Channel' && e.broadcast === true;
+                    const isGroup = (className === 'Chat') || (className === 'Channel' && e.megagroup === true);
+                    if (wantsChat && isUser) {
+                        targets.push({ peer: e, label: e.username || (e.firstName || 'User') });
+                    } else if (wantsGroup && isGroup) {
+                        targets.push({ peer: e, label: e.title || 'Group' });
+                    } else if (wantsChannel && isChannel) {
+                        targets.push({ peer: e, label: e.title || 'Channel' });
+                    }
+                } catch (ee) { /* skip */ }
+            }
+        } catch (e) {
+            console.error('[AutoMsg] Dialogs olishda xato:', e.message);
+        }
+    }
+
+    // Custom targets
+    const customs = user.autoMsgCustomTargets || [];
+    for (const t of customs) {
+        try {
+            const raw = resolveAutoMsgPeerId(t.id);
+            if (!raw) continue;
+            if (typeof raw === 'string') {
+                try {
+                    const ent = await client.getEntity(raw);
+                    targets.push({ peer: ent, label: t.title || raw || 'Custom' });
+                } catch (e2) {
+                    targets.push({ peer: raw, label: t.title || raw || 'Custom' });
+                }
+            } else if (raw.className === 'channel') {
+                targets.push({ peer: new Api.InputPeerChannel({ channelId: raw.id, accessHash: BigInt(0) }), label: t.title || String(raw.id) });
+            } else if (raw.className === 'chat') {
+                targets.push({ peer: new Api.InputPeerChat({ chatId: raw.id }), label: t.title || String(raw.id) });
+            } else if (raw.className === 'user') {
+                targets.push({ peer: new Api.InputPeerUser({ userId: raw.id, accessHash: BigInt(0) }), label: t.title || String(raw.id) });
+            }
+        } catch (e) {
+            console.error('[AutoMsg] Custom target resolve xato:', e.message);
+        }
+    }
+
+    const seen = new Set();
+    return targets.filter(t => {
+        const k = (t.peer && (t.peer.id != null ? String(t.peer.id) : String(t.peer))) || JSON.stringify(t);
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+    });
+};
+
+const autoMsgTick = async (chatId, bot) => {
+    try {
+        const user = await User.findOne({ where: { chatId } });
+        if (!user || !user.autoMsgEnabled || !user.session || !user.autoMsgIntervalMs || !user.autoMsgSaved) {
+            stopAutoMsgScheduler(chatId);
+            return;
+        }
+        if (!userClients[chatId]) {
+            try {
+                await startUserbot(chatId, bot);
+            } catch (e) {
+                console.error('[AutoMsg] Userbot ulanish xato:', e.message);
+                return;
+            }
+        }
+        const client = userClients[chatId];
+        if (!client) return;
+
+        const interval = Number(user.autoMsgIntervalMs);
+        const lastSent = user.autoMsgLastSentAt ? new Date(user.autoMsgLastSentAt).getTime() : 0;
+        const now = Date.now();
+        if (now - lastSent < interval - 5000) return;
+
+        const targets = await collectAutoMsgTargets(client, user);
+        if (targets.length === 0) {
+            console.log(`[AutoMsg] ${chatId}: hech qanday target topilmadi`);
+            await User.update({ autoMsgLastSentAt: new Date(now) }, { where: { chatId } });
+            return;
+        }
+
+        console.log(`[AutoMsg] ${chatId}: ${targets.length} ta targetga yuborish boshlandi`);
+        let successCount = 0;
+        const errors = [];
+        for (const tg of targets) {
+            try {
+                await sendAutoMsgMessage(client, chatId, tg.peer, user.autoMsgSaved);
+                successCount++;
+            } catch (e) {
+                const msg = `${tg.label}: ${e.message}`;
+                errors.push(msg);
+                console.error(`[AutoMsg] Yuborish xato (${tg.label}):`, e.message);
+            }
+            await new Promise(r => setTimeout(r, 800));
+        }
+
+        await User.update({ autoMsgLastSentAt: new Date() }, { where: { chatId } });
+        console.log(`[AutoMsg] ${chatId}: Yuborildi ${successCount}/${targets.length}. Xatolar: ${errors.length}`);
+
+        if (successCount === 0 && errors.length > 0) {
+            const errSample = errors.slice(0, 3).join('\n');
+            bot.sendMessage(chatId, `⚠️ **Avto Xabar ogohlantirish:**\n\nHamma targetlarga yuborib bo'lmadi.\n\nXatolar:\n${errSample}`, { parse_mode: 'Markdown' }).catch(() => {});
+        }
+    } catch (e) {
+        console.error('[AutoMsg] Tick xato:', e);
+    }
+};
+
+const startAutoMsgScheduler = (chatId, bot) => {
+    stopAutoMsgScheduler(chatId);
+    const chatIdStr = String(chatId);
+    console.log(`[AutoMsg] Scheduler start: ${chatIdStr}`);
+    autoMsgTick(chatId, bot);
+    autoMsgSchedulers[chatIdStr] = setInterval(() => autoMsgTick(chatId, bot), 30000);
+};
+
+const stopAutoMsgScheduler = (chatId) => {
+    const chatIdStr = String(chatId);
+    if (autoMsgSchedulers[chatIdStr]) {
+        clearInterval(autoMsgSchedulers[chatIdStr]);
+        delete autoMsgSchedulers[chatIdStr];
+        console.log(`[AutoMsg] Scheduler stop: ${chatIdStr}`);
+    }
+};
+
+// ============================================================
+// AVTO JAVOB (Auto Reply PM) - NEWMESSAGE LISTENER
+// ============================================================
+const AUTO_REPLY_COOLDOWN_MS = 3 * 60 * 1000; // 3 daqiqa
+const autoReplyLastSent = new Map(); // `${selfId}:${peerId}` -> lastSentMs
+
+const handleAutoReplyOnMessage = async (client, selfId, event, chatId) => {
+    try {
+        const msg = event.message || event;
+        if (!msg || !msg.peerId) return;
+        const peerClass = msg.peerId.className || '';
+
+        // Faqat shaxsiy chatlar uchun (PeerUser)
+        if (peerClass !== 'PeerUser') return;
+        // O'z xabarimizni hisobga olmaslik
+        const fromIdUserId = msg.fromId && msg.fromId.userId ? msg.fromId.userId.toString() : null;
+        const peerUserId = msg.peerId.userId ? msg.peerId.userId.toString() : null;
+        if (fromIdUserId && fromIdUserId === String(selfId)) return;
+        if (peerUserId === String(selfId)) return;
+
+        // Bot xabarlariga javob bermaslik
+        if (msg.viaBotId) return;
+
+        // Servis xabarlarga javob bermaslik
+        if (msg.action) return;
+
+        // Cooldown
+        const key = `${selfId}:${peerUserId}`;
+        const now = Date.now();
+        const last = autoReplyLastSent.get(key) || 0;
+        if (now - last < AUTO_REPLY_COOLDOWN_MS) return;
+
+        // Bazadan foydalanuvchini olish
+        const user = await User.findOne({ where: { chatId: chatId } });
+        if (!user || !user.autoReplyEnabled) return;
+
+        // Premium tekshiruvi - subscriber tekshiruvi kerak emas, avto reply ni premium imkoniyat sifatida ishlatamiz
+        // Faqat tasdiqlangan va bloklanmagan foydalanuvchilar uchun
+        if (user.status !== 'approved' && user.chatId.toString() !== require('../config').adminId.toString()) {
+            return;
+        }
+
+        const textReply = getAUTO_REPLY(user);
+        const entities = user.autoReplyEntities && Array.isArray(user.autoReplyEntities) && user.autoReplyEntities.length > 0
+            ? convertToGramJsEntities(user.autoReplyEntities)
+            : undefined;
+
+        let targetPeer;
+        try {
+            targetPeer = await client.getInputEntity(new Api.InputPeerUser({ userId: BigInt(peerUserId), accessHash: BigInt(0) }));
+        } catch (e) {
+            targetPeer = msg.peerId;
+        }
+
+        await client.sendMessage(targetPeer, {
+            message: textReply,
+            formattingEntities: entities
+        });
+
+        autoReplyLastSent.set(key, now);
+        console.log(`[AutoReply] ${chatId} -> user ${peerUserId}: javob yuborildi`);
+    } catch (e) {
+        console.error('[AutoReply] Xato:', e.message);
+    }
+};
+
 const isUtagGroupEntity = (entity) => {
     if (!entity) return false;
     const cn = entity.className || entity.constructor?.name || '';
@@ -2383,6 +2713,8 @@ const startAutoTag = async (chatId, groupLink, bot, opts = {}) => {
 };
 
 module.exports = { 
-    userClients, avtoAlmazStates, utagStates, reklamaStates, reydSessions, startUserbot, blockExpiredUser,
-    initAuth, handleAuthStep, resendAuthCode, scrapeUsers, startReyd, startReklama, startAutoTag, loadAllStates
+    userClients, avtoAlmazStates, utagStates, reklamaStates, reydSessions, autoMsgSchedulers,
+    startUserbot, blockExpiredUser, initAuth, handleAuthStep, resendAuthCode, scrapeUsers,
+    startReyd, startReklama, startAutoTag, loadAllStates,
+    startAutoMsgScheduler, stopAutoMsgScheduler
 };

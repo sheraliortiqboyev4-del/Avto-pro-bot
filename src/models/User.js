@@ -108,6 +108,45 @@ const User = sequelize.define('User', {
     coinRedemptions: {
         type: DataTypes.INTEGER,
         defaultValue: 0
+    },
+    autoMsgEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
+    },
+    autoMsgIntervalMs: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
+        defaultValue: null
+    },
+    autoMsgDestinations: {
+        type: DataTypes.JSON,
+        defaultValue: []
+    },
+    autoMsgCustomTargets: {
+        type: DataTypes.JSON,
+        defaultValue: []
+    },
+    autoMsgSaved: {
+        type: DataTypes.JSON,
+        defaultValue: null
+    },
+    autoReplyEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
+    },
+    autoReplyMessage: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        defaultValue: null
+    },
+    autoReplyEntities: {
+        type: DataTypes.JSON,
+        defaultValue: null
+    },
+    autoMsgLastSentAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        defaultValue: null
     }
 }, {
     tableName: 'users',

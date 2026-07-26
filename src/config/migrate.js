@@ -7,7 +7,16 @@ const USER_COLUMNS = {
     referralEligible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     referralToken: { type: DataTypes.STRING, allowNull: true },
     referralTokenExpiresAt: { type: DataTypes.DATE, allowNull: true },
-    coinRedemptions: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 }
+    coinRedemptions: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    autoMsgEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    autoMsgIntervalMs: { type: DataTypes.BIGINT, allowNull: true },
+    autoMsgDestinations: { type: DataTypes.JSON, allowNull: true },
+    autoMsgCustomTargets: { type: DataTypes.JSON, allowNull: true },
+    autoMsgSaved: { type: DataTypes.JSON, allowNull: true },
+    autoReplyEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    autoReplyMessage: { type: DataTypes.TEXT, allowNull: true },
+    autoReplyEntities: { type: DataTypes.JSON, allowNull: true },
+    autoMsgLastSentAt: { type: DataTypes.DATE, allowNull: true }
 };
 
 const migrateUsersTable = async () => {

@@ -12,6 +12,8 @@ const {
     SCRAPE_CHAT_REQUEST_ID,
     REYD_CHAT_REQUEST_ID,
     UTAG_CHAT_REQUEST_ID,
+    AUTOMSG_GROUP_REQUEST_ID,
+    AUTOMSG_CHANNEL_REQUEST_ID,
     parseSharedGroup,
     BUTTON_EMOJI_IDS,
     BUTTON_STYLES,
@@ -51,7 +53,7 @@ module.exports = (bot) => {
         if (!state) return;
 
         // 4. Session check for features
-        if (!['WAITING_PHONE', 'WAITING_CODE', 'WAITING_PASSWORD', 'WAITING_TIME', 'WAITING_BROADCAST', 'WAITING_COIN_SET', 'WAITING_COIN_DEDUCT', 'WAITING_REK_USERS'].includes(state.step)) {
+        if (!['WAITING_PHONE', 'WAITING_CODE', 'WAITING_PASSWORD', 'WAITING_TIME', 'WAITING_BROADCAST', 'WAITING_COIN_SET', 'WAITING_COIN_DEDUCT', 'WAITING_REK_USERS', 'WAITING_AUTOMSG_MESSAGE', 'WAITING_AUTOMSG_TARGET', 'WAITING_AUTOREPLY_MSG'].includes(state.step)) {
             const user = await User.findOne({ where: { chatId } });
             if (!user || !user.session) {
                 delete global.userStates[chatId];
@@ -419,6 +421,179 @@ module.exports = (bot) => {
                 memberFilter: utagData.memberFilter || 'all',
                 groupTitle: utagData.groupTitle
             }).catch((err) => bot.sendMessage(chatId, `❌ Xatolik: ${err.message}`));
+            return;
+        }
+
+        // ============================================================
+        // AVTO XABAR
+        // ============================================================
+        if (state.step === 'WAITING_AUTOMSG_MESSAGE') {
+            const savedMessage = {
+                message_id: msg.message_id,
+                from_chat_id: chatId,
+                text: msg.text || msg.caption || null,
+                type: msg.photo ? 'photo' :
+                      msg.video ? 'video' :
+                      msg.audio ? 'audio' :
+                      msg.voice ? 'voice' :
+                      msg.document ? 'document' :
+                      msg.sticker ? 'sticker' :
+                      msg.video_note ? 'video_note' :
+                      msg.animation ? 'animation' :
+                      (msg.location ? 'location' :
+                      (msg.contact ? 'contact' :
+                      (msg.poll ? 'poll' : 'text'))),
+                entities: msg.entities || msg.caption_entities || null,
+                mediaFileId: null
+            };
+            if (msg.photo && msg.photo.length > 0) savedMessage.mediaFileId = msg.photo[msg.photo.length - 1].file_id;
+            else if (msg.video) savedMessage.mediaFileId = msg.video.file_id;
+            else if (msg.audio) savedMessage.mediaFileId = msg.audio.file_id;
+            else if (msg.voice) savedMessage.mediaFileId = msg.voice.file_id;
+            else if (msg.document) savedMessage.mediaFileId = msg.document.file_id;
+            else if (msg.sticker) savedMessage.mediaFileId = msg.sticker.file_id;
+            else if (msg.video_note) savedMessage.mediaFileId = msg.video_note.file_id;
+            else if (msg.animation) savedMessage.mediaFileId = msg.animation.file_id;
+
+            if (msg.caption) savedMessage.text = msg.caption;
+            if (msg.caption_entities) savedMessage.entities = msg.caption_entities;
+
+            await User.update({ autoMsgSaved: savedMessage }, { where: { chatId } });
+            triggerBackup('auto_msg_msg', false);
+            delete global.userStates[chatId];
+
+            const typeLabel = {
+                photo: '🖼 Rasm', video: '🎬 Video', audio: '🎵 Audio', voice: '🎙 Ovozli',
+                document: '📄 Fayl', sticker: '😀 Stiker', video_note: '🎥 Video xabar',
+                animation: '🎞 GIF', location: '📍 Lokatsiya', contact: '📱 Kontakt',
+                poll: '📊 So\'rov', text: '📝 Matn'
+            }[savedMessage.type] || '📝 Matn';
+
+            const { getAutoMessageMenu, msToIntervalLabel, destinationKeyToLabel } = require('../utils/helpers');
+            const user = await User.findOne({ where: { chatId } });
+            const settings = {
+                enabled: !!user.autoMsgEnabled,
+                intervalMs: user.autoMsgIntervalMs ? Number(user.autoMsgIntervalMs) : null,
+                destinations: user.autoMsgDestinations || [],
+                savedMessage
+            };
+            const enabledText = settings.enabled ? '🟢 **Yoqilgan**' : '🔴 **O\'chirilgan**';
+            const intervalText = settings.intervalMs ? msToIntervalLabel(settings.intervalMs) : 'Belgilanmagan';
+            const destText = settings.destinations && settings.destinations.length > 0
+                ? settings.destinations.map(destinationKeyToLabel).join(', ')
+                : 'Belgilanmagan';
+            const textMsg =
+                `✅ **Xabar saqlandi!**\nTuri: ${typeLabel}\n\n` +
+                `🚀 **Avto Xabar**\n\n` +
+                `⚙️ **Holat:** ${enabledText}\n` +
+                `⏰ **Interval:** ${intervalText}\n` +
+                `📍 **Qayerga:** ${destText}\n` +
+                `📝 **Xabar:** ✅ Yuklangan`;
+            await bot.sendMessage(chatId, textMsg, { parse_mode: 'Markdown', ...getAutoMessageMenu(settings) });
+            return;
+        }
+
+        if (state.step === 'WAITING_AUTOMSG_TARGET') {
+            const { AUTOMSG_GROUP_REQUEST_ID, AUTOMSG_CHANNEL_REQUEST_ID } = require('../utils/helpers');
+            let targetId = null;
+            let targetTitle = null;
+            let targetType = null;
+
+            if (msg.chat_shared) {
+                if (msg.chat_shared.request_id === AUTOMSG_GROUP_REQUEST_ID) {
+                    const s = parseSharedGroup(msg.chat_shared);
+                    targetId = s.id;
+                    targetTitle = s.title;
+                    targetType = 'group';
+                } else if (msg.chat_shared.request_id === AUTOMSG_CHANNEL_REQUEST_ID) {
+                    targetId = String(msg.chat_shared.chat_id);
+                    targetTitle = msg.chat_shared.title || 'Kanal';
+                    targetType = 'channel';
+                }
+            } else if (text) {
+                const normalized = normalizeTelegramUrl(text);
+                if (normalized) {
+                    const m = normalized.match(/t\.me\/(.+)/);
+                    targetId = m ? ('@' + m[1]) : text.trim();
+                } else {
+                    targetId = text.trim();
+                }
+                if (/^-?\d+$/.test(targetId)) targetType = String(targetId).startsWith('-100') ? 'channel' : 'group';
+                else if (targetId.startsWith('@') || /^https?:\/\//.test(targetId)) targetType = 'any';
+                else targetType = 'any';
+                targetTitle = targetId;
+            }
+
+            if (!targetId) {
+                return bot.sendMessage(chatId, "❌ Noto'g'ri kiriting. Username/link yoki ID raqam yuboring:", {
+                    ...removeKeyboardMarkup()
+                });
+            }
+
+            const user = await User.findOne({ where: { chatId } });
+            const targets = (user.autoMsgCustomTargets || []).filter(t => t && t.id !== targetId);
+            targets.push({ id: targetId, title: targetTitle || targetId, type: targetType || 'any' });
+            await User.update({ autoMsgCustomTargets: targets.slice(-50) }, { where: { chatId } });
+            triggerBackup('auto_msg_target', false);
+            delete global.userStates[chatId];
+
+            const { getAutoMessageMenu, msToIntervalLabel, destinationKeyToLabel } = require('../utils/helpers');
+            const u = await User.findOne({ where: { chatId } });
+            const settings = {
+                enabled: !!u.autoMsgEnabled,
+                intervalMs: u.autoMsgIntervalMs ? Number(u.autoMsgIntervalMs) : null,
+                destinations: u.autoMsgDestinations || [],
+                customTargets: targets,
+                savedMessage: u.autoMsgSaved || null
+            };
+            const enabledText = settings.enabled ? '🟢 **Yoqilgan**' : '🔴 **O\'chirilgan**';
+            const intervalText = settings.intervalMs ? msToIntervalLabel(settings.intervalMs) : 'Belgilanmagan';
+            const destText = settings.destinations && settings.destinations.length > 0
+                ? settings.destinations.map(destinationKeyToLabel).join(', ')
+                : 'Belgilanmagan';
+            const hasMsg = settings.savedMessage && Object.keys(settings.savedMessage).length > 0;
+            const customCount = (targets || []).length;
+            const outText =
+                `✅ **Qo'shildi:** ${targetTitle || targetId}\n\n` +
+                `🚀 **Avto Xabar**\n\n` +
+                `⚙️ **Holat:** ${enabledText}\n` +
+                `⏰ **Interval:** ${intervalText}\n` +
+                `📍 **Qayerga:** ${destText}\n` +
+                (customCount > 0 ? `🔗 **Qo'shimcha joylar:** ${customCount} ta\n` : '') +
+                `📝 **Xabar:** ${hasMsg ? '✅ Yuklangan' : '❌ Yuklanmagan'}`;
+            await bot.sendMessage(chatId, outText, {
+                parse_mode: 'Markdown',
+                ...removeKeyboardMarkup(),
+                ...getAutoMessageMenu(settings)
+            });
+            return;
+        }
+
+        // ============================================================
+        // AVTO JAVOB
+        // ============================================================
+        if (state.step === 'WAITING_AUTOREPLY_MSG') {
+            const replyText = msg.text || msg.caption || '';
+            if (!replyText || !replyText.trim()) {
+                return bot.sendMessage(chatId, "❌ Hech qanday matn topilmadi. Qaytadan yuboring:");
+            }
+            const entities = msg.entities || msg.caption_entities || null;
+            await User.update({ autoReplyMessage: replyText, autoReplyEntities: entities }, { where: { chatId } });
+            triggerBackup('auto_reply_msg', false);
+            delete global.userStates[chatId];
+
+            const { getAutoReplyMenu } = require('../utils/helpers');
+            const user = await User.findOne({ where: { chatId } });
+            const text =
+                `✅ **Avto Javob matni saqlandi:**\n\n` +
+                `${replyText.length > 300 ? replyText.slice(0, 300) + '...' : replyText}\n\n` +
+                `💬 **Avto Javob**\n\n` +
+                `⚙️ **Holat:** ${user.autoReplyEnabled ? '🟢 Yoqilgan' : '🔴 O\'chirilgan'}`;
+            await bot.sendMessage(chatId, text, {
+                parse_mode: 'Markdown',
+                ...removeKeyboardMarkup(),
+                ...getAutoReplyMenu({ enabled: !!user.autoReplyEnabled, customMessage: replyText })
+            });
             return;
         }
     });

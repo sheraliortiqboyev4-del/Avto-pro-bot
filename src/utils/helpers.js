@@ -65,13 +65,15 @@ const BUTTON_EMOJI_IDS = {
     almaz: '5427168083074628963',   // 💎
     utag: '5471901288448924312',     // 🏷
     user: '5255883984151276991',     // 👤
-    reyd: '5377725257081696849',     // ⚔️
+    reyd: '5377725257081696849',     // ⚔️ (eski reyd - endi Avto Xabar ichida)
     reklama: '5305548297312675223',  // 📣
     bonus: '5305687351173849819',    // 🎁
     logout: '5305737159909581647',   // 🔄
     profile: '5305587785241992785',  // 📊
     admin: '5431650332419563627',    // 👨‍💻
     help: '5366068097365066701',     // 🧾
+    autoMsg: '5445284980978621387',  // 🚀 (Avto Xabar)
+    autoReply: '5470060791883374114', // ✍️ (Avto Javob)
     
     // Umumiy
     back: '5352759161945867747',     // ◀️
@@ -86,6 +88,11 @@ const BUTTON_EMOJI_IDS = {
     custom: '5305557136355370145',   // ✍️
     share: '5305733135525224451',    // 👥 (Do'stlarga ulashish)
     stars: '5346309121794659890',
+    edit: '5402377703640800862',     // 💳 (Tahrirlash)
+    clock: '4904882772637648609',    // ⏰ (Vaqt)
+    chat: '5471960722206366390',     // 📱 (Chat)
+    group: '5305733135525224451',    // 👥 (Guruh)
+    channel: '5424818078833715060',  // 📢 (Kanal)
     
     // Rejim/status
     on: '5416081784641168838',       // 🟢
@@ -555,9 +562,12 @@ function getMainMenu(chatId) {
                 ],
                 [
                     { text: "Avto User", callback_data: "menu_avtouser", icon_custom_emoji_id: BUTTON_EMOJI_IDS.user , style: BUTTON_STYLES.primary}, 
-                    { text: "Avto Reyd", callback_data: "menu_reyd", icon_custom_emoji_id: BUTTON_EMOJI_IDS.reyd , style: BUTTON_STYLES.primary}
+                    { text: "Avto Xabar", callback_data: "menu_automessage", icon_custom_emoji_id: BUTTON_EMOJI_IDS.autoMsg , style: BUTTON_STYLES.primary}
                 ],
-                [{ text: "Avto Reklama", callback_data: "menu_reklama", icon_custom_emoji_id: BUTTON_EMOJI_IDS.reklama , style: BUTTON_STYLES.primary}],
+                [
+                    { text: "Avto Reklama", callback_data: "menu_reklama", icon_custom_emoji_id: BUTTON_EMOJI_IDS.reklama , style: BUTTON_STYLES.primary},
+                    { text: "Avto Javob", callback_data: "menu_autoreply", icon_custom_emoji_id: BUTTON_EMOJI_IDS.autoReply , style: BUTTON_STYLES.primary}
+                ],
                 [{ text: "Bonus", callback_data: "menu_bonus", icon_custom_emoji_id: BUTTON_EMOJI_IDS.bonus, style: BUTTON_STYLES.primary }],
                 [
                     { text: "Logout", callback_data: "menu_logout", icon_custom_emoji_id: BUTTON_EMOJI_IDS.logout, style: BUTTON_STYLES.danger }, 
@@ -676,7 +686,226 @@ function getReydMenu(accountsCount = 0) {
                 [{ text: "Reyd boshlash", callback_data: "reyd_start", icon_custom_emoji_id: BUTTON_EMOJI_IDS.start, style: BUTTON_STYLES.primary }],
                 [{ text: `Akkaunt qo'shish (${accountsCount}/10)`, callback_data: "reyd_add_acc", icon_custom_emoji_id: BUTTON_EMOJI_IDS.add, style: BUTTON_STYLES.success }],
                 [{ text: "Akkauntlarni tozalash", callback_data: "reyd_clear_acc", icon_custom_emoji_id: BUTTON_EMOJI_IDS.remove, style: BUTTON_STYLES.danger }],
-                [{ text: "Orqaga", callback_data: "menu_back_main", icon_custom_emoji_id: BUTTON_EMOJI_IDS.back , style: BUTTON_STYLES.primary  }]
+                [{ text: "Orqaga", callback_data: "menu_automessage", icon_custom_emoji_id: BUTTON_EMOJI_IDS.back , style: BUTTON_STYLES.primary  }]
+            ]
+        }
+    };
+}
+
+const AUTO_MSG_INTERVALS = [
+    { label: '5 Daqiqa', minutes: 5, id: '5m' },
+    { label: '10 Daqiqa', minutes: 10, id: '10m' },
+    { label: '30 Daqiqa', minutes: 30, id: '30m' },
+    { label: '1 Soat', minutes: 60, id: '1h' },
+    { label: '3 Soat', minutes: 180, id: '3h' },
+    { label: '12 Soat', minutes: 720, id: '12h' },
+    { label: '24 Soat', minutes: 1440, id: '24h' },
+];
+
+const AUTO_MSG_DESTINATIONS = [
+    { label: 'Shaxsiy Chat', key: 'chat', id: 'dst_chat', icon: 'chat' },
+    { label: 'Guruhlar', key: 'group', id: 'dst_group', icon: 'group' },
+    { label: 'Kanallar', key: 'channel', id: 'dst_channel', icon: 'channel' },
+    { label: 'Barchasi', key: 'all', id: 'dst_all', icon: 'stars' },
+];
+
+function intervalToMs(intervalId) {
+    const found = AUTO_MSG_INTERVALS.find(x => x.id === intervalId);
+    if (found) return found.minutes * 60 * 1000;
+    const n = parseInt(intervalId, 10);
+    if (n > 0) return n * 60 * 1000;
+    return 10 * 60 * 1000;
+}
+
+function msToIntervalLabel(ms) {
+    const mins = Math.round(ms / 60000);
+    const found = AUTO_MSG_INTERVALS.find(x => x.minutes === mins);
+    if (found) return found.label;
+    if (mins < 60) return `${mins} Daqiqa`;
+    return `${Math.round(mins / 60)} Soat`;
+}
+
+function destinationKeyToLabel(key) {
+    const found = AUTO_MSG_DESTINATIONS.find(d => d.key === key);
+    return found ? found.label : (key || 'Belgilanmagan');
+}
+
+function getAutoMessageMenu(settings = {}) {
+    const enabled = !!settings.enabled;
+    const hasMessage = settings.savedMessage && Object.keys(settings.savedMessage).length > 0;
+    const intervalLabel = settings.intervalMs ? msToIntervalLabel(settings.intervalMs) : 'Belgilanmagan';
+    const destLabel = settings.destinations && settings.destinations.length > 0
+        ? settings.destinations.map(destinationKeyToLabel).join(', ')
+        : 'Belgilanmagan';
+    const status = enabled ? '🟢 Yoqilgan' : '🔴 O\'chirilgan';
+
+    return {
+        reply_markup: {
+            inline_keyboard: [
+                [{
+                    text: enabled ? 'O\'chirish' : 'Yoqish',
+                    callback_data: enabled ? 'automsg_off' : 'automsg_on',
+                    icon_custom_emoji_id: enabled ? BUTTON_EMOJI_IDS.off : BUTTON_EMOJI_IDS.on,
+                    style: enabled ? BUTTON_STYLES.danger : BUTTON_STYLES.success
+                }],
+                [{
+                    text: hasMessage ? '✏️ Xabarni tahrirlash' : '✍️ Xabar yuborish (yuklash)',
+                    callback_data: 'automsg_set_message',
+                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.edit,
+                    style: BUTTON_STYLES.primary
+                }],
+                [{
+                    text: `⏰ Interval: ${intervalLabel}`,
+                    callback_data: 'automsg_set_interval',
+                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.clock,
+                    style: BUTTON_STYLES.primary
+                }],
+                [{
+                    text: `📍 Qayerga: ${destLabel}`,
+                    callback_data: 'automsg_set_dest',
+                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.settings,
+                    style: BUTTON_STYLES.primary
+                }],
+                [{
+                    text: '➕ Qo\'shimcha guruh/kanal qo\'shish',
+                    callback_data: 'automsg_add_target',
+                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.add,
+                    style: BUTTON_STYLES.success
+                }],
+                [{
+                    text: '⚔️ Reyd (tez xabar)',
+                    callback_data: 'menu_reyd',
+                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.reyd,
+                    style: BUTTON_STYLES.primary
+                }],
+                [{
+                    text: 'Orqaga',
+                    callback_data: 'menu_back_main',
+                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.back,
+                    style: BUTTON_STYLES.primary
+                }]
+            ]
+        }
+    };
+}
+
+function getAutoMsgIntervalKeyboard() {
+    const buttons = AUTO_MSG_INTERVALS.map(it => [{
+        text: it.label,
+        callback_data: `automsg_interval_${it.id}`,
+        icon_custom_emoji_id: BUTTON_EMOJI_IDS.clock,
+        style: BUTTON_STYLES.primary
+    }]);
+    buttons.push([{
+        text: 'Orqaga',
+        callback_data: 'menu_automessage',
+        icon_custom_emoji_id: BUTTON_EMOJI_IDS.back,
+        style: BUTTON_STYLES.primary
+    }]);
+    return { reply_markup: { inline_keyboard: buttons } };
+}
+
+function getAutoMsgDestKeyboard(selected = []) {
+    const buttons = AUTO_MSG_DESTINATIONS.map(d => {
+        const isSel = selected.includes(d.key);
+        return [{
+            text: `${isSel ? '✅ ' : ''}${d.label}`,
+            callback_data: `automsg_dest_${d.key}`,
+            icon_custom_emoji_id: BUTTON_EMOJI_IDS[d.icon] || BUTTON_EMOJI_IDS.chat,
+            style: isSel ? BUTTON_STYLES.success : BUTTON_STYLES.primary
+        }];
+    });
+    buttons.push([{
+        text: 'Saqlash',
+        callback_data: 'automsg_dest_save',
+        icon_custom_emoji_id: BUTTON_EMOJI_IDS.check,
+        style: BUTTON_STYLES.success
+    }]);
+    buttons.push([{
+        text: 'Orqaga',
+        callback_data: 'menu_automessage',
+        icon_custom_emoji_id: BUTTON_EMOJI_IDS.back,
+        style: BUTTON_STYLES.primary
+    }]);
+    return { reply_markup: { inline_keyboard: buttons } };
+}
+
+function getAutoMsgGroupPickerKeyboard() {
+    return {
+        keyboard: [
+            [{
+                text: 'Guruh',
+                icon_custom_emoji_id: BUTTON_EMOJI_IDS.group,
+                style: BUTTON_STYLES.success,
+                request_chat: {
+                    request_id: AUTOMSG_GROUP_REQUEST_ID,
+                    chat_is_channel: false,
+                    chat_is_forum: false,
+                    bot_is_member: false
+                }
+            }],
+            [{
+                text: 'Kanal',
+                icon_custom_emoji_id: BUTTON_EMOJI_IDS.channel,
+                style: BUTTON_STYLES.success,
+                request_chat: {
+                    request_id: AUTOMSG_CHANNEL_REQUEST_ID,
+                    chat_is_channel: true,
+                    bot_is_member: false
+                }
+            }],
+            [{
+                text: 'Username / Link',
+                icon_custom_emoji_id: BUTTON_EMOJI_IDS.share,
+                style: BUTTON_STYLES.primary
+            }]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+        is_persistent: false
+    };
+}
+
+function getAutoReplyMenu(settings = {}) {
+    const enabled = !!settings.enabled;
+    const hasCustom = settings.customMessage && settings.customMessage.trim().length > 0;
+    const msgPreview = hasCustom
+        ? (settings.customMessage.length > 30 ? settings.customMessage.slice(0, 30) + '...' : settings.customMessage)
+        : 'Default: Men hozir online emasman. Tez orada javob beraman.';
+    const status = enabled ? '🟢 Yoqilgan' : '🔴 O\'chirilgan';
+    return {
+        reply_markup: {
+            inline_keyboard: [
+                [{
+                    text: enabled ? 'O\'chirish' : 'Yoqish',
+                    callback_data: enabled ? 'autoreply_off' : 'autoreply_on',
+                    icon_custom_emoji_id: enabled ? BUTTON_EMOJI_IDS.off : BUTTON_EMOJI_IDS.on,
+                    style: enabled ? BUTTON_STYLES.danger : BUTTON_STYLES.success
+                }],
+                [{
+                    text: hasCustom ? '✏️ Javob matnini o\'zgartirish' : '✍️ O\'z javob matnini yozish',
+                    callback_data: 'autoreply_set_msg',
+                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.edit,
+                    style: BUTTON_STYLES.primary
+                }],
+                [{
+                    text: '🔄 Default matnga qaytarish',
+                    callback_data: 'autoreply_default',
+                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.settings,
+                    style: BUTTON_STYLES.primary
+                }],
+                [{
+                    text: `📄 Hozirgi: ${msgPreview}`,
+                    callback_data: 'autoreply_preview',
+                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.history,
+                    style: BUTTON_STYLES.primary
+                }],
+                [{
+                    text: 'Orqaga',
+                    callback_data: 'menu_back_main',
+                    icon_custom_emoji_id: BUTTON_EMOJI_IDS.back,
+                    style: BUTTON_STYLES.primary
+                }]
             ]
         }
     };
@@ -759,6 +988,8 @@ function getAdminCoinKeyboard(targetId) {
 const SCRAPE_CHAT_REQUEST_ID = 1;
 const REYD_CHAT_REQUEST_ID = 2;
 const UTAG_CHAT_REQUEST_ID = 3;
+const AUTOMSG_GROUP_REQUEST_ID = 4;
+const AUTOMSG_CHANNEL_REQUEST_ID = 5;
 
 function getGroupPickerKeyboard(requestId) {
     return {
@@ -896,6 +1127,16 @@ module.exports = {
     getUtagModeKeyboard,
     getReklamaMenu,
     getReydMenu,
+    getAutoMessageMenu,
+    getAutoMsgIntervalKeyboard,
+    getAutoMsgDestKeyboard,
+    getAutoMsgGroupPickerKeyboard,
+    getAutoReplyMenu,
+    intervalToMs,
+    msToIntervalLabel,
+    destinationKeyToLabel,
+    AUTO_MSG_INTERVALS,
+    AUTO_MSG_DESTINATIONS,
     getAdminMenu,
     getBonusCoinRow,
     getPendingPaymentKeyboard,
@@ -909,6 +1150,8 @@ module.exports = {
     SCRAPE_CHAT_REQUEST_ID,
     REYD_CHAT_REQUEST_ID,
     UTAG_CHAT_REQUEST_ID,
+    AUTOMSG_GROUP_REQUEST_ID,
+    AUTOMSG_CHANNEL_REQUEST_ID,
     isUserAdmin,
     EMOJI_MAP,
     UTAG_EMOJI_MAP,
