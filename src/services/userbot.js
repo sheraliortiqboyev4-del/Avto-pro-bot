@@ -2350,18 +2350,12 @@ const sendAutoMsgMessage = async (client, chatId, targetPeer, savedMsg) => {
 
 const collectAutoMsgTargets = async (client, user) => {
     const targets = []; // { peer, label, key }
-    const dests = (user.autoMsgDestinations || []).map(d => String(d).toLowerCase());
-    const includesAll = dests.includes('all');
-
-    const wantsChat = includesAll || dests.includes('chat');
-    const wantsGroup = includesAll || dests.includes('group');
-    // KANALLAR BUTUNLAY OLIB TASHLANDI: hech qachon channelga yuborilmaydi
 
     // ======================================
-    // 1) TANLANGAN GURUHLAR (selectedGroups) → YAGONA PRIORITETLI MANBA
+    // 1) TANLANGAN GURUHLAR (selectedGroups)
     // ======================================
     const selGroups = Array.isArray(user.autoMsgSelectedGroups) ? user.autoMsgSelectedGroups : [];
-    if (wantsGroup && selGroups.length > 0) {
+    if (selGroups.length > 0) {
         for (const g of selGroups) {
             try {
                 const gid = String(g.id || '').trim();
@@ -2388,10 +2382,10 @@ const collectAutoMsgTargets = async (client, user) => {
     }
 
     // ======================================
-    // 2) TANLANGAN CHATLAR (selectedChats) → YAGONA PRIORITETLI MANBA
+    // 2) TANLANGAN CHATLAR (selectedChats)
     // ======================================
     const selChats = Array.isArray(user.autoMsgSelectedChats) ? user.autoMsgSelectedChats : [];
-    if (wantsChat && selChats.length > 0) {
+    if (selChats.length > 0) {
         for (const c of selChats) {
             try {
                 const cid = String(c.id || '').trim();
@@ -2416,42 +2410,7 @@ const collectAutoMsgTargets = async (client, user) => {
     }
 
     // ======================================
-    // 3) Fallback: AGAR TANLANGAN BO'LMASA → eski dialogs usuli (kanallar olib tashlandi)
-    // ======================================
-    if (targets.length === 0 && (wantsChat || wantsGroup)) {
-        try {
-            const dialogs = await client.getDialogs({ limit: 300 });
-            for (const d of dialogs || []) {
-                try {
-                    const e = d.entity || d.chat;
-                    if (!e) continue;
-                    const className = e.className || (e.broadcast ? 'Channel' : (e.megagroup ? 'Channel' : 'Chat'));
-                    const isUser = className === 'User' || (!e.broadcast && !e.megagroup && e.firstName != null);
-                    const isChannel = className === 'Channel' && e.broadcast === true;
-                    const isGroup = (className === 'Chat') || (className === 'Channel' && e.megagroup === true);
-
-                    if (isChannel) continue; // KANALLARNI BUTUNLAYMIZ
-                    if (isUser && (e.bot || e.self || e.deleted)) continue;
-
-                    if (e.id) {
-                        const eidStr = String(e.id);
-                        const etitle = isUser ? (e.username || (e.firstName || '')) : (e.title || '');
-                    }
-
-                    if (wantsChat && isUser) {
-                        targets.push({ peer: e, label: e.username || (e.firstName || 'User'), key: `fb_u_${e.id}` });
-                    } else if (wantsGroup && isGroup) {
-                        targets.push({ peer: e, label: e.title || 'Group', key: `fb_g_${e.id}` });
-                    }
-                } catch (ee) {}
-            }
-        } catch (e) {
-            console.error('[AutoMsg] Dialogs fallback xato:', e.message);
-        }
-    }
-
-    // ======================================
-    // 4) Custom targets — kanallarni o'tkazib yubor
+    // 3) Custom targets (qo'shimcha joylar)
     // ======================================
     const customs = user.autoMsgCustomTargets || [];
     for (const t of customs) {
@@ -2632,7 +2591,7 @@ const stopAutoMsgScheduler = (chatId) => {
 // ============================================================
 // AVTO JAVOB (Auto Reply PM) - NEWMESSAGE LISTENER
 // ============================================================
-const AUTO_REPLY_COOLDOWN_MS = 3 * 60 * 1000; // 3 daqiqa
+const AUTO_REPLY_COOLDOWN_MS = 60 * 60 * 1000; // 1 soat
 const autoReplyLastSent = new Map(); // `${selfId}:${peerId}` -> lastSentMs
 
 const handleAutoReplyOnMessage = async (client, selfId, event, chatId) => {
@@ -2680,11 +2639,23 @@ const handleAutoReplyOnMessage = async (client, selfId, event, chatId) => {
 
         // Bot xabarlariga javob bermaslik (via_bot_id bor)
         if (msg.viaBotId) return;
-        // Agar yuboruvchi userning ID'si bot bo'lsa (1_000_000 dan kichik yoki bot flag) — tashlab ket
         if (msg.fromId && msg.fromId.className === 'PeerUser') {
+            // 1-usul: msg.sender orqali tekshirish
             try {
                 const senderEnt = msg.sender || null;
                 if (senderEnt && senderEnt.bot) return;
+            } catch (_) {}
+            // 2-usul: sender entityni getEntity bilan olib tekshirish (ancha ishonchli)
+            try {
+                const uid = msg.fromId.userId;
+                if (uid != null) {
+                    let fullEnt = null;
+                    try { fullEnt = msg.sender || null; } catch (_) {}
+                    if (!fullEnt) {
+                        try { fullEnt = await client.getEntity(msg.fromId); } catch (_) {}
+                    }
+                    if (fullEnt && fullEnt.bot === true) return;
+                }
             } catch (_) {}
         }
 

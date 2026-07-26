@@ -953,15 +953,7 @@ function getAutoMsgDestKeyboard(selected = [], settings = {}) {
     const selGrCount = Array.isArray(settings?.selectedGroups) ? settings.selectedGroups.length : 0;
     const selChCount = Array.isArray(settings?.selectedChats) ? settings.selectedChats.length : 0;
     
-    const buttons = AUTO_MSG_DESTINATIONS.map(d => {
-        const isSel = selected.includes(d.key);
-        return [{
-            text: `${isSel ? '✅ ' : ''}${d.label}`,
-            callback_data: `automsg_dest_${d.key}`,
-            icon_custom_emoji_id: BUTTON_EMOJI_IDS[d.icon] || BUTTON_EMOJI_IDS.chat,
-            style: isSel ? BUTTON_STYLES.success : BUTTON_STYLES.primary
-        }];
-    });
+    const buttons = [];
     
     buttons.push([{
         text: `👥 Guruxlarni tanlash (${selGrCount} ta)`,

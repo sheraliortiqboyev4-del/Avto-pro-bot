@@ -906,12 +906,11 @@ module.exports = (bot) => {
                 if (!user.autoMsgIntervalMs) {
                     return await safeAnswer({ text: "❌ Avval intervalni belgilang!", show_alert: true });
                 }
-                const hasDestinations = (user.autoMsgDestinations && user.autoMsgDestinations.length > 0);
                 const hasCustom = (user.autoMsgCustomTargets && user.autoMsgCustomTargets.length > 0);
                 const hasSelectedGroups = (user.autoMsgSelectedGroups && user.autoMsgSelectedGroups.length > 0);
                 const hasSelectedChats = (user.autoMsgSelectedChats && user.autoMsgSelectedChats.length > 0);
-                if (!hasDestinations && !hasCustom && !hasSelectedGroups && !hasSelectedChats) {
-                    return await safeAnswer({ text: "❌ Avval qayerga yuborishni belgilang (guruh/chat tanlang yoki destination qo'shing)!", show_alert: true });
+                if (!hasCustom && !hasSelectedGroups && !hasSelectedChats) {
+                    return await safeAnswer({ text: "❌ Avval \"📍 Qayerga\" menyusiga kirib kamida bitta guruh yoki chatni tanlang!", show_alert: true });
                 }
             }
             await User.update({ autoMsgEnabled: enabled }, { where: { chatId } });
@@ -1001,67 +1000,55 @@ module.exports = (bot) => {
 
         if (data === "automsg_set_dest") {
             const { getAutoMsgDestKeyboard } = require('../utils/helpers');
-            const selected = user.autoMsgDestinations || [];
             const currentSettings = {
                 selectedGroups: user.autoMsgSelectedGroups || [],
                 selectedChats: user.autoMsgSelectedChats || []
             };
-            const text = "📍 **Qayerga yuborilsin?**\n\nTurini tanlang (bir nechta tanlash mumkin), keyin \"👥 Guruxlarni tanlash\" yoki \"💬 Chatlarni tanlash\" orqali aniq guruh/chatlarni belgilang:";
-            if (!global._autoMsgDestSelected) global._autoMsgDestSelected = {};
-            global._autoMsgDestSelected[chatId] = [...selected];
+            const selGrCount = currentSettings.selectedGroups.length;
+            const selChCount = currentSettings.selectedChats.length;
+            const text = `📍 **Qayerga yuborilsin?**\n\nQuyidagi tugmalar orqali xabar yuborilishi kerak bo'lgan guruh va chatlarni tanlang:\n\n• 👥 Guruxlarni tanlash: ${selGrCount} ta tanlangan\n• 💬 Chatlarni tanlash: ${selChCount} ta tanlangan`;
             try {
-                await safeEdit(chatId, messageId, text, { parse_mode: 'Markdown', ...getAutoMsgDestKeyboard(global._autoMsgDestSelected[chatId], currentSettings) });
+                await safeEdit(chatId, messageId, text, { parse_mode: 'Markdown', ...getAutoMsgDestKeyboard([], currentSettings) });
             } catch (e) {
-                await bot.sendMessage(chatId, text, { parse_mode: 'Markdown', ...getAutoMsgDestKeyboard(global._autoMsgDestSelected[chatId], currentSettings) });
+                await bot.sendMessage(chatId, text, { parse_mode: 'Markdown', ...getAutoMsgDestKeyboard([], currentSettings) });
             }
             return await safeAnswer();
         }
 
         if (data.startsWith("automsg_dest_")) {
             if (data === "automsg_dest_save") {
-                const sel = global._autoMsgDestSelected && global._autoMsgDestSelected[chatId] ? global._autoMsgDestSelected[chatId] : [];
-                await User.update({ autoMsgDestinations: sel }, { where: { chatId } });
-                triggerBackup('auto_msg_dest', false);
-                delete (global._autoMsgDestSelected || {})[chatId];
                 await safeAnswer({ text: '✅ Saqlandi', show_alert: true });
                 const { getAutoMessageMenu, msToIntervalLabel, destinationKeyToLabel } = require('../utils/helpers');
                 const settings = {
                     enabled: !!user.autoMsgEnabled,
                     intervalMs: user.autoMsgIntervalMs ? Number(user.autoMsgIntervalMs) : null,
-                    destinations: sel,
+                    destinations: user.autoMsgDestinations || [],
                     savedMessage: user.autoMsgSaved || null,
                     selectedGroups: user.autoMsgSelectedGroups || [],
                     selectedChats: user.autoMsgSelectedChats || []
                 };
                 const enabledText = settings.enabled ? '🟢 **Yoqilgan**' : '🔴 **O\'chirilgan**';
                 const intervalText = settings.intervalMs ? msToIntervalLabel(settings.intervalMs) : 'Belgilanmagan';
-                const destText = settings.destinations && settings.destinations.length > 0
-                    ? settings.destinations.map(destinationKeyToLabel).join(', ')
+                const destText = settings.selectedGroups.length > 0 || settings.selectedChats.length > 0
+                    ? `👥${settings.selectedGroups.length} 💬${settings.selectedChats.length}`
                     : 'Belgilanmagan';
                 const hasMsg = settings.savedMessage && Object.keys(settings.savedMessage).length > 0;
-                const text =
+                const selGrCount = settings.selectedGroups.length;
+                const selChCount = settings.selectedChats.length;
+                const outDestText = (selGrCount > 0 || selChCount > 0)
+                    ? `Tanlangan: 👥${selGrCount} ta guruh, 💬${selChCount} ta chat`
+                    : 'Belgilanmagan';
+                const menuText =
                     `🚀 **Avto Xabar**\n\n` +
                     `⚙️ **Holat:** ${enabledText}\n` +
                     `⏰ **Interval:** ${intervalText}\n` +
-                    `📍 **Qayerga:** ${destText}\n` +
+                    `📍 **Qayerga:** ${outDestText}\n` +
                     `📝 **Xabar:** ${hasMsg ? '✅ Yuklangan' : '❌ Yuklanmagan'}`;
-                try { await safeEdit(chatId, messageId, text, { parse_mode: 'Markdown', ...getAutoMessageMenu(settings) }); } catch (e) {}
+                try { await safeEdit(chatId, messageId, menuText, { parse_mode: 'Markdown', ...getAutoMessageMenu(settings) }); } catch (e) {}
                 return;
             }
-            if (!global._autoMsgDestSelected) global._autoMsgDestSelected = {};
-            if (!global._autoMsgDestSelected[chatId]) global._autoMsgDestSelected[chatId] = [...(user.autoMsgDestinations || [])];
-            const key = data.replace("automsg_dest_", "");
-            const list = global._autoMsgDestSelected[chatId];
-            const idx = list.indexOf(key);
-            if (idx >= 0) list.splice(idx, 1); else list.push(key);
-            await safeAnswer();
-            const { getAutoMsgDestKeyboard } = require('../utils/helpers');
-            const currentSettings = {
-                selectedGroups: user.autoMsgSelectedGroups || [],
-                selectedChats: user.autoMsgSelectedChats || []
-            };
-            try { await safeEdit(chatId, messageId, null, { ...getAutoMsgDestKeyboard(list, currentSettings) }, true); } catch (e) {}
-            return;
+            // Old destination toggle handlers keraksiz — checkboxlar olib tashlandi
+            return await safeAnswer();
         }
 
         if (data === "automsg_add_target") {
